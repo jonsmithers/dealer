@@ -161,6 +161,17 @@ final class DeckView: FlippedView {
 
     required init?(coder: NSCoder) { fatalError() }
 
+    /// A deck that appears (new tab strip, promote, fold back) fades in rather than popping.
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        guard superview != nil, window != nil else { return }
+        alphaValue = 0
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = Theme.Motion.standard
+            animator().alphaValue = 1
+        }
+    }
+
     /// True when the window has several decks and each shows its identity color.
     var showsColor = false { didSet { if showsColor != oldValue { strip.reload() } } }
 
