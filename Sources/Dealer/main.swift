@@ -103,6 +103,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .separator(),
             item("Split Right", #selector(TerminalWindowController.splitRight(_:)), "d"),
             item("Split Down", #selector(TerminalWindowController.splitDown(_:)), "d", [.command, .shift]),
+            item("New Agent Pane", #selector(TerminalWindowController.newAgentPane(_:)), "a", [.command, .option]),
+            item("New Agent Pane in Worktree", #selector(TerminalWindowController.newAgentPaneInWorktree(_:)), "a", [.command, .option, .shift]),
             .separator(),
             item("Rename Tab…", #selector(TerminalWindowController.renameCurrentTab(_:))),
             item("Close Pane", #selector(TerminalWindowController.closePane(_:)), "w"),

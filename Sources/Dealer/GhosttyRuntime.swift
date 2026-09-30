@@ -139,8 +139,21 @@ final class GhosttyRuntime {
 
         case GHOSTTY_ACTION_PWD:
             guard let p = action.action.pwd.pwd else { return false }
-            view.pwd = String(cString: p)
-            return true
+            let pwd = String(cString: p)
+            guard pwd != view.pwd else { return true }
+            view.pwd = pwd
+            // The pane status line shows the cwd and git branch.
+            return run { $0.refreshChrome() }
+
+        case GHOSTTY_ACTION_PROGRESS_REPORT:
+            // OSC 9;4. Agents such as Claude Code report progress while they work: "running".
+            let active = action.action.progress_report.state != GHOSTTY_PROGRESS_STATE_REMOVE
+                && action.action.progress_report.state != GHOSTTY_PROGRESS_STATE_ERROR
+            return run { wc in
+                guard let pane = view.pane, pane.isReportingProgress != active else { return }
+                pane.isReportingProgress = active
+                wc.refreshChrome()
+            }
 
         case GHOSTTY_ACTION_MOUSE_SHAPE:
             view.setCursorShape(action.action.mouse_shape)

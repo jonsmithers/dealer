@@ -174,6 +174,8 @@ final class Pane {
     var shellTitle: String?
     /// Set by bells, desktop notifications and `dealer notify`; cleared on focus. See Attention.swift.
     var attention: Attention = .none
+    /// The program is reporting progress (OSC 9;4), e.g. an agent working. See AgentStatus.swift.
+    var isReportingProgress = false
 
     var title: String {
         if let t = shellTitle, !t.isEmpty { return t }

@@ -55,6 +55,7 @@ final class PaneView: FlippedView {
 
     func refreshTitle() {
         bar.title = pane?.title ?? ""
+        bar.status = pane?.statusLine ?? ""  // AgentStatus.swift
         updateAttentionRing()  // Attention.swift
     }
 
@@ -90,6 +91,8 @@ final class PaneBarView: FlippedView {
     var title = "" { didSet { if title != oldValue { needsDisplay = true } } }
     var accent: NSColor = Theme.accentNeutral { didSet { needsDisplay = true } }
     var isFocusedPane = false { didSet { if isFocusedPane != oldValue { needsDisplay = true } } }
+    /// Right-aligned agent state, cwd and branch (AgentStatus.swift).
+    var status = "" { didSet { if status != oldValue { needsDisplay = true } } }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -119,7 +122,8 @@ final class PaneBarView: FlippedView {
             .paragraphStyle: para,
         ]
         let h = ceil(font.ascender - font.descender)
-        (title as NSString).draw(in: CGRect(x: 26, y: (bounds.height - h) / 2, width: bounds.width - 34, height: h), withAttributes: attrs)
+        let statusWidth = drawStatus(font: font, height: h)
+        (title as NSString).draw(in: CGRect(x: 26, y: (bounds.height - h) / 2, width: bounds.width - 34 - statusWidth, height: h), withAttributes: attrs)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -233,6 +237,7 @@ final class TabStripView: FlippedView {
             b.isActive = i == deck.activeIndex
             b.accent = showsColor ? deck.color : nil
             b.attention = tab.attention
+            b.toolTip = tab.focusTarget?.statusLine  // AgentStatus.swift
         }
         needsLayout = true
     }

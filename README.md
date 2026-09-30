@@ -41,6 +41,7 @@ terminfo are borrowed from `/Applications/Ghostty.app` when it's installed.
 | ⌃⌘= | Equalize splits |
 | ⌘N | New window |
 | ⌘⇧U | Jump to the next pane that needs attention |
+| ⌥⌘A / ⌥⇧⌘A | New agent pane / in a new git worktree |
 
 Double-click a tab to rename it; middle-click or hover × to close it.
 
@@ -99,6 +100,21 @@ Inside Dealer panes, `dealer` is on `PATH` because Ghostty appends the app's bin
 Codex and other agents work the same way through their own hook or notify settings. Anything
 that prints an OSC 9 notification (`printf '\e]9;done\a'`) also works with no setup.
 
+### Status and agent panes
+
+The pane bar shows the pane's status on the right: agent state, cwd and git branch, e.g.
+`waiting · ~/git/dealer · main`. The tab's tooltip shows the same line. The states are:
+- **running**: the program is reporting progress with OSC 9;4. Claude Code does this while it works.
+- **waiting** / **done**: from attention.
+
+The branch is read from `.git/HEAD`, and worktrees work too.
+
+**Shell > New Agent Pane** (⌥⌘A) splits the focused pane and starts an agent in the new pane.
+**New Agent Pane in Worktree** (⌥⇧⌘A) first runs `git worktree add -b agent-N` into
+`<repo>.worktrees/agent-N` and starts the agent there. The command is `claude` by default.
+Change it with `defaults write dev.smithers.dealer agentCommand 'codex'` or `DEALER_AGENT_COMMAND`.
+It is typed into the pane's shell, so you're back at a prompt when the agent exits.
+
 ## Session restore
 
 Quitting saves the full window → deck → tab → pane tree (sizes, working directories,
@@ -124,4 +140,6 @@ and asserts the tree after each step.
 - `DragController.swift` – pane/tab drag & drop targets
 - `Views.swift` – deck, tab strip, pane bar, dividers, overlays
 - `Session.swift` – save/restore
+- `AgentStatus.swift` – pane status line (agent state, cwd, git branch)
+- `AgentLaunch.swift` – New Agent Pane presets
 - `Attention.swift` – per-pane attention (bell/OSC/agent), badges, jump to next unread, macOS notifications
