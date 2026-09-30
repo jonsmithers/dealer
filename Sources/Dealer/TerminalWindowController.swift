@@ -658,7 +658,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
                 }
             }
         }
-        window?.title = focusedPane?.title ?? "MyTerm"
+        window?.title = focusedPane?.title ?? "Dealer"
     }
 
     private func updateSelectionHighlight() {

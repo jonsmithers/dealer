@@ -1,13 +1,18 @@
 import AppKit
 
-/// `MYTERM_SELFTEST=1` replays the walkthrough from the Panes and Decks design through the
+/// `DEALER_SELFTEST=1` replays the walkthrough from the Panes and Decks design through the
 /// controller, asserting the resulting tree after every step. Set it to `quit` to exit afterwards.
 /// Session files are neither read nor written in this mode.
 enum SelfTest {
-    static var enabled: Bool { ProcessInfo.processInfo.environment["MYTERM_SELFTEST"] != nil }
-    static var quitWhenDone: Bool { ProcessInfo.processInfo.environment["MYTERM_SELFTEST"] == "quit" }
+    /// Reads `DEALER_<name>`, falling back to the pre-rename `MYTERM_<name>`.
+    static func env(_ name: String) -> String? {
+        let e = ProcessInfo.processInfo.environment
+        return e["DEALER_" + name] ?? e["MYTERM_" + name]
+    }
+    static var enabled: Bool { env("SELFTEST") != nil }
+    static var quitWhenDone: Bool { env("SELFTEST") == "quit" }
     static var stepDelay: TimeInterval {
-        Double(ProcessInfo.processInfo.environment["MYTERM_SELFTEST_DELAY"] ?? "") ?? 0.6
+        Double(env("SELFTEST_DELAY") ?? "") ?? 0.6
     }
 }
 

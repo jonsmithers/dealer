@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "MyTerm",
+    name: "Dealer",
     platforms: [.macOS(.v14)],
     targets: [
         .binaryTarget(name: "GhosttyKit", path: "vendor/GhosttyKit.xcframework"),
         .executableTarget(
-            name: "MyTerm",
+            name: "Dealer",
             dependencies: ["GhosttyKit"],
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [

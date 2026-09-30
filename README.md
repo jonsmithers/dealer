@@ -1,4 +1,4 @@
-# MyTerm
+# Dealer
 
 A small macOS terminal built on **libghostty** (Ghostty's embedding API) and Swift/AppKit,
 implementing the *Panes and Decks* layout model:
@@ -17,8 +17,8 @@ A **pane** is owned by a tab. A **deck** owns tabs. Splitting always makes panes
 
 ```sh
 scripts/build-ghosttykit.sh      # builds GhosttyKit.xcframework from ~/git/ghostty (zig 0.15) into vendor/
-scripts/bundle.sh                # swift build + wraps build/MyTerm.app
-open build/MyTerm.app
+scripts/bundle.sh                # swift build + wraps build/Dealer.app
+open build/Dealer.app
 ```
 
 Your normal Ghostty config (`~/.config/ghostty/config`) is loaded, and shell integration /
@@ -59,13 +59,13 @@ or drag a tab:
 ## Session restore
 
 Quitting saves the full window → deck → tab → pane tree (sizes, working directories,
-tab names, focus) to `~/Library/Application Support/MyTerm/session.json`; the next launch
+tab names, focus) to `~/Library/Application Support/Dealer/session.json`; the next launch
 restores it. Closing the last window by hand starts fresh next time.
 
 ## Self-test
 
 ```sh
-swift build && MYTERM_SELFTEST=quit .build/debug/MyTerm
+swift build && DEALER_SELFTEST=quit .build/debug/Dealer
 ```
 
 Replays the design's walkthrough (tabs, panes, rearranging, decks, deep promote, fold,

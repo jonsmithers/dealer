@@ -36,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         terminating = true
         guard GhosttyRuntime.shared.needsConfirmQuit else { return .terminateNow }
         let alert = NSAlert()
-        alert.messageText = "Quit MyTerm?"
+        alert.messageText = "Quit Dealer?"
         alert.informativeText = "Processes are still running. Your layout will be restored next time."
         alert.addButton(withTitle: "Quit")
         alert.addButton(withTitle: "Cancel")
@@ -85,13 +85,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         func arrow(_ c: Int) -> String { String(Character(UnicodeScalar(c)!)) }
 
-        submenu("MyTerm", [
-            item("About MyTerm", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
+        submenu("Dealer", [
+            item("About Dealer", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
             .separator(),
-            item("Hide MyTerm", #selector(NSApplication.hide(_:)), "h"),
+            item("Hide Dealer", #selector(NSApplication.hide(_:)), "h"),
             item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
             .separator(),
-            item("Quit MyTerm", #selector(NSApplication.terminate(_:)), "q"),
+            item("Quit Dealer", #selector(NSApplication.terminate(_:)), "q"),
         ])
 
         submenu("Shell", [
