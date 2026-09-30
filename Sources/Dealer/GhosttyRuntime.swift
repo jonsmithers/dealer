@@ -151,9 +151,33 @@ final class GhosttyRuntime {
             NSCursor.setHiddenUntilMouseMoves(!visible)
             return true
 
+        // Attention sources (see Attention.swift). Each marks the pane unless the user is looking at it.
         case GHOSTTY_ACTION_RING_BELL:
             NSSound.beep()
-            return true
+            return run { wc in
+                guard let pane = view.pane else { return }
+                wc.setAttention(.unread, on: pane, raiseOnly: true)
+            }
+
+        case GHOSTTY_ACTION_DESKTOP_NOTIFICATION:
+            // OSC 9 / OSC 99 / OSC 777.
+            let n = action.action.desktop_notification
+            let title = n.title.map { String(cString: $0) }
+            let body = n.body.map { String(cString: $0) }
+            return run { wc in
+                guard let pane = view.pane else { return }
+                wc.setAttention(.unread, on: pane, raiseOnly: true, title: title, body: body)
+            }
+
+        case GHOSTTY_ACTION_COMMAND_FINISHED:
+            // Needs shell integration. Only long-running commands are worth a badge.
+            let f = action.action.command_finished
+            guard f.duration >= 10_000_000_000 else { return false }
+            let body = f.exit_code >= 0 ? "Exited with status \(f.exit_code)" : nil
+            return run { wc in
+                guard let pane = view.pane else { return }
+                wc.setAttention(.unread, on: pane, raiseOnly: true, title: "Command finished", body: body)
+            }
 
         case GHOSTTY_ACTION_NEW_TAB:
             return run { $0.newTab(nil) }

@@ -4,10 +4,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static let shared = AppDelegate()
 
     private var controllers: [TerminalWindowController] = []
+    /// Open windows, for code that spans them (control socket, jump to next unread).
+    var windowControllers: [TerminalWindowController] { controllers }
     private var terminating = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         GhosttyRuntime.shared.start()
+        AttentionNotifier.shared.start()
         NSApp.mainMenu = makeMenu()
 
         if SelfTest.enabled {
@@ -132,6 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .separator(),
             item("Next Tab", #selector(TerminalWindowController.nextTab(_:)), "]", [.command, .shift]),
             item("Previous Tab", #selector(TerminalWindowController.previousTab(_:)), "[", [.command, .shift]),
+            item("Jump to Next Unread", #selector(TerminalWindowController.jumpToNextUnread(_:)), "u", [.command, .shift]),
             .separator(),
         ]
         for n in 1...9 {

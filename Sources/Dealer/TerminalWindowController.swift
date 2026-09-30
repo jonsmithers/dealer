@@ -564,6 +564,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         let changed = loc.workspace.focusedPane !== pane
         loc.workspace.focusedPane = pane
         loc.tab.lastFocused = pane
+        pane.attention = .none  // Attention.swift: focusing a pane reads it.
         if changed && loc.workspace.selection != nil {
             loc.workspace.selection = nil
             updateSelectionHighlight()

@@ -22,7 +22,8 @@ final class SurfaceView: NSView, NSTextInputClient {
         return Unmanaged<SurfaceView>.fromOpaque(ud).takeUnretainedValue()
     }
 
-    init(workingDirectory: String?) {
+    /// `env` is added to the child process environment (e.g. DEALER_PANE_ID).
+    init(workingDirectory: String?, env: [String: String] = [:]) {
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         pwd = workingDirectory
 
@@ -33,8 +34,17 @@ final class SurfaceView: NSView, NSTextInputClient {
         cfg.scale_factor = Double(NSScreen.main?.backingScaleFactor ?? 2)
         cfg.context = GHOSTTY_SURFACE_CONTEXT_SPLIT
 
+        // ghostty copies these during ghostty_surface_new, so they only need to outlive the call.
+        let cEnv = env.map { (strdup($0.key), strdup($0.value)) }
+        defer { cEnv.forEach { free($0.0); free($0.1) } }
+        var envVars = cEnv.map { ghostty_env_var_s(key: $0.0, value: $0.1) }
+        cfg.env_var_count = envVars.count
+
         let make: () -> ghostty_surface_t? = { [self] in
-            ghostty_surface_new(GhosttyRuntime.shared.app, &cfg)
+            envVars.withUnsafeMutableBufferPointer { buf in
+                cfg.env_vars = buf.count > 0 ? buf.baseAddress : nil
+                return ghostty_surface_new(GhosttyRuntime.shared.app, &cfg)
+            }
         }
         if let wd = workingDirectory, FileManager.default.fileExists(atPath: wd) {
             surface = wd.withCString { p in

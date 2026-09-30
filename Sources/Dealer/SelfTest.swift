@@ -205,6 +205,9 @@ extension TerminalWindowController {
             return ok ? nil : "restored shape differs"
         }) {}
 
+        // Attention and jump to next unread (#4): SelfTestAttention.swift.
+        steps += attentionSelfTestSteps(pane: p).map { s in (s.title, s.run, nil, s.check) }
+
         var failures = 0
         func run(_ i: Int) {
             guard i < steps.count else {

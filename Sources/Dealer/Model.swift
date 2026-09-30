@@ -162,9 +162,18 @@ final class Node<Leaf: AnyObject> {
 // MARK: - Panes, tabs, decks
 
 final class Pane {
+    /// Process-unique, exported to the shell as DEALER_PANE_ID for the control socket.
+    let id: Int
+    private static var nextID = 1
+    /// Environment added to each pane's shell. The control socket (#5) adds DEALER_SOCKET here.
+    static func childEnvironment(_ id: Int) -> [String: String] {
+        ["DEALER_PANE_ID": String(id)]
+    }
     let surface: SurfaceView
     let view: PaneView
     var shellTitle: String?
+    /// Set by bells, desktop notifications and `dealer notify`; cleared on focus. See Attention.swift.
+    var attention: Attention = .none
 
     var title: String {
         if let t = shellTitle, !t.isEmpty { return t }
@@ -173,7 +182,9 @@ final class Pane {
     }
 
     init(workingDirectory: String?) {
-        surface = SurfaceView(workingDirectory: workingDirectory)
+        id = Pane.nextID
+        Pane.nextID += 1
+        surface = SurfaceView(workingDirectory: workingDirectory, env: Pane.childEnvironment(id))
         view = PaneView()
         surface.pane = self
         view.pane = self
