@@ -41,10 +41,16 @@ enum Theme {
     /// Accent for single-deck windows, where deck colors aren't shown.
     static var accentNeutral: NSColor { foreground.mixed(with: chrome, 0.35) }
 
-    /// Agent attention (#4): needs input.
-    static let attentionWaiting = NSColor(srgbRed: 0xf2 / 255, green: 0xb3 / 255, blue: 0x4a / 255, alpha: 1)
-    /// Agent attention (#4): finished / unread output.
-    static let attentionDone = NSColor(srgbRed: 0x6c / 255, green: 0xa8 / 255, blue: 0xff / 255, alpha: 1)
+    /// Agent attention (#4, #7): needs input. The accent-blue outline on pane, tab and workspace.
+    /// Two shades keep ≥ 4.9:1 contrast against the chrome: #5AA2FF on dark (6.3:1 on the default
+    /// dark chrome) and #0B62D6 on light (4.9:1 on white-derived chrome).
+    static var attentionWaiting: NSColor {
+        isDark ? NSColor(srgbRed: 0x5a / 255, green: 0xa2 / 255, blue: 0xff / 255, alpha: 1)
+               : NSColor(srgbRed: 0x0b / 255, green: 0x62 / 255, blue: 0xd6 / 255, alpha: 1)
+    }
+    /// Agent attention (#4, #7): finished / unread output. Deliberately quiet: a neutral dot only,
+    /// so it never competes with the waiting blue.
+    static var attentionDone: NSColor { textMuted }
 
     /// Deck identity colors, used for accents when a window has more than one deck.
     static let deckColors: [NSColor] = [

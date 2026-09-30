@@ -33,6 +33,9 @@ enum Attention: Int, Comparable, CaseIterable {
         }
     }
 
+    /// Only `waiting` gets outlines (pane ring, tab and workspace outline); the rest get a dot.
+    var outlined: Bool { self == .waiting }
+
     /// Badge/ring colour, or nil for none.
     var color: NSColor? {
         switch self {
@@ -176,12 +179,12 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
 extension PaneView {
     private static let ringName = "dealer.attentionRing"
 
-    /// A coloured ring over the whole pane while it wants attention. Its own layer, above the
+    /// An accent ring over the whole pane while an agent in it is waiting (#7; done/unread get no ring). Its own layer, above the
     /// Metal surface, so it doesn't fight the pane's focus styling.
     func updateAttentionRing() {
         guard let layer else { return }
         let existing = layer.sublayers?.first { $0.name == Self.ringName }
-        guard let color = pane?.attention.color else {
+        guard let a = pane?.attention, a.outlined, let color = a.color else {
             existing?.removeFromSuperlayer()
             return
         }
@@ -206,9 +209,35 @@ extension TabButton {
     /// Where the badge sits: the close button's slot, which only shows on hover.
     var attentionDotRect: CGRect { CGRect(x: bounds.width - 17, y: (bounds.height - 8) / 2, width: 8, height: 8) }
 
+    /// The outline stays while hovering; only the dot gives way to the close button.
     func drawAttentionDot(hidden: Bool) {
-        guard !hidden, let color = attention.color else { return }
-        color.setFill()
-        NSBezierPath(ovalIn: attentionDotRect).fill()
+        AttentionStyle.draw(attention, in: bounds, cornerRadius: Theme.Metrics.tabRadius, dotRect: hidden ? nil : attentionDotRect)
+    }
+}
+
+/// The one look for attention on chrome (tabs, workspace pills and sidebar rows), #7.
+/// - waiting: a 1.5pt accent-blue outline on the element's outer edge, a faint blue tint and a blue dot;
+/// - done / unread: a muted dot only;
+/// - none: nothing.
+/// Call it last in `draw(_:)`, so the outline sits on top of the element's own fill.
+enum AttentionStyle {
+    static let outlineWidth: CGFloat = 1.5
+
+    static func draw(_ attention: Attention, in rect: CGRect, cornerRadius: CGFloat, dotRect: CGRect?) {
+        guard let color = attention.color else { return }
+        if attention.outlined {
+            let inset = rect.insetBy(dx: outlineWidth / 2, dy: outlineWidth / 2)
+            let r = max(cornerRadius - outlineWidth / 2, 0)
+            let path = NSBezierPath(roundedRect: inset, xRadius: r, yRadius: r)
+            color.withAlphaComponent(0.10).setFill()
+            path.fill()
+            color.setStroke()
+            path.lineWidth = outlineWidth
+            path.stroke()
+        }
+        if let dotRect {
+            color.setFill()
+            NSBezierPath(ovalIn: dotRect).fill()
+        }
     }
 }

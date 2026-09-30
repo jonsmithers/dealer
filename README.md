@@ -91,9 +91,11 @@ or drag a tab:
 
 ## Attention (coding agents)
 
-A pane that wants you gets a coloured ring, and its tab gets a dot. Amber means an agent is
-waiting for input; blue means something finished or rang. The dot also shows on the deck's
-tab strip and the workspace. Focusing the pane clears it. **⌘⇧U** (Window > Jump to Next
+When an agent is **waiting** for input, its pane gets an accent-blue ring. The tab and the
+workspace containing it get a blue outline and a blue dot, so you can see where you're needed
+from anywhere. **Done** and **unread** (something finished or rang) are deliberately quieter:
+a muted grey dot on the tab and workspace, with no ring or outline. The blue is a lighter shade
+on dark ghostty themes and a deeper one on light themes. Focusing the pane clears all of it. **⌘⇧U** (Window > Jump to Next
 Unread) goes to the most urgent pane in any window. When Dealer isn't the key window, it
 also posts a macOS notification (bundled app only), and clicking it focuses the pane.
 

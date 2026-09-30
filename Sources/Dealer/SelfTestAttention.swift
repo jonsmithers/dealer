@@ -24,6 +24,20 @@ extension TerminalWindowController {
         func ring(_ n: String) -> Bool {
             p(n).view.layer?.sublayers?.contains { $0.name == "dealer.attentionRing" } ?? false
         }
+        func tabButton(_ n: String) -> NSView? {
+            let d = deck(n)
+            guard let i = d.index(of: tab(n)), d.view.strip.buttons.indices.contains(i) else { return nil }
+            return d.view.strip.buttons[i]
+        }
+        /// #7: renders the view and checks that the middle of its top edge is the waiting blue.
+        func outlined(_ v: NSView?) -> Bool {
+            guard let v, v.bounds.width > 4, let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { return false }
+            v.cacheDisplay(in: v.bounds, to: rep)
+            guard let px = rep.colorAt(x: rep.pixelsWide / 2, y: 1)?.usingColorSpace(.sRGB),
+                  let want = Theme.attentionWaiting.usingColorSpace(.sRGB) else { return false }
+            return abs(px.redComponent - want.redComponent) < 0.15 && abs(px.greenComponent - want.greenComponent) < 0.15
+                && abs(px.blueComponent - want.blueComponent) < 0.15
+        }
 
         step("a bell in a background tab badges the pane, its tab and its deck", check: {
             expect([("srv", p("srv").attention, .unread), ("srv's tab", tab("srv").attention, .unread),
@@ -31,7 +45,8 @@ extension TerminalWindowController {
                     ("tests", p("tests").attention, .none),
                     ("tests' tab", tab("tests").attention, .none), ("srv's tab badge", badge("srv"), .unread),
                     ("tests' tab badge", badge("tests"), .none)])
-                ?? (ring("srv") ? nil : "srv should have a ring")
+                ?? (ring("srv") ? "unread gets no pane ring (#7)" : nil)
+                ?? (outlined(tabButton("srv")) ? "unread tab should get a dot, not an outline" : nil)
         }) {
             home = self.focusedPane
             self.setAttention(.unread, on: p("srv"), raiseOnly: true)
@@ -39,6 +54,8 @@ extension TerminalWindowController {
         step("waiting beats unread, and a later bell doesn't downgrade it", check: {
             expect([("log2", p("log2").attention, .waiting), ("log2's tab", tab("log2").attention, .waiting),
                     ("deck", deck("log2").attention, .waiting), ("log2's tab badge", badge("log2"), .waiting)])
+                ?? (ring("log2") ? nil : "waiting pane should have a ring")
+                ?? (outlined(tabButton("log2")) ? nil : "waiting pane's tab should have a blue outline")
         }) {
             self.setAttention(.waiting, on: p("log2"))
             self.setAttention(.unread, on: p("log2"), raiseOnly: true)
@@ -48,6 +65,7 @@ extension TerminalWindowController {
             return expect([("log2", p("log2").attention, .none), ("log2's tab", tab("log2").attention, .none),
                            ("deck", deck("log2").attention, .unread), ("log2's tab badge", badge("log2"), .none)])
                 ?? (ring("log2") ? "log2's ring should be gone" : nil)
+                ?? (outlined(tabButton("log2")) ? "log2's tab outline should be gone" : nil)
         }) { self.jumpToNextUnread(nil) }
         step("jump again reaches the unread pane in the other tab", check: {
             guard self.focusedPane === p("srv") else { return "expected focus on srv" }
@@ -75,6 +93,8 @@ extension TerminalWindowController {
         step("a pane in a background workspace badges it", check: {
             guard self.workspaces.count == 2, self.activeWorkspace === ws2 else { return "expected a second, active workspace" }
             return expect([("workspace 1", self.workspaces[0].attention, .waiting), ("workspace 2", ws2!.attention, .none)])
+                ?? (outlined(self.workspaceSidebar.row(at: 0)) ? nil : "workspace 1's row should have a blue outline")
+                ?? (outlined(self.workspaceSidebar.row(at: 1)) ? "workspace 2's row should have no outline" : nil)
         }) {
             self.setAttention(.waiting, on: p("srv"))
             ws2 = self.newWorkspace()
@@ -83,6 +103,8 @@ extension TerminalWindowController {
             guard self.activeWorkspace === self.workspaces.first else { return "should be back in workspace 1" }
             guard self.focusedPane === p("srv") else { return "expected focus on srv" }
             return expect([("srv", p("srv").attention, .none), ("workspace 1", self.workspaces[0].attention, .none)])
+                ?? (outlined(self.workspaceSidebar.row(at: 0)) ? "workspace 1's outline should clear on focus" : nil)
+                ?? (ring("srv") ? "srv's ring should clear on focus" : nil)
         }) { self.jumpToNextUnread(nil) }
         step("clean up the extra workspace", check: {
             self.workspaces.count == 1 ? nil : "expected one workspace"

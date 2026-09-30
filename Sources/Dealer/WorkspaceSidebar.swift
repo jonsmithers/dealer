@@ -183,10 +183,11 @@ final class WorkspaceRow: FlippedView {
             (detail as NSString).draw(in: CGRect(x: x, y: titleY + titleH + 1, width: max(bounds.width - Self.padding - x, 0), height: detailH),
                                       withAttributes: detailAttrs)
         }
-        if dot, let color = attention.color {
-            color.setFill()
+        if dot {
+            // #7: waiting outlines the whole row; done/unread get a muted dot only (Attention.swift).
             let d = Self.dotSize
-            NSBezierPath(ovalIn: CGRect(x: bounds.width - Self.padding - d, y: titleY + (titleH - d) / 2, width: d, height: d)).fill()
+            AttentionStyle.draw(attention, in: bounds, cornerRadius: Theme.Metrics.tabRadius,
+                                dotRect: CGRect(x: bounds.width - Self.padding - d, y: titleY + (titleH - d) / 2, width: d, height: d))
         }
     }
 

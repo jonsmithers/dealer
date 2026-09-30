@@ -130,6 +130,12 @@
 - Tab/deck/workspace attention is computed (max over children), never stored; badges pick it up
   from `refreshChrome()`. The ring is a sublayer named `dealer.attentionRing`, and the self-test
   finds it by that name.
+- Look (#7): only `waiting` is outlined (`Attention.outlined`). That means the pane ring plus an outline on the tab and
+  workspace entry, in `Theme.attentionWaiting` (adaptive blue). `done`/`unread` are a muted dot
+  only (`Theme.attentionDone` = `textMuted`). Chrome elements draw attention only through
+  `AttentionStyle.draw(_:in:cornerRadius:dotRect:)`, called last in `draw(_:)` so the outline
+  sits on the element's outer edge. The self-test renders the view with `cacheDisplay` and
+  samples the top edge's centre pixel, so don't inset the outline or draw it in a sublayer.
 - "running" is `Pane.isReportingProgress` (OSC 9;4 from `GHOSTTY_ACTION_PROGRESS_REPORT`), not a
   process check; attention outranks it in `agentState`. `GitInfo.lookup` is main-thread only and
   caches for 3s; it reads `.git/HEAD` (following a worktree's `gitdir:` file) with no subprocess.
