@@ -225,6 +225,7 @@ extension TerminalWindowController {
                               name: { names[ObjectIdentifier($0)] ?? $0.title })
         workspaceSelfTestSteps(kit)
         sidebarSelfTestSteps(kit)
+        switcherSelfTestSteps(kit)
         cliSelfTestSteps(kit)
 
         var failures = 0

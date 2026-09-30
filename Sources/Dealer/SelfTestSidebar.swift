@@ -11,7 +11,7 @@ extension TerminalWindowController {
 
     /// Presses on `view`, drags to `to` (window coordinates) and releases, through `window.sendEvent`.
     func dragForTest(_ view: NSView, to: CGPoint) {
-        guard let window else { return }
+        guard let window, !view.isHiddenOrHasHiddenAncestor else { return }
         let from = view.convert(CGPoint(x: view.bounds.midX, y: view.bounds.midY), to: nil)
         let mid = CGPoint(x: (from.x + to.x) / 2, y: (from.y + to.y) / 2)
         let events: [(NSEvent.EventType, CGPoint)] = [(.leftMouseDown, from), (.leftMouseDragged, mid), (.leftMouseDragged, to), (.leftMouseUp, to)]

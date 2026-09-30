@@ -132,10 +132,10 @@ final class DragController {
         let area = controller.deckArea
         let single = controller.decks.count == 1 && (controller.decks.first?.tabs.count ?? 0) == 1
 
-        // Over the workspace sidebar: move into that workspace (checked before the left edge band).
-        let sb = controller.workspaceSidebar
-        if !sb.isHidden, sb.frame.contains(p) {
-            guard let hit = sb.dropTarget(at: sb.convert(p, from: view)) else { return (nil, nil) }
+        // Over the workspace sidebar or top-bar pills: move into that workspace (checked before the
+        // edge bands, since both lie outside the deck area).
+        if let sw = controller.visibleWorkspaceSwitchers.first(where: { $0.frame.contains(p) }) {
+            guard let hit = sw.dropTarget(at: sw.convert(p, from: view)) else { return (nil, nil) }
             if let ws = hit.workspace, ws === sourceWorkspace(source) { return (nil, nil) }
             return (.workspace(hit.workspace), nil)
         }
@@ -215,8 +215,10 @@ final class DragController {
             case .bottom: return CGRect(x: area.minX, y: area.maxY - area.height * f, width: area.width, height: area.height * f)
             }
         case let .workspace(ws):
-            let sb = controller.workspaceSidebar
-            return sb.rect(for: ws).map { sb.convert($0, to: view) }
+            for sw in controller.visibleWorkspaceSwitchers {
+                if let r = sw.rect(for: ws) { return sw.convert(r, to: view) }
+            }
+            return nil
         case .tabStrip:
             return nil
         }

@@ -61,7 +61,7 @@
   also sets `GHOSTTY_RESOURCES_DIR` from `/Applications/Ghostty.app` so shell integration and
   terminfo work.
 
-## Workspaces (`Workspace.swift`, `WorkspaceSidebar.swift`)
+## Workspaces (`Workspace.swift`, `WorkspaceSidebar.swift`, `WorkspaceBar.swift`, `WorkspaceSwitcher.swift`)
 
 - Moves into another workspace follow the usual order: detach, then `place(tab:in:)` /
   `place(deck:in:)`, then `finishChange`. A move to a new workspace inserts an empty
@@ -79,6 +79,24 @@
   decode. Don't persist the automatic value as an explicit one.
 - DragController checks the sidebar before the left-edge promote band (the sidebar lies left of
   `deckArea`); dropping on the source's own workspace is no target.
+- There are two switchers, chosen by `Settings.workspaceSwitcher` (#8): the sidebar (default) or
+  `WorkspaceBarView` pills in the titlebar row. `isSidebarVisible` is false in top mode *without*
+  touching `sidebarPreference`, so switching back restores each window's choice. Never clear or
+  rewrite `sidebarPreference` on a mode change. `layoutWorkspaceBar()` runs from
+  `layoutWorkspaceSidebar()`; the toggle is hidden and ⌃⌘S disabled in top mode.
+- Both switchers conform to `WorkspaceDropTargets`; DragController asks
+  `visibleWorkspaceSwitchers`, before the edge bands (the pills lie in the titlebar row, which is
+  otherwise the top-edge promote band). A new switcher style only needs to conform.
+- Both draw attention only through `AttentionStyle.draw` (#7 owns the look), called last in `draw`.
+
+## Settings (`Settings.swift`)
+
+- All user settings go through `Settings` (UserDefaults today; #10 swaps in a TOML file), and
+  nothing else reads those keys. Setters post `Settings.didChange`; each window observes it
+  (`observeSettings()` in `init`) and re-lays out, so changes apply live without touching surfaces.
+- In self-test mode `Settings` keeps values in memory, so a test can flip a setting without writing
+  the user's preferences. (`agentCommand` in AgentLaunch.swift still reads UserDefaults directly;
+  move it here when #10 lands.)
 
 - `session.json` stores `workspaces` + `activeWorkspace` per window. The optional `root` field
   exists only to read pre-workspace files (`WindowSnapshot.allWorkspaces` migrates them); keep it
@@ -86,7 +104,9 @@
 - `layoutWorkspaceSidebar()` must call `layoutSubtreeIfNeeded()` after `reload()`. `reload()` runs
   inside the window's layout pass, so its `needsLayout` is dropped and the rows keep zero frames.
   The sidebar then draws nothing, but the self-test still passes.
-- Test hooks: `WorkspaceSidebarView.row(at:)` and `addRow`. The self-test clicks and drags rows
+- Test hooks: `WorkspaceSidebarView.row(at:)` / `addRow` and `WorkspaceBarView.button(at:)` /
+  `addButton`. `clickForTest`/`dragForTest` refuse hidden views: a click on a hidden target lands on
+  whatever is below (a pane bar starts DragController's modal loop and the self-test hangs). The self-test clicks and drags rows
   through `window.sendEvent` (row reorder is plain mouseDown/Dragged/Up on `WorkspaceRow`, which the
   window routes to the pressed view), and runs DragController's real tracking loop by
   `window.postEvent`-queuing the drag and release before calling `drag.begin` (`SelfTestSidebar.swift`).

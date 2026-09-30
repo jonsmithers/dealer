@@ -219,6 +219,12 @@ extension TerminalWindowController {
             return workspaces[i] !== activeWorkspace
         case #selector(toggleSidebar(_:)):
             item.title = isSidebarVisible ? "Hide Workspace Sidebar" : "Show Workspace Sidebar"
+            return WorkspaceSwitcher.style == .sidebar
+        case #selector(useSidebarSwitcher(_:)):
+            item.state = WorkspaceSwitcher.style == .sidebar ? .on : .off
+            return true
+        case #selector(useTopBarSwitcher(_:)):
+            item.state = WorkspaceSwitcher.style == .top ? .on : .off
             return true
         case #selector(nextWorkspace(_:)), #selector(previousWorkspace(_:)):
             return workspaces.count > 1

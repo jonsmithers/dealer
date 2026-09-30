@@ -291,9 +291,13 @@ final class SidebarToggleButton: FlippedView {
 
 extension TerminalWindowController {
     /// Shown when the user said so, otherwise automatically once the window has 2+ workspaces.
-    var isSidebarVisible: Bool { sidebarPreference ?? (workspaces.count > 1) }
+    /// Never in top-bar mode (#8), which leaves `sidebarPreference` alone for when it's switched back.
+    var isSidebarVisible: Bool {
+        WorkspaceSwitcher.style == .sidebar && (sidebarPreference ?? (workspaces.count > 1))
+    }
 
     @objc func toggleSidebar(_ sender: Any?) {
+        guard WorkspaceSwitcher.style == .sidebar else { return NSSound.beep() }
         sidebarPreference = !isSidebarVisible
         layoutNow()
         refreshChrome()
@@ -307,6 +311,7 @@ extension TerminalWindowController {
         if toggle.superview !== contentView { contentView.addSubview(toggle) }
         toggle.frame = CGRect(x: 78, y: ((area.minY - 22) / 2).rounded(), width: 28, height: 22)
         toggle.isOn = isSidebarVisible
+        toggle.isHidden = WorkspaceSwitcher.style != .sidebar
 
         let sb = workspaceSidebar
         if sb.superview !== contentView { contentView.addSubview(sb) }
@@ -315,5 +320,6 @@ extension TerminalWindowController {
         sb.reload()
         // reload() runs inside the window's layout pass, where its needsLayout would be dropped.
         sb.layoutSubtreeIfNeeded()
+        layoutWorkspaceBar()
     }
 }

@@ -23,7 +23,9 @@ extension TerminalWindowController {
 
     /// Sends a real left click through the window's event routing (titlebar included).
     func clickForTest(_ view: NSView) {
-        guard let window else { return }
+        // A hidden target would send the click to whatever is underneath (e.g. a pane bar, whose drag
+        // loop then waits forever for a mouse-up), so don't click at all.
+        guard let window, !view.isHiddenOrHasHiddenAncestor else { return }
         let p = view.convert(CGPoint(x: view.bounds.midX, y: view.bounds.midY), to: nil)
         for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
             if let e = NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,

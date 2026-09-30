@@ -61,7 +61,7 @@ colors from your Ghostty theme (background/foreground, `unfocused-split-*`, `spl
 | ⌃1…⌃9 | Go to workspace N |
 | ⌃⌘N / ⌃⌘W | New / close workspace |
 | ⌃⌘] / ⌃⌘[ | Next / previous workspace |
-| ⌃⌘S | Show / hide the workspace sidebar |
+| ⌃⌘S | Show / hide the workspace sidebar (sidebar mode only) |
 | ⌘⇧U | Jump to the next pane that needs attention |
 | ⌥⌘A / ⌥⇧⌘A | New agent pane / in a new git worktree |
 
@@ -74,6 +74,14 @@ It shows by itself once a window has two workspaces; the toggle right of the tra
 ⌃⌘S) hides or shows it, and that choice is remembered per window. The Workspace menu also moves
 the focused pane, tab or deck to another workspace or a new one, and reorders workspaces.
 
+To put the switcher in the top bar instead, as numbered pills right of the traffic lights, pick
+**Workspace › Workspace Switcher › In Top Bar** (or `defaults write dev.smithers.dealer
+workspaceSwitcher top`; `sidebar` is the default). The change applies to every open window at
+once. Pills do the same things as rows: click, double-click to rename, right-click, middle-click
+to close, drag to reorder, "+" to add, and take pane/tab drops. In top-bar mode the sidebar and
+its toggle are gone and ⌃⌘S is disabled; each window's sidebar choice is kept for when you switch
+back.
+
 ## Dragging
 
 Drag a pane by its bar (shown once a tab has two panes; ⌥-drag grabs its parent split),
@@ -85,8 +93,8 @@ or drag a tab:
 | Centre of another pane | swap the two | — |
 | A tab strip | becomes its own tab (works across decks) | reorder / move to that deck |
 | Window edge (past the decks) | promote to a new deck | becomes a new deck |
-| A workspace in the sidebar | moves to that workspace as a tab | same |
-| "New Workspace" in the sidebar | moves to a new workspace, which you follow | same |
+| A workspace in the sidebar (or its pill) | moves to that workspace as a tab | same |
+| "New Workspace" in the sidebar (or the "+" pill) | moves to a new workspace, which you follow | same |
 | Hover a tab | switches to it after a short delay | same |
 
 ## Attention (coding agents)
@@ -203,6 +211,8 @@ and asserts the tree after each step.
 - `Views.swift` – deck, tab strip, pane bar, dividers, overlays
 - `Session.swift` – save/restore
 - `Workspace.swift` / `WorkspaceSidebar.swift` – workspaces, and the collapsible workspace sidebar + its titlebar toggle
+- `WorkspaceBar.swift` / `WorkspaceSwitcher.swift` – the top-bar pill switcher, and choosing between it and the sidebar
+- `Settings.swift` – user settings (currently backed by UserDefaults)
 - `Theme.swift` – chrome colors derived from the ghostty config (light/dark), metrics, fonts, motion
 - `ControlServer.swift` / `ControlHandler.swift` / `ControlNotify.swift` – control socket, request handler, `dealer notify`
 - `SelfTest*.swift` – self-test, one file per feature section

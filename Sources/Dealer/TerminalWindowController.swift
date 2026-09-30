@@ -24,6 +24,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     let contentView = WindowContentView()
     /// The workspace switcher in the titlebar row (WorkspaceBar.swift).
     let workspaceSidebar = WorkspaceSidebarView()
+    /// The top-bar pill switcher, shown instead of the sidebar when `workspaceSwitcher = top` (#8).
+    let workspaceBar = WorkspaceBarView()
     /// The sidebar toggle in the titlebar row (WorkspaceSidebar.swift).
     let sidebarToggle = SidebarToggleButton()
     /// The user's explicit sidebar choice for this window; `nil` means automatic (shown with 2+
@@ -58,6 +60,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         super.init(window: window)
         window.delegate = self
+        observeSettings()
 
         if let snapshot {
             restore(snapshot)
@@ -787,6 +790,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         }
         window?.title = focusedPane?.title ?? "Dealer"
         workspaceSidebar.reload()
+        workspaceBar.reload()
         // The automatic sidebar appears with a second workspace: that changes the deck area.
         if workspaceSidebar.isHidden == isSidebarVisible { contentView.needsLayout = true }
     }
