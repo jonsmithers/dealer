@@ -45,6 +45,7 @@ final class PaneView: FlippedView {
 
     func refreshTitle() {
         bar.title = pane?.title ?? ""
+        updateAttentionRing()  // Attention.swift
     }
 
     override func layout() {
@@ -196,6 +197,7 @@ final class TabStripView: FlippedView {
             b.title = tab.title
             b.isActive = i == deck.activeIndex
             b.accent = deck.color
+            b.attention = tab.attention
         }
         needsLayout = true
     }
@@ -248,6 +250,8 @@ final class TabButton: FlippedView {
     var title = "" { didSet { if title != oldValue { needsDisplay = true } } }
     var isActive = false { didSet { if isActive != oldValue { needsDisplay = true } } }
     var accent: NSColor = Palette.neutral { didSet { needsDisplay = true } }
+    /// Badge for the most urgent pane in this tab (#4); drawn by `drawAttentionDot` in Attention.swift.
+    var attention: Attention = .none { didSet { if attention != oldValue { needsDisplay = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
     private var closeRect: CGRect { CGRect(x: bounds.width - 20, y: (bounds.height - 14) / 2, width: 14, height: 14) }
 
@@ -293,6 +297,7 @@ final class TabButton: FlippedView {
             Palette.muted.setStroke()
             path.stroke()
         }
+        drawAttentionDot(hidden: hovering)
     }
 
     override func mouseDown(with event: NSEvent) {

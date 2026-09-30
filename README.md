@@ -40,6 +40,7 @@ terminfo are borrowed from `/Applications/Ghostty.app` when it's installed.
 | ⌘⇧↩ | Zoom: fill the deck, press again to fill the window, again to restore |
 | ⌃⌘= | Equalize splits |
 | ⌘N | New window |
+| ⌘⇧U | Jump to the next pane that needs attention |
 
 Double-click a tab to rename it; middle-click or hover × to close it.
 
@@ -55,6 +56,48 @@ or drag a tab:
 | A tab strip | becomes its own tab (works across decks) | reorder / move to that deck |
 | Window edge (past the decks) | promote to a new deck | becomes a new deck |
 | Hover a tab | switches to it after a short delay | same |
+
+## Attention (coding agents)
+
+A pane that wants you gets a coloured ring, and its tab gets a dot. Amber means an agent is
+waiting for input; blue means something finished or rang. The dot also shows on the deck's
+tab strip and the workspace. Focusing the pane clears it. **⌘⇧U** (Window > Jump to Next
+Unread) goes to the most urgent pane in any window. When Dealer isn't the key window, it
+also posts a macOS notification (bundled app only), and clicking it focuses the pane.
+
+Sources:
+- the bell (BEL);
+- desktop notifications from OSC 9, OSC 99 and OSC 777;
+- a shell command that ran for 10s or more finishing (needs Ghostty shell integration);
+- `dealer notify` from inside the pane (the control socket/CLI, #5). Each shell gets
+  `DEALER_PANE_ID`, so `dealer notify` targets its own pane by default.
+
+### Claude Code hooks
+
+Add this to `~/.claude/settings.json` (or a project's `.claude/settings.json`). The
+`DEALER_PANE_ID` guard makes the hooks a no-op in other terminals.
+
+```json
+{
+  "hooks": {
+    "Notification": [
+      { "hooks": [{ "type": "command",
+        "command": "[ -n \"$DEALER_PANE_ID\" ] && dealer notify --state waiting --title 'Claude Code' --body \"$(jq -r '.message // empty')\" || true" }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command",
+        "command": "[ -n \"$DEALER_PANE_ID\" ] && dealer notify --state done --title 'Claude Code' --body 'Finished' || true" }] }
+    ]
+  }
+}
+```
+
+`Notification` fires when Claude needs permission or has been idle waiting for input. It
+reads the hook's JSON from stdin, which is why `jq` pulls out `.message`. `Stop` fires when
+Claude finishes its turn. States are `waiting`, `done`, `unread` and `none` (clears the pane).
+Inside Dealer panes, `dealer` is on `PATH` because Ghostty appends the app's binary directory.
+Codex and other agents work the same way through their own hook or notify settings. Anything
+that prints an OSC 9 notification (`printf '\e]9;done\a'`) also works with no setup.
 
 ## Session restore
 
@@ -81,3 +124,4 @@ and asserts the tree after each step.
 - `DragController.swift` – pane/tab drag & drop targets
 - `Views.swift` – deck, tab strip, pane bar, dividers, overlays
 - `Session.swift` – save/restore
+- `Attention.swift` – per-pane attention (bell/OSC/agent), badges, jump to next unread, macOS notifications

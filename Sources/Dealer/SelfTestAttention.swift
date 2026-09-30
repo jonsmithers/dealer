@@ -15,19 +15,30 @@ extension TerminalWindowController {
             return nil
         }
         var home: Pane?
+        // What the chrome shows: the tab's badge and the pane's ring.
+        func badge(_ n: String) -> Attention {
+            let d = deck(n)
+            guard let i = d.index(of: tab(n)), d.view.strip.buttons.indices.contains(i) else { return .none }
+            return d.view.strip.buttons[i].attention
+        }
+        func ring(_ n: String) -> Bool {
+            p(n).view.layer?.sublayers?.contains { $0.name == "dealer.attentionRing" } ?? false
+        }
 
         step("a bell in a background tab badges the pane, its tab and its deck", check: {
             expect([("srv", p("srv").attention, .unread), ("srv's tab", tab("srv").attention, .unread),
                     ("deck", deck("srv").attention, .unread), ("workspace", self.locate(p("srv"))!.workspace.attention, .unread),
                     ("tests", p("tests").attention, .none),
-                    ("tests' tab", tab("tests").attention, .none)])
+                    ("tests' tab", tab("tests").attention, .none), ("srv's tab badge", badge("srv"), .unread),
+                    ("tests' tab badge", badge("tests"), .none)])
+                ?? (ring("srv") ? nil : "srv should have a ring")
         }) {
             home = self.focusedPane
             self.setAttention(.unread, on: p("srv"), raiseOnly: true)
         }
         step("waiting beats unread, and a later bell doesn't downgrade it", check: {
             expect([("log2", p("log2").attention, .waiting), ("log2's tab", tab("log2").attention, .waiting),
-                    ("deck", deck("log2").attention, .waiting)])
+                    ("deck", deck("log2").attention, .waiting), ("log2's tab badge", badge("log2"), .waiting)])
         }) {
             self.setAttention(.waiting, on: p("log2"))
             self.setAttention(.unread, on: p("log2"), raiseOnly: true)
@@ -35,7 +46,8 @@ extension TerminalWindowController {
         step("jump to next unread goes to the waiting pane first and clears it", check: {
             guard self.focusedPane === p("log2") else { return "expected focus on log2" }
             return expect([("log2", p("log2").attention, .none), ("log2's tab", tab("log2").attention, .none),
-                           ("deck", deck("log2").attention, .unread)])
+                           ("deck", deck("log2").attention, .unread), ("log2's tab badge", badge("log2"), .none)])
+                ?? (ring("log2") ? "log2's ring should be gone" : nil)
         }) { self.jumpToNextUnread(nil) }
         step("jump again reaches the unread pane in the other tab", check: {
             guard self.focusedPane === p("srv") else { return "expected focus on srv" }

@@ -170,3 +170,45 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
         done([.banner, .sound])
     }
 }
+
+// MARK: - Drawing (visuals #2 owns the styling; these only read `attention`)
+
+extension PaneView {
+    private static let ringName = "dealer.attentionRing"
+
+    /// A coloured ring over the whole pane while it wants attention. Its own layer, above the
+    /// Metal surface, so it doesn't fight the pane's focus styling.
+    func updateAttentionRing() {
+        guard let layer else { return }
+        let existing = layer.sublayers?.first { $0.name == Self.ringName }
+        guard let color = pane?.attention.color else {
+            existing?.removeFromSuperlayer()
+            return
+        }
+        let ring = existing ?? {
+            let l = CALayer()
+            l.name = Self.ringName
+            l.zPosition = 20
+            l.borderWidth = 2
+            l.cornerRadius = layer.cornerRadius
+            layer.addSublayer(l)
+            return l
+        }()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        ring.frame = layer.bounds
+        ring.borderColor = color.cgColor
+        CATransaction.commit()
+    }
+}
+
+extension TabButton {
+    /// Where the badge sits: the close button's slot, which only shows on hover.
+    var attentionDotRect: CGRect { CGRect(x: bounds.width - 17, y: (bounds.height - 8) / 2, width: 8, height: 8) }
+
+    func drawAttentionDot(hidden: Bool) {
+        guard !hidden, let color = attention.color else { return }
+        color.setFill()
+        NSBezierPath(ovalIn: attentionDotRect).fill()
+    }
+}
