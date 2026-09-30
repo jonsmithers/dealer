@@ -1,16 +1,23 @@
 import AppKit
 
-/// One terminal window: a tree of decks, each holding tabs, each holding a tree of panes.
+/// One terminal window: workspaces, each a tree of decks, each holding tabs, each holding a tree of panes.
 ///
 ///     Window
-///     └─ Decks   split side by side or stacked; each has its own tab strip
-///        └─ Tabs   one active per deck
-///           └─ Panes   split inside a single tab; hidden when the tab is
+///     └─ Workspaces   one shown at a time; the others stay alive, hidden
+///        └─ Decks   split side by side or stacked; each has its own tab strip
+///           └─ Tabs   one active per deck
+///              └─ Panes   split inside a single tab; hidden when the tab is
 final class TerminalWindowController: NSWindowController, NSWindowDelegate {
-    private(set) var root: Node<Deck>?
-    private(set) weak var focusedPane: Pane?
+    /// In switcher order. Never empty while the window is open.
+    private(set) var workspaces: [Workspace]
+    private(set) var activeWorkspace: Workspace
+
+    /// The active workspace's deck tree.
+    var root: Node<Deck>? { activeWorkspace.root }
+    /// The active workspace's focused pane.
+    var focusedPane: Pane? { activeWorkspace.validFocusedPane }
     /// A split selected with "Select Parent"; promote acts on it instead of the focused pane.
-    private(set) var selection: Node<Pane>?
+    var selection: Node<Pane>? { activeWorkspace.selection }
     /// Level 1 fills the deck, level 2 fills the window.
     private var zoom: (pane: WeakRef<Pane>, level: Int)?
 
@@ -25,6 +32,9 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     static let paneGap: CGFloat = 4
 
     init(snapshot: WindowSnapshot? = nil) {
+        let ws = Workspace(root: nil)
+        workspaces = [ws]
+        activeWorkspace = ws
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1180, height: 740),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -42,9 +52,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         if let snapshot {
             restore(snapshot)
         } else {
-            let deck = Deck(colorIndex: 0)
-            deck.tabs = [Tab(root: Node(makePane(workingDirectory: nil)))]
-            root = Node(deck)
+            ws.root = Node(makeDeck(workingDirectory: nil))
             window.center()
         }
     }
@@ -52,10 +60,21 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     required init?(coder: NSCoder) { fatalError() }
 
     private func restore(_ snapshot: WindowSnapshot) {
-        let (root, focus) = restoreTree(snapshot)
-        self.root = root
-        focusedPane = focus
+        let restored = restoreWorkspaces(snapshot)
+        if !restored.isEmpty {
+            workspaces = restored
+            activeWorkspace = restored[min(max(snapshot.activeWorkspace ?? 0, 0), restored.count - 1)]
+        } else {
+            activeWorkspace.root = Node(makeDeck(workingDirectory: nil))
+        }
         window?.setFrame(snapshot.frame, display: false)
+    }
+
+    /// A deck with one tab holding one fresh pane.
+    func makeDeck(workingDirectory: String?, colorIndex: Int = 0) -> Deck {
+        let deck = Deck(colorIndex: colorIndex)
+        deck.tabs = [Tab(root: Node(makePane(workingDirectory: workingDirectory)))]
+        return deck
     }
 
     func showAndFocus() {
@@ -66,23 +85,31 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - Queries
 
-    var decks: [Deck] { root?.leaves ?? [] }
+    /// Decks of the active workspace.
+    var decks: [Deck] { activeWorkspace.decks }
+    /// Decks of every workspace in this window.
+    var allDecks: [Deck] { workspaces.flatMap(\.decks) }
 
     var focusedDeck: Deck? {
         if let p = focusedPane, let loc = locate(p) { return loc.deck }
         return decks.first
     }
 
-    func locate(_ pane: Pane) -> (deck: Deck, tab: Tab, node: Node<Pane>)? {
-        for deck in decks {
-            for tab in deck.tabs {
-                if let n = tab.root.node(for: pane) { return (deck, tab, n) }
+    /// Finds a pane in any workspace of this window.
+    func locate(_ pane: Pane) -> (workspace: Workspace, deck: Deck, tab: Tab, node: Node<Pane>)? {
+        for ws in workspaces {
+            for deck in ws.decks {
+                for tab in deck.tabs {
+                    if let n = tab.root.node(for: pane) { return (ws, deck, tab, n) }
+                }
             }
         }
         return nil
     }
 
-    func deck(of tab: Tab) -> Deck? { decks.first { $0.index(of: tab) != nil } }
+    func deck(of tab: Tab) -> Deck? { allDecks.first { $0.index(of: tab) != nil } }
+    func workspace(of deck: Deck) -> Workspace? { workspaces.first { $0.contains(deck) } }
+    func workspace(of pane: Pane) -> Workspace? { locate(pane)?.workspace }
 
     /// The rect decks are laid out in: below the titlebar, inset from the window edge.
     var deckArea: CGRect {
@@ -110,7 +137,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         return r
     }
 
-    private func nextColorIndex() -> Int {
+    func nextColorIndex(in ws: Workspace? = nil) -> Int {
+        let decks = (ws ?? activeWorkspace).decks
         let used = Set(decks.map { $0.colorIndex % Palette.deckColors.count })
         return Palette.deckColors.indices.first { !used.contains($0) } ?? decks.count
     }
@@ -199,26 +227,95 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         if deck.tabs.isEmpty { detach(deck: deck) }
     }
 
-    private func detach(deck: Deck) {
-        guard let root, let node = root.node(for: deck) else { return }
-        self.root = Node.remove(node, from: root)
+    /// Takes a deck out of its workspace's tree. An emptied workspace is closed by `finishChange`.
+    func detach(deck: Deck) {
+        guard let ws = workspace(of: deck), let root = ws.root, let node = root.node(for: deck) else { return }
+        ws.root = Node.remove(node, from: root)
         deck.view.removeFromSuperview()
     }
 
-    /// Common tail of every structural change: drop transient state, lay out, restore focus.
-    private func finishChange(focus target: Pane?) {
-        selection = nil
-        if let z = zoom, z.pane.value.flatMap({ locate($0) }) == nil { zoom = nil }
-        guard root != nil else {
-            window?.close()
-            return
+    /// Common tail of every structural change: drop transient state, close emptied workspaces
+    /// (and the window with the last one), lay out, restore focus.
+    func finishChange(focus target: Pane?) {
+        activeWorkspace.selection = nil
+        if let z = zoom, z.pane.value.flatMap({ locate($0) })?.workspace !== activeWorkspace { zoom = nil }
+        if let i = workspaces.firstIndex(where: { $0 === activeWorkspace }), activeWorkspace.root == nil {
+            workspaces.removeAll { $0.root == nil }
+            guard !workspaces.isEmpty else {
+                window?.close()
+                return
+            }
+            activeWorkspace = workspaces[min(i, workspaces.count - 1)]
         }
+        workspaces.removeAll { $0.root == nil }
         layoutNow()
         if let p = target, locate(p) != nil {
             focus(p)
         } else if let p = focusedDeck?.activeTab?.focusTarget {
             focus(p)
         }
+    }
+
+    /// Shows `ws`, hiding (not removing) the other workspaces' decks, and focuses where it was left.
+    func activate(_ ws: Workspace) {
+        guard workspaces.contains(where: { $0 === ws }) else { return }
+        if ws !== activeWorkspace {
+            activeWorkspace.selection = nil
+            zoom = nil
+            activeWorkspace = ws
+            layoutNow()
+        }
+        if let p = ws.validFocusedPane ?? ws.decks.first?.activeTab?.focusTarget { focus(p) }
+        refreshChrome()
+    }
+
+    /// Adds `ws` to the window's list; used by workspace commands in Workspace.swift.
+    func insert(workspace ws: Workspace, at index: Int) {
+        workspaces.insert(ws, at: min(max(index, 0), workspaces.count))
+    }
+
+    /// Reorders the switcher.
+    func move(workspace ws: Workspace, to index: Int) {
+        guard let i = workspaces.firstIndex(where: { $0 === ws }) else { return }
+        workspaces.remove(at: i)
+        workspaces.insert(ws, at: min(max(index, 0), workspaces.count))
+        refreshChrome()
+    }
+
+    /// Drops a workspace and every terminal in it. The window closes with its last workspace.
+    func remove(workspace ws: Workspace) {
+        guard workspaces.contains(where: { $0 === ws }) else { return }
+        ws.decks.forEach { $0.view.removeFromSuperview() }
+        ws.root = nil
+        finishChange(focus: nil)
+    }
+
+    /// Places a tab in `ws`: a new tab after the active one in its focused deck, or its first deck.
+    func place(tab: Tab, in ws: Workspace) {
+        let focusedDeck = ws.validFocusedPane.flatMap { locate($0)?.deck } ?? ws.decks.first
+        if let deck = focusedDeck {
+            let i = min(deck.activeIndex + 1, deck.tabs.count)
+            deck.tabs.insert(tab, at: i)
+            deck.activeIndex = i
+        } else {
+            let deck = Deck(colorIndex: 0)
+            deck.tabs = [tab]
+            ws.root = Node(deck)
+        }
+        if let p = tab.focusTarget { ws.focusedPane = p }
+    }
+
+    /// Adds a deck at the right edge of `ws`, sized like one more column.
+    func place(deck: Deck, in ws: Workspace) {
+        deck.origin = nil
+        deck.colorIndex = nextColorIndex(in: ws)
+        if let current = ws.root {
+            let n = CGFloat(ws.decks.count)
+            ws.root = Node.insert(Node(deck), beside: current, side: .right, fraction: 1 / (n + 1), root: current)
+        } else {
+            ws.root = Node(deck)
+        }
+        if let p = deck.activeTab?.focusTarget { ws.focusedPane = p }
     }
 
     // MARK: - Commands: panes and tabs
@@ -339,17 +436,18 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     /// - Parameter allowWholeDeck: moving a deck's only tab just relocates the deck; commands disallow it.
     @discardableResult
     func promote(_ node: Node<Pane>, side: Side? = nil, fraction: CGFloat? = nil, allowWholeDeck: Bool = false) -> Bool {
-        guard let root, let src = node.leaves.first.flatMap({ locate($0) }) else { return false }
+        guard let src = node.leaves.first.flatMap({ locate($0) }), let root = src.workspace.root else { return false }
+        let ws = src.workspace
         let focus = focusedPane.flatMap { node.node(for: $0) != nil ? $0 : nil } ?? node.leaves.first
         let area = deckArea
-        let deck = Deck(colorIndex: nextColorIndex())
+        let deck = Deck(colorIndex: nextColorIndex(in: src.workspace))
         let edge: Side
         // Measure before detaching: a promoted pane keeps its width (or height, for a stacked split).
         let before = frame(of: node)
 
         if node === src.tab.root {
             // Only pane in its tab: the whole tab moves out into a new deck.
-            if src.deck.tabs.count == 1 && (!allowWholeDeck || decks.count == 1) { return false }
+            if src.deck.tabs.count == 1 && (!allowWholeDeck || ws.decks.count == 1) { return false }
             let i = src.deck.index(of: src.tab) ?? 0
             edge = side ?? root.node(for: src.deck)?.outermostSide ?? .right
             deck.origin = .tab(deck: WeakRef(src.deck), index: i)
@@ -375,12 +473,12 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         }
         f = min(max(f, 0.1), 0.6)
 
-        guard let current = self.root else {
-            self.root = Node(deck)
+        guard let current = ws.root else {
+            ws.root = Node(deck)
             finishChange(focus: focus)
             return true
         }
-        self.root = Node.insert(Node(deck), beside: current, side: edge, fraction: f, root: current)
+        ws.root = Node.insert(Node(deck), beside: current, side: edge, fraction: f, root: current)
         zoom = nil
         finishChange(focus: focus)
         return true
@@ -388,7 +486,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     /// Deck → pane. The reverse of promote.
     func fold(_ deck: Deck) -> Bool {
-        guard decks.count > 1, let root, let deckNode = root.node(for: deck) else { return false }
+        guard let ws = workspace(of: deck), ws.decks.count > 1, let root = ws.root, let deckNode = root.node(for: deck) else { return false }
         let focus = focusedPane.flatMap { p in deck.tabs.contains { $0.root.node(for: p) != nil } ? p : nil }
             ?? deck.activeTab?.focusTarget
 
@@ -397,7 +495,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             switch deck.origin {
             case let .panes(tabRef, anchorRef, side, fraction)?:
                 // Back into the tab it came from, on its original side.
-                if let home = tabRef.value, let homeDeck = self.deck(of: home), homeDeck !== deck {
+                if let home = tabRef.value, let homeDeck = self.deck(of: home), homeDeck !== deck, ws.contains(homeDeck) {
                     let target = anchorRef.value.flatMap { home.root.contains($0) ? $0 : nil } ?? home.root
                     home.root = Node.insert(tab.root, beside: target, side: side, fraction: fraction, root: home.root)
                     homeDeck.activeIndex = homeDeck.index(of: home) ?? homeDeck.activeIndex
@@ -440,8 +538,15 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - Focus
 
+    /// Focuses a pane anywhere in the window, switching workspace if it lives in another one.
     func focus(_ pane: Pane) {
         guard let loc = locate(pane) else { return }
+        if loc.workspace !== activeWorkspace {
+            activeWorkspace.selection = nil
+            zoom = nil
+            activeWorkspace = loc.workspace
+            layoutNow()
+        }
         if loc.deck.activeTab !== loc.tab, let i = loc.deck.index(of: loc.tab) {
             loc.deck.activeIndex = i
             layoutNow()
@@ -455,11 +560,11 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     private func didFocus(_ pane: Pane) {
         guard let loc = locate(pane) else { return }
-        let changed = focusedPane !== pane
-        focusedPane = pane
+        let changed = loc.workspace.focusedPane !== pane
+        loc.workspace.focusedPane = pane
         loc.tab.lastFocused = pane
-        if changed && selection != nil {
-            selection = nil
+        if changed && loc.workspace.selection != nil {
+            loc.workspace.selection = nil
             updateSelectionHighlight()
         }
         refreshChrome()
@@ -517,19 +622,21 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         var frames: [(Deck, CGRect)] = []
         var dividers: [Node<Deck>.Divider] = []
         let zoomed = zoom.flatMap { z in z.pane.value.flatMap { locate($0) }.map { (z, $0) } }
+            .flatMap { $0.1.workspace === activeWorkspace ? $0 : nil }
         if let (z, loc) = zoomed, z.level >= 2 {
             frames = [(loc.deck, area)]
         } else {
             root?.layout(in: area, gap: Self.deckGap, frames: &frames, dividers: &dividers)
         }
 
-        let inTree = Set(decks.map { ObjectIdentifier($0) })
+        let inTree = Set(allDecks.map { ObjectIdentifier($0) })
         for case let dv as DeckView in contentView.subviews where !inTree.contains(ObjectIdentifier(dv.deck)) {
             dv.removeFromSuperview()
         }
-        // Decks hidden by a window-level zoom stay parked, with their terminals occluded.
+        // Decks hidden by a window-level zoom, or in another workspace, stay parked with their
+        // terminals occluded.
         let shown = Set(frames.map { ObjectIdentifier($0.0) })
-        for deck in decks where !shown.contains(ObjectIdentifier(deck)) && !deck.view.isHidden {
+        for deck in allDecks where !shown.contains(ObjectIdentifier(deck)) && !deck.view.isHidden {
             deck.view.isHidden = true
             deck.activeTab?.panes.forEach { $0.surface.setVisible(false) }
         }
@@ -649,7 +756,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     /// Titles and focus rings only; no frames change.
     func refreshChrome() {
-        for deck in decks {
+        for deck in allDecks {
             deck.view.strip.reload()
             for tab in deck.tabs {
                 for p in tab.panes {
@@ -708,7 +815,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         guard let base = selection ?? focusedPane.flatMap({ locate($0)?.node }), let parent = base.parent else {
             return NSSound.beep()
         }
-        selection = parent
+        activeWorkspace.selection = parent
         updateSelectionHighlight()
     }
 
@@ -772,11 +879,11 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     // MARK: - NSWindowDelegate
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        let busy = decks.flatMap(\.tabs).flatMap(\.panes).contains { $0.surface.needsConfirmQuit }
+        let busy = allDecks.flatMap(\.tabs).flatMap(\.panes).contains { $0.surface.needsConfirmQuit }
         guard busy else { return true }
         confirm("Close this window?", info: "Processes are still running in it.") { [weak self] in
             guard let self else { return }
-            self.root = nil
+            self.workspaces.forEach { $0.root = nil }
             self.window?.close()
         }
         return false

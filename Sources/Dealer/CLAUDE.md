@@ -19,8 +19,19 @@
   the window when the root becomes `nil`.
 - Moves detach first, then insert. Re-`locate` the target after detaching, because the source's
   cleanup can reshape the tree the target lives in.
-- `root`, `focusedPane` and `selection` are `private(set)`. Code that assigns them, such as
-  `restore`, must live in this file.
+- A window holds `workspaces` (never empty while open) and one `activeWorkspace`. Each
+  `Workspace` (`Workspace.swift`) owns a deck tree `root`, `focusedPane` and `selection`; the
+  controller's `root`/`focusedPane`/`selection`/`decks` are read-only views of the active one.
+  - Only the controller assigns `Workspace.root`, `focusedPane` and `selection`, and only it
+    changes `workspaces`/`activeWorkspace` (they are `private(set)`; `restore` lives in this file).
+  - `Workspace.focusedPane` can be stale after a move; read `validFocusedPane`.
+  - `locate`, `deck(of:)` and `detach` search **every** workspace. `decks` is the active
+    workspace only; use `allDecks` for anything that must cover hidden workspaces (chrome
+    refresh, busy checks, parking views).
+  - `finishChange` closes any workspace whose `root` became `nil`, activating a neighbour; the
+    window closes with its last workspace. Never leave an empty workspace behind otherwise.
+  - `focus(pane)` switches to the pane's workspace. Inactive workspaces' deck views are parked
+    hidden (`isHidden` + `setVisible(false)`) by `layoutWindow`, like zoom-hidden decks.
 
 ## Layout and views
 

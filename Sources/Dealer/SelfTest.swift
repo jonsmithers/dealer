@@ -197,7 +197,8 @@ extension TerminalWindowController {
         step("snapshot round-trips", check: {
             guard let snap = self.snapshot(), let data = try? JSONEncoder().encode(snap),
                   let back = try? JSONDecoder().decode(WindowSnapshot.self, from: data) else { return "encode failed" }
-            let (root, _) = self.restoreTree(back)
+            guard let first = back.allWorkspaces.first else { return "no workspaces in snapshot" }
+            let (root, _) = self.restoreTree(first.root)
             let shape = { (n: Node<Deck>) -> String in n.leaves.map { "\($0.tabs.count)" }.joined(separator: ",") }
             let ok = shape(root) == shape(self.root!)
             root.leaves.flatMap(\.tabs).flatMap(\.panes).forEach { $0.view.removeFromSuperview() }

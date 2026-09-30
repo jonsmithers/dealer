@@ -23,9 +23,28 @@ struct DeckSnapshot: Codable {
     var colorIndex: Int
 }
 
+struct WorkspaceSnapshot: Codable {
+    var name: String?
+    var root: TreeSnapshot<DeckSnapshot>
+}
+
 struct WindowSnapshot: Codable {
     var frame: CGRect
-    var root: TreeSnapshot<DeckSnapshot>
+    var workspaces: [WorkspaceSnapshot]?
+    var activeWorkspace: Int?
+    /// Session files written before workspaces had one deck tree per window here.
+    var root: TreeSnapshot<DeckSnapshot>?
+
+    init(frame: CGRect, workspaces: [WorkspaceSnapshot], activeWorkspace: Int) {
+        self.frame = frame
+        self.workspaces = workspaces
+        self.activeWorkspace = activeWorkspace
+    }
+
+    /// The window's workspaces; an old single-tree file becomes one workspace.
+    var allWorkspaces: [WorkspaceSnapshot] {
+        workspaces ?? root.map { [WorkspaceSnapshot(name: nil, root: $0)] } ?? []
+    }
 }
 
 struct SessionSnapshot: Codable {
@@ -75,7 +94,8 @@ struct SessionSnapshot: Codable {
 
 extension TerminalWindowController {
     func snapshot() -> WindowSnapshot? {
-        guard let root, let window else { return nil }
+        guard let window else { return nil }
+        var focusedPane: Pane?
         func paneTree(_ n: Node<Pane>) -> TreeSnapshot<PaneSnapshot> {
             if let p = n.leaf {
                 return .leaf(PaneSnapshot(pwd: p.pwd, title: p.shellTitle, focused: p === focusedPane))
@@ -89,11 +109,28 @@ extension TerminalWindowController {
             }
             return .split(axis: n.axis, ratio: n.ratio, a: deckTree(n.a!), b: deckTree(n.b!))
         }
-        return WindowSnapshot(frame: window.frame, root: deckTree(root))
+        let live = workspaces.filter { $0.root != nil }
+        guard !live.isEmpty else { return nil }
+        let wss = live.map { ws -> WorkspaceSnapshot in
+            focusedPane = ws.validFocusedPane
+            return WorkspaceSnapshot(name: ws.name, root: deckTree(ws.root!))
+        }
+        return WindowSnapshot(frame: window.frame, workspaces: wss,
+                              activeWorkspace: live.firstIndex { $0 === activeWorkspace } ?? 0)
+    }
+
+    /// Rebuilds every workspace in a snapshot, including one migrated from a pre-workspace file.
+    func restoreWorkspaces(_ snap: WindowSnapshot) -> [Workspace] {
+        snap.allWorkspaces.map { wss in
+            let (root, focus) = restoreTree(wss.root)
+            let ws = Workspace(root: root, name: wss.name)
+            ws.focusedPane = focus
+            return ws
+        }
     }
 
     /// Rebuilds the tree from a snapshot. Returns the pane that had focus.
-    func restoreTree(_ snap: WindowSnapshot) -> (root: Node<Deck>, focus: Pane?) {
+    func restoreTree(_ snap: TreeSnapshot<DeckSnapshot>) -> (root: Node<Deck>, focus: Pane?) {
         var focus: Pane?
         func paneTree(_ s: TreeSnapshot<PaneSnapshot>) -> Node<Pane> {
             switch s {
@@ -121,7 +158,7 @@ extension TerminalWindowController {
                 return Node(axis: axis, ratio: ratio, a: deckTree(a), b: deckTree(b))
             }
         }
-        let root = deckTree(snap.root)
+        let root = deckTree(snap)
         // Remember the last-focused pane per tab so switching tabs lands where you left off.
         if let focus {
             for deck in root.leaves {
