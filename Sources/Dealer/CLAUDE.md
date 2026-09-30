@@ -71,7 +71,67 @@
   `layoutWorkspaceBar()` from `layoutWindow` and reloaded from `refreshChrome()`. Clicks reach it
   through the transparent titlebar (the self-test clicks a pill via `window.sendEvent`).
 
+- `session.json` stores `workspaces` + `activeWorkspace` per window. The optional `root` field
+  exists only to read pre-workspace files (`WindowSnapshot.allWorkspaces` migrates them); keep it
+  decodable. Always read `allWorkspaces`, never `workspaces` directly.
+- `layoutWorkspaceBar()` must call `bar.layoutSubtreeIfNeeded()` after `reload()`. `reload()` runs
+  inside the window's layout pass, so its `needsLayout` is dropped and the pills keep zero frames.
+  The bar then draws nothing, but the self-test still passes.
+- `WorkspaceBarView.button(at:)` is a test hook: the self-test clicks a pill through
+  `window.sendEvent`. That click is the only check that titlebar clicks reach the bar, so keep the
+  hook through restyles.
+- Workspaces restored but never shown have deck views that aren't in the window yet (their shells
+  run anyway, because surfaces are created in `SurfaceView.init`). Ghostty keybind actions from
+  those panes find no window controller until the workspace is first shown.
+
 ## Self-test sections
 
 - Feature steps live in their own files (e.g. `SelfTestWorkspaces.swift`) and are added through
   the `SelfTestKit` passed from `runSelfTest`, one call line per section.
+
+## Styling (`Theme.swift`)
+
+- `Theme` is the single source for chrome colors, metrics, fonts and animation timings. Don't
+  hard-code colors or sizes in views. `Palette` is only a set of legacy forwards to `Theme`.
+- The theme is read **once**, in `GhosttyRuntime.start()` via `Theme.load`, before any window
+  exists. Config reloads and conditional `theme = light:…,dark:…` are not followed live. Several
+  views copy `Theme` colors into `layer.backgroundColor` at init, so supporting a live change means
+  re-applying those too, not just redrawing.
+- Pane gaps are 1pt (`Theme.Metrics.paneGap`); the visible line is the deck card's background
+  (`Theme.divider`) showing through. `DividerView.hitFrame` widens the grab area past the gap onto
+  the neighbouring panes, so `syncDividers` keeps dividers above every Pane/Deck view. Adding a pane
+  view after the dividers without that re-raise makes the divider ungrabbable.
+- The unfocused-pane veil is a subview kept on top of the surface in `PaneView.layout`.
+  `dimsWhenUnfocused` is set by the controller in `layout(deck:)` (on when more than one pane is on
+  screen). The attention ring is a separate sublayer at zPosition 20, above the veil.
+- Height math that includes deck chrome (promote keeping a pane's size) uses
+  `DeckView.chromeSize`. Update it if the strip/card insets change.
+
+## Attention and agent status (`Attention.swift`, `AgentStatus.swift`, `AgentLaunch.swift`)
+
+- `setAttention(_:on:raiseOnly:title:body:)` is the only writer of `Pane.attention` besides
+  `didFocus`, which clears it (so does `windowDidBecomeKey`, in Attention.swift). It refreshes
+  chrome and posts the macOS notification; don't assign `pane.attention` elsewhere.
+- Automatic sources (bell, OSC 9/99/777, long `COMMAND_FINISHED`) pass `raiseOnly: true` so they
+  never downgrade `waiting`; explicit `dealer notify` sets the state exactly (including `none`).
+  A non-`none` state is dropped when the user is already looking at the pane (focused pane, key
+  window, active app).
+- Tab/deck/workspace attention is computed (max over children), never stored; badges pick it up
+  from `refreshChrome()`. The ring is a sublayer named `dealer.attentionRing`, and the self-test
+  finds it by that name.
+- "running" is `Pane.isReportingProgress` (OSC 9;4 from `GHOSTTY_ACTION_PROGRESS_REPORT`), not a
+  process check; attention outranks it in `agentState`. `GitInfo.lookup` is main-thread only and
+  caches for 3s; it reads `.git/HEAD` (following a worktree's `gitdir:` file) with no subprocess.
+- `SurfaceView.typeText` writes raw pty bytes through ghostty's `text:` binding action (Zig string
+  escapes, `\r` = Enter). `ghostty_surface_text` is a *paste* (bracketed), so a newline in it
+  won't run a command.
+
+## Control socket (`ControlServer.swift`, `ControlHandler.swift`)
+
+- `ControlHandler.handle` is a plain request → response function; the self-test drives it
+  directly and only spawns the binary once for a real socket round-trip.
+- Socket IO runs on background threads; `ControlServer.onMain` hops to main with a
+  `CFRunLoopPerformBlock` in **default mode**, not `DispatchQueue.main.sync`. That lets requests run
+  inside the self-test's nested default-mode waits, and keeps them out of drag tracking loops
+  (event-tracking mode) so a script can't restructure the tree mid-drag. Don't switch it to common
+  modes or the main queue.

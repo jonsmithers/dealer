@@ -15,14 +15,32 @@ A **pane** is owned by a tab. A **deck** owns tabs. Splitting always makes panes
 
 ## Build & run
 
+Prerequisites: macOS 14+, Xcode command-line tools, a Ghostty checkout at `~/git/ghostty`,
+`brew install zig@0.15` (Homebrew's default zig 0.16 can't build Ghostty), and ideally
+`/Applications/Ghostty.app` for shell integration and terminfo.
+
 ```sh
-scripts/build-ghosttykit.sh      # builds GhosttyKit.xcframework from ~/git/ghostty (zig 0.15) into vendor/
-scripts/bundle.sh                # swift build + wraps build/Dealer.app
-open build/Dealer.app
+scripts/build-ghosttykit.sh      # once: builds GhosttyKit.xcframework from ~/git/ghostty into vendor/
+scripts/bundle.sh                # swift build + wraps build/Dealer.app (add `release` for an optimized build)
+open build/Dealer.app            # run it
 ```
 
-Your normal Ghostty config (`~/.config/ghostty/config`) is loaded, and shell integration /
-terminfo are borrowed from `/Applications/Ghostty.app` when it's installed.
+Optionally, put `dealer` (the scripting CLI) on your `PATH` for use in other terminals.
+It's already on `PATH` inside Dealer's own panes:
+
+```sh
+ln -s "$PWD/build/Dealer.app/Contents/Resources/bin/dealer" ~/.local/bin/dealer
+```
+
+The link survives rebuilds; point it at `/Applications/Dealer.app/...` if you copy the app there.
+
+For development, `swift build && .build/debug/Dealer` runs the app unbundled. That build has no
+macOS notifications and no `dealer` on `PATH` (use `.build/debug/Dealer <subcommand>` instead).
+Every normal launch restores and overwrites your session (see *Session restore*). Use
+`DEALER_SELFTEST=1 .build/debug/Dealer` to get a throwaway window that leaves the session alone.
+
+Your normal Ghostty config (`~/.config/ghostty/config`) is loaded, and window chrome takes its
+colors from your Ghostty theme (background/foreground, `unfocused-split-*`, `split-divider-color`).
 
 ## Keys
 
@@ -40,10 +58,17 @@ terminfo are borrowed from `/Applications/Ghostty.app` when it's installed.
 | ⌘⇧↩ | Zoom: fill the deck, press again to fill the window, again to restore |
 | ⌃⌘= | Equalize splits |
 | ⌘N | New window |
+| ⌃1…⌃9 | Go to workspace N |
+| ⌃⌘N / ⌃⌘W | New / close workspace |
+| ⌃⌘] / ⌃⌘[ | Next / previous workspace |
 | ⌘⇧U | Jump to the next pane that needs attention |
 | ⌥⌘A / ⌥⇧⌘A | New agent pane / in a new git worktree |
 
 Double-click a tab to rename it; middle-click or hover × to close it.
+
+Workspaces: the pills in the titlebar switch workspaces (double-click to rename, right-click for
+a menu, middle-click to close, + to add). The Workspace menu moves the focused pane, tab or
+deck to another workspace or a new one, and reorders workspaces.
 
 ## Dragging
 
@@ -99,6 +124,7 @@ Claude finishes its turn. States are `waiting`, `done`, `unread` and `none` (cle
 Inside Dealer panes, `dealer` is on `PATH` (the bundle's `Contents/Resources/bin` is appended).
 Codex and other agents work the same way through their own hook or notify settings. Anything
 that prints an OSC 9 notification (`printf '\e]9;done\a'`) also works with no setup.
+The hooks need the bundled app (`scripts/bundle.sh`); a bare `.build/debug/Dealer` has no `dealer` on `PATH`.
 
 ### Status and agent panes
 
@@ -127,7 +153,8 @@ It is typed into the pane's shell, so you're back at a prompt when the agent exi
 
 Quitting saves the full window → deck → tab → pane tree (sizes, working directories,
 tab names, focus) to `~/Library/Application Support/Dealer/session.json`; the next launch
-restores it. Closing the last window by hand starts fresh next time.
+restores it. Closing the last window by hand starts fresh next time. Sessions from the old
+MyTerm location are copied over on first launch.
 
 ## Self-test
 
@@ -148,6 +175,10 @@ and asserts the tree after each step.
 - `DragController.swift` – pane/tab drag & drop targets
 - `Views.swift` – deck, tab strip, pane bar, dividers, overlays
 - `Session.swift` – save/restore
+- `Workspace.swift` / `WorkspaceBar.swift` – workspaces and the titlebar switcher
+- `Theme.swift` – chrome colors derived from the ghostty config (light/dark), metrics, fonts, motion
+- `ControlServer.swift` / `ControlHandler.swift` / `ControlNotify.swift` – control socket, request handler, `dealer notify`
+- `SelfTest*.swift` – self-test, one file per feature section
 - `AgentStatus.swift` – pane status line (agent state, cwd, git branch)
 - `AgentLaunch.swift` – New Agent Pane presets
 - `Attention.swift` – per-pane attention (bell/OSC/agent), badges, jump to next unread, macOS notifications
