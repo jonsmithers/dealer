@@ -22,6 +22,8 @@ final class DragController {
         case paneCenter(Pane)
         case tabStrip(Deck, Int)
         case windowEdge(Side)
+        /// A row in the workspace sidebar; `nil` is its "New Workspace" row.
+        case workspace(Workspace?)
     }
 
     unowned let controller: TerminalWindowController
@@ -130,6 +132,14 @@ final class DragController {
         let area = controller.deckArea
         let single = controller.decks.count == 1 && (controller.decks.first?.tabs.count ?? 0) == 1
 
+        // Over the workspace sidebar: move into that workspace (checked before the left edge band).
+        let sb = controller.workspaceSidebar
+        if !sb.isHidden, sb.frame.contains(p) {
+            guard let hit = sb.dropTarget(at: sb.convert(p, from: view)) else { return (nil, nil) }
+            if let ws = hit.workspace, ws === sourceWorkspace(source) { return (nil, nil) }
+            return (.workspace(hit.workspace), nil)
+        }
+
         // Past the decks, at the window edge: promote.
         let edge: Side?
         if p.y < area.minY { edge = .top }
@@ -204,6 +214,9 @@ final class DragController {
             case .top: return CGRect(x: area.minX, y: area.minY, width: area.width, height: area.height * f)
             case .bottom: return CGRect(x: area.minX, y: area.maxY - area.height * f, width: area.width, height: area.height * f)
             }
+        case let .workspace(ws):
+            let sb = controller.workspaceSidebar
+            return sb.rect(for: ws).map { sb.convert($0, to: view) }
         case .tabStrip:
             return nil
         }
@@ -224,6 +237,8 @@ final class DragController {
             return controller.locate(p)?.deck.color ?? Palette.neutral
         case let .tabStrip(d, _):
             return d.color
+        case .workspace:
+            return Theme.accentNeutral
         case .windowEdge:
             // The colour the new deck will get.
             let used = Set(controller.decks.map { $0.colorIndex % Palette.deckColors.count })
@@ -250,8 +265,18 @@ final class DragController {
             if let n = sourceNode(source) { c.moveToNewTab(n, deck: deck, index: index) }
         case (_, .windowEdge(let side)):
             if let n = sourceNode(source) { c.promote(n, side: side, allowWholeDeck: true) }
+        case (_, let .workspace(ws)):
+            if let n = sourceNode(source) { c.move(n, toWorkspace: ws, follow: ws == nil) }
         default:
             break
+        }
+    }
+
+    private func sourceWorkspace(_ source: Source) -> Workspace? {
+        switch source {
+        case .pane(let p): return controller.workspace(of: p)
+        case .group(let n): return n.leaves.first.flatMap { controller.workspace(of: $0) }
+        case .tab(let t): return controller.deck(of: t).flatMap { controller.workspace(of: $0) }
         }
     }
 }

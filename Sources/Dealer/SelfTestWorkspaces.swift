@@ -49,7 +49,7 @@ extension TerminalWindowController {
         t.step("⌘⌃N creates a workspace and switches to it", nil, {
             all(expect("1:Deck0[srv, db, \(deep), *tests] | *2:Deck0[*w2]"),
                 visible("w2") && !visible("tests") ? nil : "only the new workspace should be visible",
-                self.workspaceBar.button(at: 1) != nil ? nil : "switcher should show two workspaces",
+                self.workspaceSidebar.row(at: 1) != nil && !self.workspaceSidebar.isHidden ? nil : "the sidebar should appear with two workspaces",
                 focused("w2"))
         }) {
             self.newWorkspace(nil)
@@ -60,12 +60,12 @@ extension TerminalWindowController {
             return d.view.superview === self.contentView && d.view.isHidden
                 && self.locate(t.pane("tests"))?.workspace === self.workspaces[0] ? nil : "deck view should stay in the window, hidden"
         }) {}
-        t.step("clicking pill 1 in the switcher goes back", nil, {
+        t.step("clicking row 1 in the sidebar goes back", nil, {
             all(expect("*1:Deck0[srv, db, \(deep), *tests] | 2:Deck0[*w2]"),
                 visible("tests") && !visible("w2") ? nil : "workspace 1 should be showing",
                 focused("tests"))
         }) {
-            if let b = self.workspaceBar.button(at: 0) { self.clickForTest(b) }
+            if let b = self.workspaceSidebar.row(at: 0) { self.clickForTest(b) }
         }
         t.step("⌃2 switches by number", nil, { all(expect("1:Deck0[srv, db, \(deep), *tests] | *2:Deck0[*w2]"), focused("w2")) }) {
             self.activateWorkspace(index: 1)
@@ -141,7 +141,7 @@ extension TerminalWindowController {
         }
         t.step("close a workspace", nil, {
             all(expect("*1:Deck0[*srv, db, Row(srv2, Col(edit, test2))]"),
-                self.workspaceBar.button(at: 1) == nil ? nil : "switcher should show one workspace",
+                self.workspaceSidebar.row(at: 1) == nil && self.workspaceSidebar.isHidden ? nil : "the automatic sidebar should hide with one workspace",
                 focused("srv"))
         }) {
             self.remove(workspace: self.workspaces[0])

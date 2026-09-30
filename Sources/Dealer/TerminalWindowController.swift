@@ -23,7 +23,12 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     let contentView = WindowContentView()
     /// The workspace switcher in the titlebar row (WorkspaceBar.swift).
-    let workspaceBar = WorkspaceBarView()
+    let workspaceSidebar = WorkspaceSidebarView()
+    /// The sidebar toggle in the titlebar row (WorkspaceSidebar.swift).
+    let sidebarToggle = SidebarToggleButton()
+    /// The user's explicit sidebar choice for this window; `nil` means automatic (shown with 2+
+    /// workspaces). Persisted in the session.
+    var sidebarPreference: Bool?
     lazy var drag = DragController(controller: self)
     /// Stable for the window's lifetime, for the control socket (`dealer`).
     let id = StableID.next(.window)
@@ -72,6 +77,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         } else {
             activeWorkspace.root = Node(makeDeck(workingDirectory: nil))
         }
+        sidebarPreference = snapshot.sidebar
         window?.setFrame(snapshot.frame, display: false)
     }
 
@@ -121,7 +127,9 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         let b = contentView.bounds
         let titlebar = window.map { b.height - $0.contentLayoutRect.height } ?? 28
         let g = Self.deckGap
-        return CGRect(x: g, y: max(titlebar, 28), width: b.width - g * 2, height: b.height - max(titlebar, 28) - g)
+        // The workspace sidebar takes a column on the left; decks shrink rather than sit under it.
+        let side = isSidebarVisible ? Theme.Metrics.sidebarWidth + g : 0
+        return CGRect(x: g + side, y: max(titlebar, 28), width: b.width - g * 2 - side, height: b.height - max(titlebar, 28) - g)
     }
 
     /// Frames of every pane currently on screen, in content view coordinates.
@@ -667,7 +675,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             })
         })
 
-        layoutWorkspaceBar()
+        layoutWorkspaceSidebar()
         contentView.raiseOverlays()
         updateSelectionHighlight()
     }
@@ -778,7 +786,9 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             }
         }
         window?.title = focusedPane?.title ?? "Dealer"
-        workspaceBar.reload()
+        workspaceSidebar.reload()
+        // The automatic sidebar appears with a second workspace: that changes the deck area.
+        if workspaceSidebar.isHidden == isSidebarVisible { contentView.needsLayout = true }
     }
 
     private func updateSelectionHighlight() {

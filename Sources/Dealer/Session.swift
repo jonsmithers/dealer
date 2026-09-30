@@ -34,11 +34,15 @@ struct WindowSnapshot: Codable {
     var activeWorkspace: Int?
     /// Session files written before workspaces had one deck tree per window here.
     var root: TreeSnapshot<DeckSnapshot>?
+    /// The user's explicit workspace-sidebar choice; absent (nil) means automatic. Optional so
+    /// older files still decode.
+    var sidebar: Bool?
 
-    init(frame: CGRect, workspaces: [WorkspaceSnapshot], activeWorkspace: Int) {
+    init(frame: CGRect, workspaces: [WorkspaceSnapshot], activeWorkspace: Int, sidebar: Bool? = nil) {
         self.frame = frame
         self.workspaces = workspaces
         self.activeWorkspace = activeWorkspace
+        self.sidebar = sidebar
     }
 
     /// The window's workspaces; an old single-tree file becomes one workspace.
@@ -116,7 +120,8 @@ extension TerminalWindowController {
             return WorkspaceSnapshot(name: ws.name, root: deckTree(ws.root!))
         }
         return WindowSnapshot(frame: window.frame, workspaces: wss,
-                              activeWorkspace: live.firstIndex { $0 === activeWorkspace } ?? 0)
+                              activeWorkspace: live.firstIndex { $0 === activeWorkspace } ?? 0,
+                              sidebar: sidebarPreference)
     }
 
     /// Rebuilds every workspace in a snapshot, including one migrated from a pre-workspace file.

@@ -61,25 +61,36 @@
   also sets `GHOSTTY_RESOURCES_DIR` from `/Applications/Ghostty.app` so shell integration and
   terminfo work.
 
-## Workspaces (`Workspace.swift`, `WorkspaceBar.swift`)
+## Workspaces (`Workspace.swift`, `WorkspaceSidebar.swift`)
 
 - Moves into another workspace follow the usual order: detach, then `place(tab:in:)` /
   `place(deck:in:)`, then `finishChange`. A move to a new workspace inserts an empty
   `Workspace` first; it must be filled before `finishChange`, which would close it.
 - Moving a deck to another workspace clears its fold `origin`; fold never crosses workspaces.
-- The switcher (`WorkspaceBarView`) sits in the titlebar row of `contentView`, laid out by
-  `layoutWorkspaceBar()` from `layoutWindow` and reloaded from `refreshChrome()`. Clicks reach it
-  through the transparent titlebar (the self-test clicks a pill via `window.sendEvent`).
+- The switcher is `WorkspaceSidebarView`, a left column of `contentView` below the titlebar row;
+  its toggle (`SidebarToggleButton`) sits in the titlebar row right of the traffic lights. Both are
+  placed by `layoutWorkspaceSidebar()` from `layoutWindow`; rows reload from `refreshChrome()`.
+- The sidebar never overlays decks: `deckArea` subtracts its column when `isSidebarVisible`, so
+  anything sizing against `deckArea` (promote fractions, drop bands, CLI `--size`) already accounts
+  for it. `isSidebarVisible` is `sidebarPreference ?? (workspaces.count > 1)`: `nil` is automatic,
+  and only the user's toggle sets it. Because the automatic state flips with the workspace count,
+  `refreshChrome()` marks the content view for layout when the sidebar's shown state is stale.
+- `WindowSnapshot.sidebar` is optional (absent = automatic); keep it that way so older files
+  decode. Don't persist the automatic value as an explicit one.
+- DragController checks the sidebar before the left-edge promote band (the sidebar lies left of
+  `deckArea`); dropping on the source's own workspace is no target.
 
 - `session.json` stores `workspaces` + `activeWorkspace` per window. The optional `root` field
   exists only to read pre-workspace files (`WindowSnapshot.allWorkspaces` migrates them); keep it
   decodable. Always read `allWorkspaces`, never `workspaces` directly.
-- `layoutWorkspaceBar()` must call `bar.layoutSubtreeIfNeeded()` after `reload()`. `reload()` runs
-  inside the window's layout pass, so its `needsLayout` is dropped and the pills keep zero frames.
-  The bar then draws nothing, but the self-test still passes.
-- `WorkspaceBarView.button(at:)` is a test hook: the self-test clicks a pill through
-  `window.sendEvent`. That click is the only check that titlebar clicks reach the bar, so keep the
-  hook through restyles.
+- `layoutWorkspaceSidebar()` must call `layoutSubtreeIfNeeded()` after `reload()`. `reload()` runs
+  inside the window's layout pass, so its `needsLayout` is dropped and the rows keep zero frames.
+  The sidebar then draws nothing, but the self-test still passes.
+- Test hooks: `WorkspaceSidebarView.row(at:)` and `addRow`. The self-test clicks and drags rows
+  through `window.sendEvent` (row reorder is plain mouseDown/Dragged/Up on `WorkspaceRow`, which the
+  window routes to the pressed view), and runs DragController's real tracking loop by
+  `window.postEvent`-queuing the drag and release before calling `drag.begin` (`SelfTestSidebar.swift`).
+  Keep these working through restyles.
 - Workspaces restored but never shown have deck views that aren't in the window yet (their shells
   run anyway, because surfaces are created in `SurfaceView.init`). Ghostty keybind actions from
   those panes find no window controller until the workspace is first shown.

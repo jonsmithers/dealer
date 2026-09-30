@@ -156,6 +156,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return i
         }
         var workspaceItems = [
+            item("Show Workspace Sidebar", #selector(TerminalWindowController.toggleSidebar(_:)), "s", [.command, .control]),
+            .separator(),
             item("New Workspace", #selector(TerminalWindowController.newWorkspace(_:)), "n", [.command, .control]),
             item("Rename Workspace…", #selector(TerminalWindowController.renameWorkspace(_:))),
             item("Close Workspace", #selector(TerminalWindowController.closeWorkspace(_:)), "w", [.command, .control]),

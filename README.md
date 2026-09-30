@@ -61,14 +61,18 @@ colors from your Ghostty theme (background/foreground, `unfocused-split-*`, `spl
 | ⌃1…⌃9 | Go to workspace N |
 | ⌃⌘N / ⌃⌘W | New / close workspace |
 | ⌃⌘] / ⌃⌘[ | Next / previous workspace |
+| ⌃⌘S | Show / hide the workspace sidebar |
 | ⌘⇧U | Jump to the next pane that needs attention |
 | ⌥⌘A / ⌥⇧⌘A | New agent pane / in a new git worktree |
 
 Double-click a tab to rename it; middle-click or hover × to close it.
 
-Workspaces: the pills in the titlebar switch workspaces (double-click to rename, right-click for
-a menu, middle-click to close, + to add). The Workspace menu moves the focused pane, tab or
-deck to another workspace or a new one, and reorders workspaces.
+Workspaces are listed in a sidebar on the left: number, name, attention dot, and a dim line
+with the focused pane's agent state, cwd and branch. Click a row to switch, double-click to
+rename, right-click for a menu, middle-click to close, drag to reorder, "New Workspace" to add.
+It shows by itself once a window has two workspaces; the toggle right of the traffic lights (or
+⌃⌘S) hides or shows it, and that choice is remembered per window. The Workspace menu also moves
+the focused pane, tab or deck to another workspace or a new one, and reorders workspaces.
 
 ## Dragging
 
@@ -81,6 +85,8 @@ or drag a tab:
 | Centre of another pane | swap the two | — |
 | A tab strip | becomes its own tab (works across decks) | reorder / move to that deck |
 | Window edge (past the decks) | promote to a new deck | becomes a new deck |
+| A workspace in the sidebar | moves to that workspace as a tab | same |
+| "New Workspace" in the sidebar | moves to a new workspace, which you follow | same |
 | Hover a tab | switches to it after a short delay | same |
 
 ## Attention (coding agents)
@@ -175,7 +181,7 @@ and asserts the tree after each step.
 - `DragController.swift` – pane/tab drag & drop targets
 - `Views.swift` – deck, tab strip, pane bar, dividers, overlays
 - `Session.swift` – save/restore
-- `Workspace.swift` / `WorkspaceBar.swift` – workspaces and the titlebar switcher
+- `Workspace.swift` / `WorkspaceSidebar.swift` – workspaces, and the collapsible workspace sidebar + its titlebar toggle
 - `Theme.swift` – chrome colors derived from the ghostty config (light/dark), metrics, fonts, motion
 - `ControlServer.swift` / `ControlHandler.swift` / `ControlNotify.swift` – control socket, request handler, `dealer notify`
 - `SelfTest*.swift` – self-test, one file per feature section

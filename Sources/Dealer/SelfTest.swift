@@ -224,6 +224,7 @@ extension TerminalWindowController {
         let kit = SelfTestKit(step: { step($0, expect: $1, check: $2, $3) }, named: named, pane: p,
                               name: { names[ObjectIdentifier($0)] ?? $0.title })
         workspaceSelfTestSteps(kit)
+        sidebarSelfTestSteps(kit)
         cliSelfTestSteps(kit)
 
         var failures = 0

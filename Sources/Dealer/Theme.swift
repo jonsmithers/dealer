@@ -66,6 +66,10 @@ enum Theme {
         static let tabHeight: CGFloat = 24
         static let tabMaxWidth: CGFloat = 180
         static let tabSpacing: CGFloat = 2
+        /// Workspace sidebar column (issue #6), and its rows with and without a status line.
+        static let sidebarWidth: CGFloat = 200
+        static let sidebarRowHeight: CGFloat = 28
+        static let sidebarRowDetailHeight: CGFloat = 40
         static let paneBarHeight: CGFloat = 20
         /// Visible hairline between panes of one tab.
         static let paneGap: CGFloat = 1

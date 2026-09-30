@@ -62,8 +62,10 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   `DEALER_SOCKET`/`DEALER_PANE_ID` are inherited and point at the user's real app, so always
   override `DEALER_SOCKET` when testing. A second normal launch doesn't steal the socket (it falls
   back to `dealer-<pid>.sock`), but it still restores and overwrites session.json.
-- The self-test calls controller methods directly. Real mouse dragging (`DragController`'s
-  tracking loop) and divider dragging are not covered; neither are macOS notifications (bundle
+- The self-test mostly calls controller methods directly. `DragController`'s tracking loop can be
+  driven by queuing events with `window.postEvent` before `drag.begin` (see `SelfTestSidebar.swift`),
+  but only drops onto the workspace sidebar do that so far. Real mouse movement, hover-to-switch,
+  drag highlights and divider dragging are not covered; neither are macOS notifications (bundle
   only), modal dialogs, or real key presses. Say so when reporting.
 
 ## Behavior decisions to preserve

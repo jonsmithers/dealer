@@ -217,6 +217,9 @@ extension TerminalWindowController {
             guard workspaces.indices.contains(i) else { return false }
             item.title = "\(item.tag)  \(workspaces[i].displayName)"
             return workspaces[i] !== activeWorkspace
+        case #selector(toggleSidebar(_:)):
+            item.title = isSidebarVisible ? "Hide Workspace Sidebar" : "Show Workspace Sidebar"
+            return true
         case #selector(nextWorkspace(_:)), #selector(previousWorkspace(_:)):
             return workspaces.count > 1
         case #selector(moveWorkspaceLeft(_:)):
