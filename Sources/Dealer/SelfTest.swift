@@ -16,6 +16,18 @@ enum SelfTest {
     }
 }
 
+/// Lets a feature's self-test section (in its own file) add steps to the shared run.
+struct SelfTestKit {
+    /// (title, expected `describeTree` or nil, extra check returning a problem or nil, action)
+    let step: (String, String?, (() -> String?)?, @escaping () -> Void) -> Void
+    /// Gives a pane a short name for tree descriptions.
+    let named: (Pane?, String) -> Void
+    /// Looks a named pane up.
+    let pane: (String) -> Pane
+    /// A pane's short name.
+    let name: (Pane) -> String
+}
+
 extension TerminalWindowController {
     /// Compact text form of the whole tree, e.g. `Row(Deck0[*Row(srv, log), db], Deck1[*log])`.
     func describeTree(names: [ObjectIdentifier: String]) -> String {
@@ -207,6 +219,11 @@ extension TerminalWindowController {
 
         // Attention and jump to next unread (#4): SelfTestAttention.swift.
         steps += attentionSelfTestSteps(pane: p).map { s in (s.title, s.run, nil, s.check) }
+
+        // Feature sections live in their own files and append steps through this kit.
+        let kit = SelfTestKit(step: { step($0, expect: $1, check: $2, $3) }, named: named, pane: p,
+                              name: { names[ObjectIdentifier($0)] ?? $0.title })
+        workspaceSelfTestSteps(kit)
 
         var failures = 0
         func run(_ i: Int) {

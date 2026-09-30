@@ -130,6 +130,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item("Focus Down", #selector(TerminalWindowController.focusDown(_:)), arrow(NSDownArrowFunctionKey), [.command, .option]),
         ])
 
+        // Workspace menu (issue #1). Item titles and visibility are filled in by
+        // TerminalWindowController.validateWorkspaceMenuItem.
+        func moveMenu(_ title: String, _ action: Selector) -> NSMenuItem {
+            let menu = NSMenu(title: title)
+            menu.addItem(item("New Workspace", action, tag: TerminalWindowController.newWorkspaceTag))
+            menu.addItem(.separator())
+            for n in 1...9 { menu.addItem(item("Workspace \(n)", action, tag: n)) }
+            let i = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            i.submenu = menu
+            return i
+        }
+        var workspaceItems = [
+            item("New Workspace", #selector(TerminalWindowController.newWorkspace(_:)), "n", [.command, .control]),
+            item("Rename Workspace…", #selector(TerminalWindowController.renameWorkspace(_:))),
+            item("Close Workspace", #selector(TerminalWindowController.closeWorkspace(_:)), "w", [.command, .control]),
+            .separator(),
+            item("Next Workspace", #selector(TerminalWindowController.nextWorkspace(_:)), "]", [.command, .control]),
+            item("Previous Workspace", #selector(TerminalWindowController.previousWorkspace(_:)), "[", [.command, .control]),
+            item("Move Workspace Left", #selector(TerminalWindowController.moveWorkspaceLeft(_:))),
+            item("Move Workspace Right", #selector(TerminalWindowController.moveWorkspaceRight(_:))),
+            .separator(),
+            moveMenu("Move Pane to Workspace", #selector(TerminalWindowController.movePaneToWorkspace(_:))),
+            moveMenu("Move Tab to Workspace", #selector(TerminalWindowController.moveTabToWorkspace(_:))),
+            moveMenu("Move Deck to Workspace", #selector(TerminalWindowController.moveDeckToWorkspace(_:))),
+            .separator(),
+        ]
+        for n in 1...9 {
+            workspaceItems.append(item("Workspace \(n)", #selector(TerminalWindowController.gotoWorkspaceFromMenu(_:)), "\(n)", .control, tag: n))
+        }
+        submenu("Workspace", workspaceItems)
+
         var tabItems = [
             item("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"),
             .separator(),

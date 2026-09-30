@@ -60,3 +60,18 @@
 - `ghostty_init` and `ghostty_app_new` run once, in `GhosttyRuntime.start()`. That function
   also sets `GHOSTTY_RESOURCES_DIR` from `/Applications/Ghostty.app` so shell integration and
   terminfo work.
+
+## Workspaces (`Workspace.swift`, `WorkspaceBar.swift`)
+
+- Moves into another workspace follow the usual order: detach, then `place(tab:in:)` /
+  `place(deck:in:)`, then `finishChange`. A move to a new workspace inserts an empty
+  `Workspace` first; it must be filled before `finishChange`, which would close it.
+- Moving a deck to another workspace clears its fold `origin`; fold never crosses workspaces.
+- The switcher (`WorkspaceBarView`) sits in the titlebar row of `contentView`, laid out by
+  `layoutWorkspaceBar()` from `layoutWindow` and reloaded from `refreshChrome()`. Clicks reach it
+  through the transparent titlebar (the self-test clicks a pill via `window.sendEvent`).
+
+## Self-test sections
+
+- Feature steps live in their own files (e.g. `SelfTestWorkspaces.swift`) and are added through
+  the `SelfTestKit` passed from `runSelfTest`, one call line per section.

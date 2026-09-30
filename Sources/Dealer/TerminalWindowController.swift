@@ -22,6 +22,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     private var zoom: (pane: WeakRef<Pane>, level: Int)?
 
     let contentView = WindowContentView()
+    /// The workspace switcher in the titlebar row (WorkspaceBar.swift).
+    let workspaceBar = WorkspaceBarView()
     lazy var drag = DragController(controller: self)
     var onClose: ((TerminalWindowController) -> Void)?
 
@@ -164,7 +166,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         return pane
     }
 
-    private func confirm(_ message: String, info: String, then action: @escaping () -> Void) {
+    func confirm(_ message: String, info: String, then action: @escaping () -> Void) {
         guard let window else { return action() }
         let alert = NSAlert()
         alert.messageText = message
@@ -210,7 +212,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     // MARK: - Structural helpers
 
     /// Takes a pane subtree out of its tab. Empty tabs and decks are cleaned up.
-    private func detach(node: Node<Pane>, from tab: Tab, in deck: Deck) {
+    func detach(node: Node<Pane>, from tab: Tab, in deck: Deck) {
         if let r = Node.remove(node, from: tab.root) {
             tab.root = r
         } else {
@@ -219,7 +221,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// Takes a tab out of its deck. An empty deck is removed and its neighbours expand.
-    private func detach(tab: Tab, from deck: Deck) {
+    func detach(tab: Tab, from deck: Deck) {
         guard let i = deck.index(of: tab) else { return }
         deck.tabs.remove(at: i)
         if deck.activeIndex > i || deck.activeIndex >= deck.tabs.count {
@@ -663,6 +665,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             })
         })
 
+        layoutWorkspaceBar()
         contentView.raiseOverlays()
         updateSelectionHighlight()
     }
@@ -773,6 +776,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             }
         }
         window?.title = focusedPane?.title ?? "Dealer"
+        workspaceBar.reload()
     }
 
     private func updateSelectionHighlight() {
@@ -879,7 +883,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         case #selector(promoteToDeck(_:)):
             guard let node = selection ?? focusedPane.flatMap({ locate($0)?.node }), let loc = node.leaves.first.flatMap({ locate($0) }) else { return false }
             return node !== loc.tab.root || loc.deck.tabs.count > 1
-        default: return true
+        default: return validateWorkspaceMenuItem(item) ?? true
         }
     }
 
