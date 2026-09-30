@@ -28,8 +28,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     private var windowDividers: [DividerView] = []
     private var paneDividers: [ObjectIdentifier: [DividerView]] = [:]
 
-    static let deckGap: CGFloat = 6
-    static let paneGap: CGFloat = 4
+    static var deckGap: CGFloat { Theme.Metrics.deckGap }
+    static var paneGap: CGFloat { Theme.Metrics.paneGap }
 
     init(snapshot: WindowSnapshot? = nil) {
         let ws = Workspace(root: nil)
@@ -469,8 +469,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         if fraction == nil, let r = before {
             // Include the deck's own chrome so the terminal ends up the same size.
             f = edge.axis == .row
-                ? (r.width + 8 + Self.deckGap) / area.width
-                : (r.height + DeckView.stripHeight + 6 + Self.deckGap) / area.height
+                ? (r.width + DeckView.chromeSize.width + Self.deckGap) / area.width
+                : (r.height + DeckView.chromeSize.height + Self.deckGap) / area.height
         }
         f = min(max(f, 0.1), 0.6)
 
@@ -706,6 +706,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             }
             p.view.frame = r
             p.view.showsBar = multi
+            p.view.dimsWhenUnfocused = multi || decks.count > 1
             p.view.accent = decks.count > 1 ? deck.color : Palette.neutral
             p.view.isFocusedPane = p === focusedPane
             p.view.refreshTitle()
@@ -740,10 +741,14 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     /// Reuses divider views so one being dragged survives the relayout it triggers.
     private func syncDividers(_ pool: inout [DividerView], in parent: NSView, specs: [(CGRect, Axis, (CGPoint) -> Void)]) {
         while pool.count < specs.count { pool.append(DividerView()) }
+        // Hit areas overlap the panes beside a thin gap, so dividers must stay above them.
+        let firstDivider = parent.subviews.firstIndex { $0 is DividerView }
+        let buried = firstDivider.map { parent.subviews[$0...].contains { $0 is PaneView || $0 is DeckView } } ?? false
         for (i, dv) in pool.enumerated() {
             if i < specs.count {
-                let (frame, axis, onDrag) = specs[i]
-                if dv.superview !== parent { parent.addSubview(dv) }
+                let (gap, axis, onDrag) = specs[i]
+                let frame = DividerView.hitFrame(for: gap, axis: axis)
+                if dv.superview !== parent || buried { parent.addSubview(dv, positioned: .above, relativeTo: nil) }
                 if dv.frame != frame || dv.axis != axis {
                     dv.frame = frame
                     dv.axis = axis

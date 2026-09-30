@@ -18,29 +18,39 @@ class FlippedView: NSView {
 final class PaneView: FlippedView {
     weak var pane: Pane?
     let bar = PaneBarView()
-    static let barHeight: CGFloat = 22
+    static var barHeight: CGFloat { Theme.Metrics.paneBarHeight }
 
     var showsBar = false { didSet { if showsBar != oldValue { needsLayout = true } } }
     var isFocusedPane = false { didSet { if isFocusedPane != oldValue { updateChrome() } } }
-    var accent: NSColor = Palette.neutral { didSet { if accent != oldValue { updateChrome() } } }
+    /// Veil unfocused panes, the way Ghostty does (`unfocused-split-opacity`/`-fill`).
+    /// The controller turns it on when more than one pane is on screen.
+    var dimsWhenUnfocused = false { didSet { if dimsWhenUnfocused != oldValue { updateChrome() } } }
+    var accent: NSColor = Theme.accentNeutral { didSet { if accent != oldValue { updateChrome() } } }
+    /// Sits above the surface; never takes mouse events.
+    private let veil = PassthroughView()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        layer?.cornerRadius = 5
-        layer?.masksToBounds = true
-        layer?.backgroundColor = GhosttyRuntime.shared.backgroundColor.cgColor
-        layer?.borderWidth = 1
+        layer?.backgroundColor = Theme.background.cgColor
         addSubview(bar)
+        veil.layer?.backgroundColor = Theme.unfocusedFill.cgColor
+        veil.alphaValue = 0
+        addSubview(veil)
         updateChrome()
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
     private func updateChrome() {
-        let showRing = isFocusedPane && showsBar
-        layer?.borderColor = (showRing ? accent.withAlphaComponent(0.8) : NSColor.white.withAlphaComponent(0.06)).cgColor
         bar.accent = accent
         bar.isFocusedPane = isFocusedPane
+        let target = dimsWhenUnfocused && !isFocusedPane ? Theme.unfocusedAlpha : 0
+        if veil.alphaValue != target {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = Theme.Motion.quick
+                veil.animator().alphaValue = target
+            }
+        }
     }
 
     func refreshTitle() {
@@ -50,27 +60,40 @@ final class PaneView: FlippedView {
 
     override func layout() {
         super.layout()
-        let inset: CGFloat = 1
         bar.isHidden = !showsBar
-        var top = inset
+        var top: CGFloat = 0
         if showsBar {
-            bar.frame = CGRect(x: inset, y: inset, width: bounds.width - inset * 2, height: Self.barHeight)
-            top += Self.barHeight
+            bar.frame = CGRect(x: 0, y: 0, width: bounds.width, height: Self.barHeight)
+            top = Self.barHeight
         }
-        pane?.surface.frame = CGRect(x: inset, y: top, width: max(bounds.width - inset * 2, 1), height: max(bounds.height - top - inset, 1))
+        pane?.surface.frame = CGRect(x: 0, y: top, width: max(bounds.width, 1), height: max(bounds.height - top, 1))
+        veil.frame = bounds
+        if subviews.last !== veil { addSubview(veil, positioned: .above, relativeTo: nil) }
         updateChrome()
     }
+}
+
+/// A layer-backed view that never takes mouse events: veils, rings, badges.
+class PassthroughView: NSView {
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 /// The drag handle on top of every pane in a multi-pane tab.
 final class PaneBarView: FlippedView {
     var title = "" { didSet { if title != oldValue { needsDisplay = true } } }
-    var accent: NSColor = Palette.neutral { didSet { needsDisplay = true } }
-    var isFocusedPane = false { didSet { needsDisplay = true } }
+    var accent: NSColor = Theme.accentNeutral { didSet { needsDisplay = true } }
+    var isFocusedPane = false { didSet { if isFocusedPane != oldValue { needsDisplay = true } } }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        layer?.backgroundColor = Palette.bar.cgColor
+        layer?.backgroundColor = Theme.surface.mixed(with: Theme.chrome, 0.4).cgColor
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -79,21 +102,24 @@ final class PaneBarView: FlippedView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func draw(_ dirtyRect: NSRect) {
-        let dot = isFocusedPane ? accent : Palette.muted
-        dot.setFill()
+        // Grip: two rows of three dots, lit in the deck's accent when focused.
+        (isFocusedPane ? accent : Theme.textFaint).setFill()
+        let gy = (bounds.height - 6) / 2
         for row in 0..<2 {
             for col in 0..<3 {
-                NSBezierPath(ovalIn: CGRect(x: 10 + CGFloat(col) * 4, y: 8 + CGFloat(row) * 4, width: 2, height: 2)).fill()
+                NSBezierPath(ovalIn: CGRect(x: 9 + CGFloat(col) * 3.5, y: gy + CGFloat(row) * 3.5, width: 2, height: 2)).fill()
             }
         }
         let para = NSMutableParagraphStyle()
         para.lineBreakMode = .byTruncatingTail
+        let font = Theme.Fonts.paneBar
         let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11, weight: .medium),
-            .foregroundColor: isFocusedPane ? Palette.text : Palette.muted,
+            .font: font,
+            .foregroundColor: isFocusedPane ? Theme.text : Theme.textMuted,
             .paragraphStyle: para,
         ]
-        (title as NSString).draw(in: CGRect(x: 28, y: 4, width: bounds.width - 36, height: 15), withAttributes: attrs)
+        let h = ceil(font.ascender - font.descender)
+        (title as NSString).draw(in: CGRect(x: 26, y: (bounds.height - h) / 2, width: bounds.width - 34, height: h), withAttributes: attrs)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -110,43 +136,38 @@ final class PaneBarView: FlippedView {
 
 // MARK: - Deck
 
+/// A deck: a tab strip sitting directly on the window chrome, over a rounded card
+/// holding the active tab's panes. Pane gaps show the card's divider color as hairlines.
 final class DeckView: FlippedView {
     unowned let deck: Deck
     let strip: TabStripView
     let content = FlippedView()
-    private let topBorder = CALayer()
-    static let stripHeight: CGFloat = 32
+    static var stripHeight: CGFloat { Theme.Metrics.stripHeight }
+    /// Chrome around the content card: extra width and height a deck needs beyond its panes.
+    static var chromeSize: CGSize { CGSize(width: 0, height: stripHeight) }
 
     init(deck: Deck) {
         self.deck = deck
         strip = TabStripView(deck: deck)
         super.init(frame: .zero)
-        layer?.backgroundColor = Palette.deck.cgColor
-        layer?.cornerRadius = 9
-        layer?.masksToBounds = true
+        content.layer?.backgroundColor = Theme.divider.cgColor
+        content.layer?.cornerRadius = Theme.Metrics.deckRadius
+        content.layer?.masksToBounds = true
+        content.layer?.borderWidth = 1
+        content.layer?.borderColor = Theme.hairline.cgColor
         addSubview(strip)
         addSubview(content)
-        layer?.addSublayer(topBorder)
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
-    var showsColor = false { didSet { updateBorder() } }
-
-    private func updateBorder() {
-        topBorder.backgroundColor = (showsColor ? deck.color.withAlphaComponent(0.75) : NSColor.clear).cgColor
-    }
+    /// True when the window has several decks and each shows its identity color.
+    var showsColor = false { didSet { if showsColor != oldValue { strip.reload() } } }
 
     override func layout() {
         super.layout()
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        topBorder.frame = CGRect(x: 0, y: 0, width: bounds.width, height: 2)
-        topBorder.zPosition = 10
-        CATransaction.commit()
-        updateBorder()
-        strip.frame = CGRect(x: 0, y: 2, width: bounds.width, height: Self.stripHeight)
-        content.frame = CGRect(x: 4, y: Self.stripHeight + 2, width: max(bounds.width - 8, 1), height: max(bounds.height - Self.stripHeight - 6, 1))
+        strip.frame = CGRect(x: 0, y: 0, width: bounds.width, height: Self.stripHeight)
+        content.frame = CGRect(x: 0, y: Self.stripHeight, width: max(bounds.width, 1), height: max(bounds.height - Self.stripHeight, 1))
     }
 }
 
@@ -155,21 +176,23 @@ final class DeckView: FlippedView {
 final class TabStripView: FlippedView {
     unowned let deck: Deck
     private(set) var buttons: [TabButton] = []
-    private let addButton = NSButton()
+    private let addButton = HoverButton()
     /// Insertion marker shown while dragging something over the strip.
     private let marker = CALayer()
+
+    private static let inset: CGFloat = 2
+    private static let addWidth: CGFloat = 26
 
     init(deck: Deck) {
         self.deck = deck
         super.init(frame: .zero)
-        addButton.title = "+"
-        addButton.isBordered = false
-        addButton.font = .systemFont(ofSize: 15, weight: .regular)
-        addButton.contentTintColor = Palette.muted
+        addButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "New Tab")?
+            .withSymbolConfiguration(.init(pointSize: 11, weight: .medium))
+        addButton.toolTip = "New Tab"
         addButton.target = self
         addButton.action = #selector(addTab)
         addSubview(addButton)
-        marker.cornerRadius = 1.5
+        marker.cornerRadius = 1
         marker.isHidden = true
         marker.zPosition = 10
         layer?.addSublayer(marker)
@@ -190,13 +213,14 @@ final class TabStripView: FlippedView {
         while buttons.count > deck.tabs.count {
             buttons.removeLast().removeFromSuperview()
         }
+        let showsColor = (superview as? DeckView)?.showsColor ?? false
         for (i, tab) in deck.tabs.enumerated() {
             let b = buttons[i]
             b.tab = tab
             b.deck = deck
             b.title = tab.title
             b.isActive = i == deck.activeIndex
-            b.accent = deck.color
+            b.accent = showsColor ? deck.color : nil
             b.attention = tab.attention
         }
         needsLayout = true
@@ -204,19 +228,23 @@ final class TabStripView: FlippedView {
 
     private var tabWidth: CGFloat {
         let n = CGFloat(max(deck.tabs.count, 1))
-        let avail = bounds.width - 12 - 30 - (n - 1) * 4
-        return max(40, min(170, avail / n))
+        let s = Theme.Metrics.tabSpacing
+        let avail = bounds.width - Self.inset * 2 - Self.addWidth - n * s
+        return max(44, min(Theme.Metrics.tabMaxWidth, avail / n))
     }
 
+    private var tabY: CGFloat { (bounds.height - Theme.Metrics.tabHeight) / 2 }
+
     func tabFrame(_ i: Int) -> CGRect {
-        CGRect(x: 6 + CGFloat(i) * (tabWidth + 4), y: 4, width: tabWidth, height: 25)
+        CGRect(x: Self.inset + CGFloat(i) * (tabWidth + Theme.Metrics.tabSpacing), y: tabY,
+               width: tabWidth, height: Theme.Metrics.tabHeight)
     }
 
     override func layout() {
         super.layout()
         for (i, b) in buttons.enumerated() { b.frame = tabFrame(i) }
-        let end = buttons.isEmpty ? 6 : tabFrame(buttons.count - 1).maxX + 4
-        addButton.frame = CGRect(x: end, y: 4, width: 24, height: 25)
+        let end = buttons.isEmpty ? Self.inset : tabFrame(buttons.count - 1).maxX + Theme.Metrics.tabSpacing
+        addButton.frame = CGRect(x: end, y: tabY, width: Self.addWidth, height: Theme.Metrics.tabHeight)
     }
 
     /// Index a dropped tab would take at x (strip coordinates).
@@ -233,8 +261,10 @@ final class TabStripView: FlippedView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         if let index {
-            let x = index < deck.tabs.count ? tabFrame(index).minX - 3 : (deck.tabs.isEmpty ? 6 : tabFrame(deck.tabs.count - 1).maxX + 1)
-            marker.frame = CGRect(x: x, y: 3, width: 3, height: 27)
+            let s = Theme.Metrics.tabSpacing
+            let x = index < deck.tabs.count ? tabFrame(index).minX - s / 2 - 1
+                : (deck.tabs.isEmpty ? Self.inset : tabFrame(deck.tabs.count - 1).maxX + s / 2 - 1)
+            marker.frame = CGRect(x: x, y: tabY + 2, width: 2, height: Theme.Metrics.tabHeight - 4)
             marker.backgroundColor = color.cgColor
             marker.isHidden = false
         } else {
@@ -244,57 +274,101 @@ final class TabStripView: FlippedView {
     }
 }
 
+/// Borderless icon button with a soft hover fill, matching the tab buttons.
+final class HoverButton: NSButton {
+    private var hovering = false { didSet { updateLook() } }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        isBordered = false
+        wantsLayer = true
+        layer?.cornerRadius = Theme.Metrics.tabRadius
+        imagePosition = .imageOnly
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+        updateLook()
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func mouseEntered(with event: NSEvent) { hovering = true }
+    override func mouseExited(with event: NSEvent) { hovering = false }
+
+    private func updateLook() {
+        contentTintColor = hovering ? Theme.text : Theme.textFaint
+        layer?.backgroundColor = (hovering ? Theme.hover : .clear).cgColor
+    }
+}
+
 final class TabButton: FlippedView {
     weak var tab: Tab?
     weak var deck: Deck?
     var title = "" { didSet { if title != oldValue { needsDisplay = true } } }
     var isActive = false { didSet { if isActive != oldValue { needsDisplay = true } } }
-    var accent: NSColor = Palette.neutral { didSet { needsDisplay = true } }
+    /// Deck identity color, or nil in a single-deck window.
+    var accent: NSColor? { didSet { if accent != oldValue { needsDisplay = true } } }
     /// Badge for the most urgent pane in this tab (#4); drawn by `drawAttentionDot` in Attention.swift.
     var attention: Attention = .none { didSet { if attention != oldValue { needsDisplay = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
-    private var closeRect: CGRect { CGRect(x: bounds.width - 20, y: (bounds.height - 14) / 2, width: 14, height: 14) }
+    private var hoveringClose = false { didSet { if hoveringClose != oldValue { needsDisplay = true } } }
+    private var closeRect: CGRect { CGRect(x: bounds.width - 21, y: (bounds.height - 16) / 2, width: 16, height: 16) }
+    private var showsClose: Bool { hovering }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect], owner: self))
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseEntered(with event: NSEvent) { hovering = true }
-    override func mouseExited(with event: NSEvent) { hovering = false }
+    override func mouseExited(with event: NSEvent) { hovering = false; hoveringClose = false }
+    override func mouseMoved(with event: NSEvent) {
+        hoveringClose = closeRect.contains(convert(event.locationInWindow, from: nil))
+    }
 
     override func draw(_ dirtyRect: NSRect) {
-        let r = bounds.insetBy(dx: 0.5, dy: 0.5)
+        let r = bounds
+        let radius = Theme.Metrics.tabRadius
         if isActive {
-            Palette.tabActive.setFill()
-            NSBezierPath(roundedRect: r, xRadius: 6, yRadius: 6).fill()
-            accent.withAlphaComponent(0.9).setFill()
-            NSBezierPath(roundedRect: CGRect(x: 8, y: bounds.height - 2, width: bounds.width - 16, height: 2), xRadius: 1, yRadius: 1).fill()
+            Theme.surface.setFill()
+            NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius).fill()
+            if let accent {
+                accent.setFill()
+                NSBezierPath(roundedRect: CGRect(x: 10, y: r.height - 2, width: r.width - 20, height: 2), xRadius: 1, yRadius: 1).fill()
+            }
         } else if hovering {
-            Palette.bar.setFill()
-            NSBezierPath(roundedRect: r, xRadius: 6, yRadius: 6).fill()
+            Theme.hover.setFill()
+            NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius).fill()
         }
+
         let para = NSMutableParagraphStyle()
         para.lineBreakMode = .byTruncatingTail
+        para.alignment = .center
+        let font = isActive ? Theme.Fonts.tabActive : Theme.Fonts.tab
         let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 12, weight: isActive ? .semibold : .regular),
-            .foregroundColor: isActive ? Palette.text : Palette.muted,
+            .font: font,
+            .foregroundColor: isActive ? Theme.text : (hovering ? Theme.text.mixed(with: Theme.textMuted, 0.4) : Theme.textMuted),
             .paragraphStyle: para,
         ]
-        (title as NSString).draw(in: CGRect(x: 10, y: 5, width: bounds.width - 32, height: 16), withAttributes: attrs)
+        // Symmetric side padding keeps the centered title steady when the close button appears.
+        let h = ceil(font.ascender - font.descender)
+        (title as NSString).draw(in: CGRect(x: 24, y: (r.height - h) / 2, width: r.width - 48, height: h), withAttributes: attrs)
 
-        if hovering {
-            let c = closeRect.insetBy(dx: 3.5, dy: 3.5)
+        if showsClose {
+            if hoveringClose {
+                Theme.foreground.withAlphaComponent(0.12).setFill()
+                NSBezierPath(roundedRect: closeRect, xRadius: 4, yRadius: 4).fill()
+            }
+            let c = closeRect.insetBy(dx: 4.5, dy: 4.5)
             let path = NSBezierPath()
             path.move(to: c.origin)
             path.line(to: CGPoint(x: c.maxX, y: c.maxY))
             path.move(to: CGPoint(x: c.minX, y: c.maxY))
             path.line(to: CGPoint(x: c.maxX, y: c.minY))
-            path.lineWidth = 1.3
-            Palette.muted.setStroke()
+            path.lineWidth = 1.2
+            path.lineCapStyle = .round
+            (hoveringClose ? Theme.text : Theme.textMuted).setStroke()
             path.stroke()
         }
         drawAttentionDot(hidden: hovering)
@@ -302,7 +376,7 @@ final class TabButton: FlippedView {
 
     override func mouseDown(with event: NSEvent) {
         guard let tab, let deck, let c = controller else { return }
-        if hovering && closeRect.contains(convert(event.locationInWindow, from: nil)) {
+        if showsClose && closeRect.contains(convert(event.locationInWindow, from: nil)) {
             c.close(tab: tab)
             return
         }
@@ -322,9 +396,18 @@ final class TabButton: FlippedView {
 
 // MARK: - Divider
 
+/// Invisible grab handle over the gap between two panes or decks. The gap itself is the
+/// visible line; the controller makes this view a little wider than the gap so a 1pt
+/// hairline is still easy to grab.
 final class DividerView: NSView {
     var onDrag: ((CGPoint) -> Void)?
     var axis: Axis = .row
+
+    /// Frame for a divider covering `gap`, widened to a comfortable grab size.
+    static func hitFrame(for gap: CGRect, axis: Axis) -> CGRect {
+        let slop = Theme.Metrics.dividerSlop
+        return axis == .row ? gap.insetBy(dx: -slop, dy: 0) : gap.insetBy(dx: 0, dy: -slop)
+    }
 
     override func resetCursorRects() {
         addCursorRect(bounds, cursor: axis == .row ? .resizeLeftRight : .resizeUpDown)
@@ -346,8 +429,8 @@ final class HighlightView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.cornerRadius = 7
-        layer?.borderWidth = 2
+        layer?.cornerRadius = Theme.Metrics.overlayRadius
+        layer?.borderWidth = Theme.Metrics.overlayStroke
         isHidden = true
     }
 
@@ -357,13 +440,19 @@ final class HighlightView: NSView {
 
     func show(_ rect: CGRect, color: NSColor, fill: CGFloat = 0.16) {
         layer?.backgroundColor = color.withAlphaComponent(fill).cgColor
-        layer?.borderColor = color.withAlphaComponent(0.85).cgColor
+        layer?.borderColor = color.withAlphaComponent(0.9).cgColor
         if isHidden {
             frame = rect
+            alphaValue = 0
             isHidden = false
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = Theme.Motion.quick
+                animator().alphaValue = 1
+            }
         } else if frame != rect {
             NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.12
+                ctx.duration = Theme.Motion.quick
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 animator().frame = rect
             }
         }
@@ -379,12 +468,16 @@ final class GhostView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.backgroundColor = Palette.tabActive.cgColor
-        layer?.cornerRadius = 6
+        layer?.backgroundColor = Theme.surface.cgColor
+        layer?.cornerRadius = Theme.Metrics.overlayRadius
         layer?.borderWidth = 1
-        layer?.borderColor = NSColor.white.withAlphaComponent(0.15).cgColor
-        label.font = .systemFont(ofSize: 12, weight: .medium)
-        label.textColor = Palette.text
+        layer?.borderColor = Theme.foreground.withAlphaComponent(0.16).cgColor
+        layer?.shadowColor = NSColor.black.cgColor
+        layer?.shadowOpacity = 0.35
+        layer?.shadowRadius = 8
+        layer?.shadowOffset = CGSize(width: 0, height: -3)
+        label.font = Theme.Fonts.overlay
+        label.textColor = Theme.text
         label.lineBreakMode = .byTruncatingTail
         addSubview(label)
         isHidden = true
@@ -413,7 +506,7 @@ final class WindowContentView: FlippedView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        layer?.backgroundColor = Palette.window.cgColor
+        layer?.backgroundColor = Theme.chrome.cgColor
     }
 
     required init?(coder: NSCoder) { fatalError() }

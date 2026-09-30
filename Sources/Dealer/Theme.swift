@@ -27,7 +27,7 @@ enum Theme {
     // MARK: Derived chrome colors
 
     /// Window, titlebar and tab-strip surface: a shade off the terminal background.
-    static var chrome: NSColor { background.mixed(with: .black, isDark ? 0.22 : 0.06) }
+    static var chrome: NSColor { background.mixed(with: .black, isDark ? 0.28 : 0.06) }
     /// Raised surfaces that should match the terminal: active tab, pane bars.
     static var surface: NSColor { background }
     /// Hover fill on chrome.
