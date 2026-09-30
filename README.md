@@ -21,7 +21,7 @@ Prerequisites: macOS 14+, Xcode command-line tools, a Ghostty checkout at `~/git
 
 ```sh
 scripts/build-ghosttykit.sh      # once: builds GhosttyKit.xcframework from ~/git/ghostty into vendor/
-scripts/bundle.sh                # swift build + wraps build/Dealer.app (add `release` for an optimized build)
+scripts/bundle.sh                # swift build + wraps build/Dealer.app (release by default; `debug` for a debug build)
 open build/Dealer.app            # run it
 ```
 
