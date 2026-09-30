@@ -41,7 +41,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
         window.backgroundColor = Palette.window
-        window.appearance = NSAppearance(named: .darkAqua)
+        window.appearance = Theme.appearance
+        window.titleVisibility = .hidden
         window.minSize = NSSize(width: 480, height: 320)
         window.contentView = contentView
         window.tabbingMode = .disallowed

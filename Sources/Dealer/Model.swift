@@ -234,21 +234,3 @@ final class Deck {
 
     func index(of tab: Tab) -> Int? { tabs.firstIndex { $0 === tab } }
 }
-
-enum Palette {
-    static let deckColors: [NSColor] = [
-        NSColor(srgbRed: 0x7e / 255, green: 0xa6 / 255, blue: 0xf4 / 255, alpha: 1),
-        NSColor(srgbRed: 0xe9 / 255, green: 0xa6 / 255, blue: 0x6c / 255, alpha: 1),
-        NSColor(srgbRed: 0x8f / 255, green: 0xd1 / 255, blue: 0x9e / 255, alpha: 1),
-        NSColor(srgbRed: 0xc7 / 255, green: 0x9c / 255, blue: 0xf2 / 255, alpha: 1),
-        NSColor(srgbRed: 0xf2 / 255, green: 0x8f / 255, blue: 0xb0 / 255, alpha: 1),
-        NSColor(srgbRed: 0x6f / 255, green: 0xd3 / 255, blue: 0xd6 / 255, alpha: 1),
-    ]
-    static let window = NSColor(srgbRed: 0x0c / 255, green: 0x0e / 255, blue: 0x12 / 255, alpha: 1)
-    static let deck = NSColor(srgbRed: 0x16 / 255, green: 0x19 / 255, blue: 0x20 / 255, alpha: 1)
-    static let bar = NSColor(srgbRed: 0x1f / 255, green: 0x23 / 255, blue: 0x2c / 255, alpha: 1)
-    static let tabActive = NSColor(srgbRed: 0x2a / 255, green: 0x2f / 255, blue: 0x3a / 255, alpha: 1)
-    static let text = NSColor(srgbRed: 0xe7 / 255, green: 0xe9 / 255, blue: 0xee / 255, alpha: 1)
-    static let muted = NSColor(srgbRed: 0x8a / 255, green: 0x93 / 255, blue: 0xa0 / 255, alpha: 1)
-    static let neutral = NSColor(srgbRed: 0x9a / 255, green: 0xa2 / 255, blue: 0xae / 255, alpha: 1)
-}

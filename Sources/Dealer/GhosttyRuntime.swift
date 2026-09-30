@@ -31,6 +31,7 @@ final class GhosttyRuntime {
         ghostty_config_load_recursive_files(cfg)
         ghostty_config_finalize(cfg)
         config = cfg
+        if let cfg { Theme.load(cfg) }
 
         var bg = ghostty_config_color_s()
         let key = "background"
