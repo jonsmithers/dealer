@@ -114,21 +114,40 @@ Add this to `~/.claude/settings.json` (or a project's `.claude/settings.json`). 
 ```json
 {
   "hooks": {
-    "Notification": [
+    "PermissionRequest": [
       { "hooks": [{ "type": "command",
+        "command": "[ -n \"$DEALER_PANE_ID\" ] && dealer notify --state waiting --title 'Claude Code' --body \"Permission: $(jq -r '.tool_name // empty')\" || true" }] }
+    ],
+    "Notification": [
+      { "matcher": "permission_prompt|elicitation_dialog|elicitation_url_dialog",
+        "hooks": [{ "type": "command",
         "command": "[ -n \"$DEALER_PANE_ID\" ] && dealer notify --state waiting --title 'Claude Code' --body \"$(jq -r '.message // empty')\" || true" }] }
     ],
     "Stop": [
       { "hooks": [{ "type": "command",
         "command": "[ -n \"$DEALER_PANE_ID\" ] && dealer notify --state done --title 'Claude Code' --body 'Finished' || true" }] }
+    ],
+    "StopFailure": [
+      { "hooks": [{ "type": "command",
+        "command": "[ -n \"$DEALER_PANE_ID\" ] && dealer notify --state waiting --title 'Claude Code error' --body \"$(jq -r '.error // empty')\" || true" }] }
     ]
   }
 }
 ```
 
-`Notification` fires when Claude needs permission or has been idle waiting for input. It
-reads the hook's JSON from stdin, which is why `jq` pulls out `.message`. `Stop` fires when
-Claude finishes its turn. States are `waiting`, `done`, `unread` and `none` (clears the pane).
+- `PermissionRequest` fires the moment Claude asks to use a tool or to approve a plan. The
+  `permission_prompt` notification only arrives about 6 s later. A hook that prints nothing
+  doesn't answer the prompt; you still answer it in the pane.
+- The `Notification` matcher leaves out `idle_prompt`. That type fires about 60 s after every
+  finished turn and would turn a *done* pane into *waiting*.
+- `StopFailure` replaces `Stop` when a turn ends in an API error (rate limit, overload, auth).
+- The hooks read their JSON from stdin, which is why `jq` is used.
+- States are `waiting`, `done`, `unread` and `none` (clears the pane).
+
+Without hooks, Claude Code still sends its own OSC 777 notification (shown as *unread*) and
+OSC 9;4 progress (*running*). [docs/claude-code-states.md](docs/claude-code-states.md) covers
+every state, signal and timing in detail.
+
 Inside Dealer panes, `dealer` is on `PATH` (the bundle's `Contents/Resources/bin` is appended).
 Codex and other agents work the same way through their own hook or notify settings. Anything
 that prints an OSC 9 notification (`printf '\e]9;done\a'`) also works with no setup.
