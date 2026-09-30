@@ -96,7 +96,7 @@ Add this to `~/.claude/settings.json` (or a project's `.claude/settings.json`). 
 `Notification` fires when Claude needs permission or has been idle waiting for input. It
 reads the hook's JSON from stdin, which is why `jq` pulls out `.message`. `Stop` fires when
 Claude finishes its turn. States are `waiting`, `done`, `unread` and `none` (clears the pane).
-Inside Dealer panes, `dealer` is on `PATH` because Ghostty appends the app's binary directory.
+Inside Dealer panes, `dealer` is on `PATH` (the bundle's `Contents/Resources/bin` is appended).
 Codex and other agents work the same way through their own hook or notify settings. Anything
 that prints an OSC 9 notification (`printf '\e]9;done\a'`) also works with no setup.
 
@@ -114,6 +114,14 @@ The branch is read from `.git/HEAD`, and worktrees work too.
 `<repo>.worktrees/agent-N` and starts the agent there. The command is `claude` by default.
 Change it with `defaults write dev.smithers.dealer agentCommand 'codex'` or `DEALER_AGENT_COMMAND`.
 It is typed into the pane's shell, so you're back at a prompt when the agent exits.
+
+## Scripting: `dealer`
+
+`dealer` drives a running Dealer over a Unix socket: `create` panes/tabs/decks/workspaces
+(`--side`, `--size`, `--cwd`, `--command`, `--title`, `--no-focus`), `send-text`, `focus`,
+`resize`, `rename`, `identify`, `list --json` (IDs, cwd, foreground process and PIDs),
+`find --process RE`, and `notify`. Commands are synchronous and IDs are stable. See
+[docs/cli.md](docs/cli.md) for the reference and the `b` / `focus-nvim` recipes.
 
 ## Session restore
 

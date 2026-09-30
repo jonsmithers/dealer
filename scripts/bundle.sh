@@ -8,6 +8,11 @@ APP=build/Dealer.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp ".build/$CONFIG/Dealer" "$APP/Contents/MacOS/Dealer"
+# The CLI is the same binary; invoked as `dealer` it talks to the control socket (docs/cli.md).
+# It lives in Resources/bin because MacOS/dealer would collide with MacOS/Dealer on
+# case-insensitive volumes. Panes get this directory appended to PATH.
+mkdir -p "$APP/Contents/Resources/bin"
+ln -s ../../MacOS/Dealer "$APP/Contents/Resources/bin/dealer"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

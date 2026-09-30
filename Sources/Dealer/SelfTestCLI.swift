@@ -1,0 +1,224 @@
+import AppKit
+import GhosttyKit
+
+// MARK: - Self-test section: scripting CLI / control socket (issue #5)
+
+extension TerminalWindowController {
+    /// Drives every CLI command through `ControlHandler.handle` (the same function the socket
+    /// calls), in a workspace of its own, then does one real socket round-trip with the binary.
+    func cliSelfTestSteps(_ t: SelfTestKit) {
+        var ids: [String: Int] = [:]
+        var lastError: String?
+        let tmp = NSTemporaryDirectory() + "dealer-selftest-\(getpid())"
+        try? FileManager.default.createDirectory(atPath: tmp, withIntermediateDirectories: true)
+
+        @discardableResult
+        func call(_ cmd: String, _ args: [String: Any] = [:], caller: String? = nil) -> [String: Any]? {
+            var req: [String: Any] = ["cmd": cmd, "args": args]
+            if let caller { req["caller"] = ids[caller] }
+            let r = ControlHandler.handle(req)
+            guard r["ok"] as? Bool == true else {
+                lastError = "\(cmd) failed: \(r["error"] ?? "?")"
+                return nil
+            }
+            lastError = nil
+            return r["result"] as? [String: Any]
+        }
+        func created(_ r: [String: Any]?, _ name: String) {
+            guard let id = r?["pane"] as? Int, let p = ControlHandler.pane(id: id) else { return }
+            ids[name] = id
+            t.named(p, name)
+        }
+        func tree(_ e: String) -> String? {
+            let got = self.describeTreeNamed(t)
+            return got == e ? nil : "expected \(e)\n         got      \(got)"
+        }
+        func focused(_ n: String) -> String? {
+            ControlHandler.focusedPane === t.pane(n) ? nil
+                : "focus should be on \(n), is on \(ControlHandler.focusedPane.map(t.name) ?? "nil")"
+        }
+        func all(_ problems: String?...) -> String? {
+            let p = ([lastError] + problems).compactMap { $0 }
+            return p.isEmpty ? nil : p.joined(separator: "; ")
+        }
+        func node(_ n: String) -> Node<Pane>? { locate(t.pane(n))?.node }
+        /// Share of `n`'s parent split held by `n`.
+        func share(_ n: String) -> CGFloat {
+            guard let x = node(n), let p = x.parent else { return -1 }
+            return p.a === x ? p.ratio : 1 - p.ratio
+        }
+        /// ghostty can fail to create surfaces (no GPU/display, e.g. a locked screen); checks that
+        /// need a running shell or cell metrics are skipped then, and say so.
+        var live: Bool { t.pane("c0").surface.surface != nil }
+        func skipped(_ what: String) -> String? {
+            print("      (skipped \(what): ghostty couldn't create terminal surfaces here)")
+            return nil
+        }
+        /// Runs the run loop (so shells, ghostty and the socket make progress) until `cond` holds.
+        func wait(_ seconds: TimeInterval, _ cond: () -> Bool) -> Bool {
+            let end = Date().addingTimeInterval(seconds)
+            while !cond() && Date() < end { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
+            return cond()
+        }
+
+        t.step("cli: create workspace", nil, {
+            all(tree("Deck0[*c0]"), self.activeWorkspace.decks.first?.activeTab?.panes.first === ControlHandler.pane(id: ids["c0"] ?? -1) ? nil : "new workspace should be active")
+        }) {
+            created(call("create", ["type": "workspace", "target": "focused", "name": "cli"]), "c0")
+        }
+        t.step("cli: create pane --side down --size 6 --no-focus --title", nil, {
+            let rows = t.pane("c1").surface.surface.map { Int(ghostty_surface_size($0).rows) } ?? -1
+            return all(tree("Deck0[*Col(c0, c1)]"), focused("c0"),
+                       t.pane("c1").title == "RUN make" ? nil : "title should be 'RUN make'",
+                       !live ? skipped("--size in rows") : share("c1") < 0.45 ? nil : "--size 6 should give a small pane, got share \(share("c1"))",
+                       !live ? nil : abs(rows - 6) <= 2 ? nil : "--size 6 gave \(rows) rows")
+        }) {
+            created(call("create", ["side": "down", "size": "6", "focus": false, "title": "RUN make"], caller: "c0"), "c1")
+        }
+        t.step("cli: create pane --side right --size 30% (takes focus)", nil, {
+            all(tree("Deck0[*Col(Row(c0, c2), c1)]"), focused("c2"),
+                abs(share("c2") - 0.3) < 0.01 ? nil : "share should be 0.3, is \(share("c2"))")
+        }) {
+            created(call("create", ["target": "pane:\(ids["c0"]!)", "side": "right", "size": "30%"]), "c2")
+        }
+        t.step("cli: create tab --no-focus opens in the background", nil, {
+            all(tree("Deck0[*Col(Row(c0, c2), c1), c3]"), focused("c2"))
+        }) {
+            created(call("create", ["type": "tab", "focus": false, "title": "bg"]), "c3")
+        }
+        t.step("cli: create deck --side right --size 0.25 --no-focus", nil, {
+            all(tree("Row(Deck0[*Col(Row(c0, c2), c1), c3], Deck1[*c4])"), focused("c2"))
+        }) {
+            created(call("create", ["type": "deck", "side": "right", "size": "0.25", "focus": false], caller: "c2"), "c4")
+        }
+        t.step("cli: focus tab:N switches tab and focuses its pane", nil, {
+            all(tree("Row(Deck0[Col(Row(c0, c2), c1), *c3], Deck1[*c4])"), focused("c3"))
+        }) {
+            let tab = self.locate(t.pane("c3"))!.tab
+            call("focus", ["target": "tab:\(tab.id)"])
+        }
+        t.step("cli: focus pane:N brings its tab back", nil, {
+            all(tree("Row(Deck0[*Col(Row(c0, c2), c1), c3], Deck1[*c4])"), focused("c1"))
+        }) {
+            call("focus", ["target": "\(ids["c1"]!)"])
+        }
+        t.step("cli: identify reports caller and focus (synchronously)", nil, {
+            let r = call("identify", caller: "c0")
+            let caller = (r?["caller"] as? [String: Any])?["pane"] as? Int
+            let focus = (r?["focused"] as? [String: Any])?["pane"] as? Int
+            return all(caller == ids["c0"] ? nil : "caller should be c0", focus == ids["c1"] ? nil : "focused should be c1")
+        }) {}
+        t.step("cli: resize --to 40% then --by +10%", nil, {
+            all(abs(share("c1") - 0.5) < 0.01 ? nil : "share should end at 0.5, is \(share("c1"))")
+        }) {
+            call("resize", ["target": "\(ids["c1"]!)", "to": "40%"])
+            if abs(share("c1") - 0.4) > 0.01 { lastError = "--to 40% gave \(share("c1"))"; return }
+            call("resize", ["target": "\(ids["c1"]!)", "by": "+10%"])
+        }
+        t.step("cli: resize a deck by cells", nil, {
+            if !live { lastError = nil; return skipped("resize by cells") }
+            let d = self.locate(t.pane("c4"))!.deck
+            let s = self.root.flatMap { $0.node(for: d) }.map { $0.parent!.b === $0 ? 1 - $0.parent!.ratio : $0.parent!.ratio } ?? 0
+            return all(s > 0.25 && s < 0.6 ? nil : "deck share should grow past 0.25, is \(s)")
+        }) {
+            let d = self.locate(t.pane("c4"))!.deck
+            call("resize", ["target": "deck:\(d.id)", "by": "+10"])
+        }
+        t.step("cli: rename pane and tab", nil, {
+            all(t.pane("c2").title == "editor" ? nil : "pane title should be editor",
+                self.locate(t.pane("c0"))!.tab.title == "work" ? nil : "tab title should be work")
+        }) {
+            call("rename", ["target": "\(ids["c2"]!)", "title": "editor"])
+            call("rename", ["target": "\(ids["c0"]!)", "level": "tab", "title": "work"])
+        }
+        t.step("cli: send-text types into the shell; --command runs a command", nil, {
+            if !live { return all(skipped("shell output")) }
+            let typed = tmp + "/typed", ran = tmp + "/ran"
+            let ok = wait(15) {
+                FileManager.default.fileExists(atPath: typed) && FileManager.default.fileExists(atPath: ran)
+            }
+            let text = (try? String(contentsOfFile: typed, encoding: .utf8)) ?? ""
+            return all(ok ? nil : "shell never ran the typed/--command lines",
+                       text.contains("a\\b 'q' ✅") ? nil : "typed text arrived as \(text.debugDescription)")
+        }) {
+            call("send-text", ["target": "\(ids["c0"]!)",
+                               "items": [["text": "printf '%s\\n' 'a\\b '\"'q'\"' ✅' > \(tmp)/typed"], ["key": "enter"]]])
+            created(call("create", ["target": "\(ids["c4"]!)", "focus": false,
+                                    "command": "/bin/sh -c 'pwd > \(tmp)/ran; sleep 60'", "cwd": tmp]), "c5")
+        }
+        t.step("cli: list shows ids, cwd and foreground processes; find matches by process", nil, {
+            guard let r = call("list") else { return all() }
+            if !live {
+                let n = (r["windows"] as? [[String: Any]])?.count ?? 0
+                return all(n > 0 ? nil : "list returned no windows", skipped("process info"))
+            }
+            let panes = (r["windows"] as? [[String: Any]] ?? []).flatMap { ($0["workspaces"] as? [[String: Any]] ?? []) }
+                .flatMap { ($0["decks"] as? [[String: Any]] ?? []) }.flatMap { ($0["tabs"] as? [[String: Any]] ?? []) }
+                .flatMap { ($0["panes"] as? [[String: Any]] ?? []) }
+            let c5 = panes.first { $0["id"] as? Int == ids["c5"] }
+            let procs = (c5?["processes"] as? [[String: Any]] ?? []).compactMap { $0["command"] as? String }
+            let found = call("find", ["process": "sleep 60"])?["panes"] as? [Int]
+            let ran = (try? String(contentsOfFile: tmp + "/ran", encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return all(c5 != nil ? nil : "c5 missing from list",
+                       procs.contains { $0.contains("sleep 60") } ? nil : "c5 processes: \(procs)",
+                       (c5?["foreground"] as? [String: Any])?["pid"] as? Int ?? 0 > 0 ? nil : "c5 has no foreground pid",
+                       found == [ids["c5"]!] ? nil : "find --process gave \(found ?? [])",
+                       ran.map { ($0 as NSString).resolvingSymlinksInPath == (tmp as NSString).resolvingSymlinksInPath } == true ? nil : "--cwd not applied: \(ran ?? "nil")")
+        }) {}
+        t.step("cli: notify marks the pane", nil, {
+            all(t.pane("c2").attention == .done ? nil : "attention should be done, is \(t.pane("c2").attention)")
+        }) {
+            call("notify", ["target": "\(ids["c2"]!)", "state": "done", "title": "t", "body": "b"])
+        }
+        t.step("cli: bad targets fail", nil, {
+            let bad = ControlHandler.handle(["cmd": "focus", "args": ["target": "pane:999999"]])
+            let gone = ControlHandler.handle(["cmd": "create", "caller": 999999])
+            let key = ControlHandler.handle(["cmd": "send-text", "args": ["items": [["key": "hyper+q"]]]])
+            return [bad, gone, key].allSatisfy { $0["ok"] as? Bool == false } ? nil : "expected errors"
+        }) {}
+        t.step("cli: real socket round-trip with the dealer binary", nil, {
+            guard let socket = ControlServer.shared.path else { return "control socket isn't running" }
+            func run(_ args: [String]) -> (Int32, String, String) {
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
+                p.arguments = args
+                var env = ProcessInfo.processInfo.environment
+                env["DEALER_SOCKET"] = socket
+                env["DEALER_PANE_ID"] = "\(ids["c0"]!)"
+                env.removeValue(forKey: "DEALER_SELFTEST")
+                env.removeValue(forKey: "MYTERM_SELFTEST")
+                p.environment = env
+                let out = Pipe(), err = Pipe()
+                p.standardOutput = out
+                p.standardError = err
+                do { try p.run() } catch { return (-1, "", "\(error)") }
+                // The client blocks until main answers, so keep the run loop going meanwhile.
+                _ = wait(10) { !p.isRunning }
+                if p.isRunning { p.terminate(); return (-1, "", "timed out") }
+                let o = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                let e = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                return (p.terminationStatus, o, e)
+            }
+            let (s1, o1, e1) = run(["identify", "--caller"])
+            let (s2, o2, e2) = run(["create", "pane", "--side", "left", "--no-focus", "--title", "via socket"])
+            let newID = Int(o2.trimmingCharacters(in: .whitespacesAndNewlines))
+            let (s3, _, e3) = run(["focus", "pane:999999"])
+            return all(s1 == 0 && o1 == "\(ids["c0"]!)\n" ? nil : "identify: \(s1) \(o1.debugDescription) \(e1)",
+                       s2 == 0 && newID.flatMap(ControlHandler.pane(id:))?.title == "via socket" ? nil : "create: \(s2) \(o2) \(e2)",
+                       s3 == 1 && e3.contains("no pane 999999") ? nil : "bad target should exit 1 with a message: \(s3) \(e3)")
+        }) {}
+        t.step("cli: close the test workspace", nil, {
+            self.workspaces.contains { $0.name == "cli" } ? "workspace should be gone" : nil
+        }) {
+            if let ws = self.workspaces.first(where: { $0.name == "cli" }) { self.remove(workspace: ws) }
+            try? FileManager.default.removeItem(atPath: tmp)
+        }
+    }
+
+    /// `describeTree` using the self-test's pane names.
+    fileprivate func describeTreeNamed(_ t: SelfTestKit) -> String {
+        var names: [ObjectIdentifier: String] = [:]
+        for p in workspaces.flatMap(\.panes) { names[ObjectIdentifier(p)] = t.name(p) }
+        return describeTree(names: names)
+    }
+}

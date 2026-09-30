@@ -1,5 +1,8 @@
 import AppKit
 
+// `dealer <command>` / `Dealer <command>`: act as the control-socket client, don't launch the app.
+if CLI.shouldRun(CommandLine.arguments) { exit(CLI.run(CommandLine.arguments)) }
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static let shared = AppDelegate()
 
@@ -10,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         GhosttyRuntime.shared.start()
+        // Before any pane exists, so every shell gets DEALER_SOCKET.
+        ControlServer.shared.start()
         AttentionNotifier.shared.start()
         NSApp.mainMenu = makeMenu()
 
@@ -17,7 +22,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let wc = TerminalWindowController()
             open(wc)
             wc.runSelfTest { ok in
-                if SelfTest.quitWhenDone { exit(ok ? 0 : 1) }
+                if SelfTest.quitWhenDone {
+                    ControlServer.shared.stop()
+                    exit(ok ? 0 : 1)
+                }
             }
             return
         }
@@ -29,6 +37,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             newWindow(nil)
         }
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        ControlServer.shared.stop()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

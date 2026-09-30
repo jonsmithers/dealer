@@ -23,7 +23,8 @@ final class SurfaceView: NSView, NSTextInputClient {
     }
 
     /// `env` is added to the child process environment (e.g. DEALER_PANE_ID).
-    init(workingDirectory: String?, env: [String: String] = [:]) {
+    /// `command` replaces the shell (`dealer create --command`); the pane closes when it exits.
+    init(workingDirectory: String?, env: [String: String] = [:], command: String? = nil) {
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         pwd = workingDirectory
 
@@ -39,6 +40,10 @@ final class SurfaceView: NSView, NSTextInputClient {
         defer { cEnv.forEach { free($0.0); free($0.1) } }
         var envVars = cEnv.map { ghostty_env_var_s(key: $0.0, value: $0.1) }
         cfg.env_var_count = envVars.count
+
+        let cCommand = command.map { strdup($0) }
+        defer { cCommand.map { free($0) } }
+        cfg.command = UnsafePointer(cCommand ?? nil)
 
         let make: () -> ghostty_surface_t? = { [self] in
             envVars.withUnsafeMutableBufferPointer { buf in

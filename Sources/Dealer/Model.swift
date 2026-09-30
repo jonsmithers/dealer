@@ -167,7 +167,10 @@ final class Pane {
     private static var nextID = 1
     /// Environment added to each pane's shell. The control socket (#5) adds DEALER_SOCKET here.
     static func childEnvironment(_ id: Int) -> [String: String] {
-        ["DEALER_PANE_ID": String(id)]
+        var env = ["DEALER_PANE_ID": String(id)]
+        if let socket = ControlServer.shared.path { env["DEALER_SOCKET"] = socket }
+        if let path = ControlServer.childPath { env["PATH"] = path }
+        return env
     }
     let surface: SurfaceView
     let view: PaneView
@@ -178,15 +181,16 @@ final class Pane {
     var isReportingProgress = false
 
     var title: String {
+        if let t = customTitle, !t.isEmpty { return t }
         if let t = shellTitle, !t.isEmpty { return t }
         if let pwd { return (pwd as NSString).lastPathComponent }
         return "shell"
     }
 
-    init(workingDirectory: String?) {
+    init(workingDirectory: String?, command: String? = nil) {
         id = Pane.nextID
         Pane.nextID += 1
-        surface = SurfaceView(workingDirectory: workingDirectory, env: Pane.childEnvironment(id))
+        surface = SurfaceView(workingDirectory: workingDirectory, env: Pane.childEnvironment(id), command: command)
         view = PaneView()
         surface.pane = self
         view.pane = self
@@ -194,9 +198,14 @@ final class Pane {
     }
 
     var pwd: String? { surface.pwd }
+
+    /// Set by `dealer rename`; wins over the title the shell sets.
+    var customTitle: String?
 }
 
 final class Tab {
+    /// Stable for the tab's lifetime, for the control socket (`dealer`).
+    let id = StableID.next(.tab)
     var root: Node<Pane>
     /// The pane that had focus last time this tab was active.
     weak var lastFocused: Pane?
@@ -231,6 +240,8 @@ final class WeakRef<T: AnyObject> {
 }
 
 final class Deck {
+    /// Stable for the deck's lifetime, for the control socket (`dealer`).
+    let id = StableID.next(.deck)
     var tabs: [Tab] = []
     var activeIndex: Int = 0
     var colorIndex: Int

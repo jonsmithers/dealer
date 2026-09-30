@@ -25,6 +25,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     /// The workspace switcher in the titlebar row (WorkspaceBar.swift).
     let workspaceBar = WorkspaceBarView()
     lazy var drag = DragController(controller: self)
+    /// Stable for the window's lifetime, for the control socket (`dealer`).
+    let id = StableID.next(.window)
     var onClose: ((TerminalWindowController) -> Void)?
 
     private var windowDividers: [DividerView] = []
@@ -148,8 +150,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - Pane lifecycle
 
-    func makePane(workingDirectory: String?) -> Pane {
-        let pane = Pane(workingDirectory: workingDirectory)
+    func makePane(workingDirectory: String?, command: String? = nil) -> Pane {
+        let pane = Pane(workingDirectory: workingDirectory, command: command)
         pane.surface.onTitle = { [weak self, weak pane] title in
             guard let self, let pane else { return }
             pane.shellTitle = title
