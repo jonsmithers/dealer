@@ -162,7 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return i
         }
         var workspaceItems = [
-            item("Show Workspace Sidebar", #selector(TerminalWindowController.toggleSidebar(_:)), "s", [.command, .control]),
+            item("Show Workspace Sidebar", #selector(TerminalWindowController.toggleSidebar(_:)), "b"),
             {
                 // #8: where the switcher lives, for every window (the `workspaceSwitcher` default).
                 let menu = NSMenu(title: "Workspace Switcher")

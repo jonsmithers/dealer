@@ -2,7 +2,7 @@ import AppKit
 
 /// The workspace switcher (#6): a collapsible column on the left of the window listing its
 /// workspaces top to bottom, plus a "New Workspace" row. Collapsed means fully hidden; the
-/// `SidebarToggleButton` in the titlebar row (and ⌃⌘S) brings it back.
+/// `SidebarToggleButton` in the titlebar row (and ⌘B) brings it back.
 ///
 /// Click a row to switch, double-click to rename, right-click for a menu, middle-click to close,
 /// drag to reorder. Panes and tabs dragged onto a row move to that workspace (DragController).
@@ -250,7 +250,7 @@ final class SidebarToggleButton: FlippedView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        toolTip = "Show or Hide Workspace Sidebar (⌃⌘S)"
+        toolTip = "Show or Hide Workspace Sidebar (⌘B)"
         addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
     }
 

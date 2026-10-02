@@ -57,7 +57,7 @@ extension TerminalWindowController {
         }) {
             paneWidth = t.pane("srv").view.frame.width
         }
-        t.step("sidebar: ⌃⌘S expands it; decks shrink instead of sitting under it", nil, {
+        t.step("sidebar: ⌘B expands it; decks shrink instead of sitting under it", nil, {
             let sbRight = sb.frame.maxX
             return all(!sb.isHidden && self.sidebarToggle.isOn ? nil : "sidebar should show",
                        self.sidebarPreference == true ? nil : "the choice should stick",
@@ -96,7 +96,7 @@ extension TerminalWindowController {
             let from = t.pane("test2").view.convert(CGPoint(x: 40, y: 40), to: nil)
             self.dragControllerForTest(.pane(t.pane("test2")), from: from, to: sb.addRow)
         }
-        t.step("sidebar: ⌃⌘S hides it even with several workspaces", nil, {
+        t.step("sidebar: ⌘B hides it even with several workspaces", nil, {
             all(collapsed(), self.sidebarPreference == false ? nil : "the choice should stick")
         }) {
             self.toggleSidebar(nil)

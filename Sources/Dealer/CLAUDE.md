@@ -83,7 +83,7 @@
   `WorkspaceBarView` pills in the titlebar row. `isSidebarVisible` is false in top mode *without*
   touching `sidebarPreference`, so switching back restores each window's choice. Never clear or
   rewrite `sidebarPreference` on a mode change. `layoutWorkspaceBar()` runs from
-  `layoutWorkspaceSidebar()`; the toggle is hidden and ⌃⌘S disabled in top mode.
+  `layoutWorkspaceSidebar()`; the toggle is hidden and ⌘B disabled in top mode.
 - Both switchers conform to `WorkspaceDropTargets`; DragController asks
   `visibleWorkspaceSwitchers`, before the edge bands (the pills lie in the titlebar row, which is
   otherwise the top-edge promote band). A new switcher style only needs to conform.
@@ -129,6 +129,9 @@
   window routes to the pressed view), and runs DragController's real tracking loop by
   `window.postEvent`-queuing the drag and release before calling `drag.begin` (`SelfTestSidebar.swift`).
   Keep these working through restyles.
+- Self-test runs usually aren't the active app, so there is no key window and a nil-target menu
+  action reaches no controller. `pressCmdB` in `SelfTestSwitcher.swift` drives a key equivalent
+  through `NSApp.mainMenu.performKeyEquivalent` and points the matched item at the window for the press.
 - Workspaces restored but never shown have deck views that aren't in the window yet (their shells
   run anyway, because surfaces are created in `SurfaceView.init`). Ghostty keybind actions from
   those panes find no window controller until the workspace is first shown.

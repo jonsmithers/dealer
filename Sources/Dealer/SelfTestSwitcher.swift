@@ -28,8 +28,32 @@ extension TerminalWindowController {
         func toggleEnabled() -> Bool {
             validateWorkspaceMenuItem(NSMenuItem(title: "", action: #selector(toggleSidebar(_:)), keyEquivalent: "")) ?? true
         }
+        /// #13: press ⌘B through the main menu's key-equivalent path, as a real keystroke would.
+        /// Returns whether the item ⌘B matched ended up enabled. A self-test run is often not the
+        /// active app, so there is no key window to route a nil-target action to; the matched item
+        /// is pointed at this window for the press (lookup and validation are still the menu's).
+        @discardableResult func pressCmdB() -> Bool {
+            guard let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+                                           windowNumber: self.window?.windowNumber ?? 0, context: nil,
+                                           characters: "b", charactersIgnoringModifiers: "b", isARepeat: false, keyCode: 11),
+                  let menu = NSApp.mainMenu else { return false }
+            func find(_ m: NSMenu) -> NSMenuItem? {
+                for i in m.items {
+                    if i.keyEquivalent == "b" && i.keyEquivalentModifierMask == .command { return i }
+                    if let sub = i.submenu, let hit = find(sub) { return hit }
+                }
+                return nil
+            }
+            guard let item = find(menu), item.action == #selector(toggleSidebar(_:)) else { return false }
+            let routed = NSApp.keyWindow == nil
+            if routed { item.target = self }
+            defer { if routed { item.target = nil } }
+            _ = menu.performKeyEquivalent(with: e)
+            return item.isEnabled
+        }
 
         var before = ""
+        var problem: String?
         var srvWidth: CGFloat = 0
         var srvSurface: ghostty_surface_t?
 
@@ -43,6 +67,18 @@ extension TerminalWindowController {
             self.activateWorkspace(index: 0)
             self.sidebarPreference = true
             self.layoutNow()
+        }
+        t.step("switcher: ⌘B (main menu key equivalent) hides the sidebar", nil, {
+            all(problem, sb.isHidden && self.sidebarPreference == false ? nil : "⌘B should hide the sidebar",
+                near(self.deckArea.minX, g, "deck area minX"))
+        }) {
+            problem = pressCmdB() ? nil : "⌘B should match an enabled Show/Hide Workspace Sidebar item"
+        }
+        t.step("switcher: ⌘B shows it again", nil, {
+            all(!sb.isHidden && self.sidebarPreference == true ? nil : "⌘B should show the sidebar",
+                near(self.deckArea.minX, g + w + g, "deck area minX"))
+        }) {
+            pressCmdB()
         }
         t.step("switcher: going to top bar is live; tree and surfaces untouched, decks widen", nil, {
             all(expect(before),
@@ -58,11 +94,12 @@ extension TerminalWindowController {
             srvSurface = t.pane("srv").surface.surface
             Settings.workspaceSwitcher = .top
         }
-        t.step("switcher: ⌃⌘S is disabled in top-bar mode", nil, {
-            all(toggleEnabled() ? "⌃⌘S should be disabled" : nil,
-                self.sidebarPreference == true && sb.isHidden ? nil : "toggling must not change anything")
+        t.step("switcher: ⌘B is disabled in top-bar mode and does nothing", nil, {
+            all(problem, toggleEnabled() ? "⌘B should be disabled" : nil,
+                self.sidebarPreference == true && sb.isHidden && !bar.isHidden ? nil : "⌘B must not change anything",
+                near(self.deckArea.minX, g, "deck area minX"))
         }) {
-            self.toggleSidebar(nil)
+            problem = pressCmdB() ? "the ⌘B item should be disabled" : nil
         }
         t.step("switcher: clicking a pill switches workspace", nil, { expect("1:Deck0[*srv, Row(srv2, edit)] | *2:Deck0[*t2]") }) {
             if let b = bar.button(at: 1) { self.clickForTest(b) }
@@ -91,7 +128,7 @@ extension TerminalWindowController {
                 near(self.deckArea.minX, g + w + g, "deck area minX"),
                 t.pane("srv").surface.surface == srvSurface ? nil : "srv's surface was replaced",
                 outlined(sb.row(at: 0)) ? nil : "workspace 1's row should have the waiting outline",
-                toggleEnabled() ? nil : "⌃⌘S should be enabled again")
+                toggleEnabled() ? nil : "⌘B should be enabled again")
         }) {
             Settings.workspaceSwitcher = .sidebar
         }

@@ -61,9 +61,13 @@ colors from your Ghostty theme (background/foreground, `unfocused-split-*`, `spl
 | ⌃1…⌃9 | Go to workspace N |
 | ⌃⌘N / ⌃⌘W | New / close workspace |
 | ⌃⌘] / ⌃⌘[ | Next / previous workspace |
-| ⌃⌘S | Show / hide the workspace sidebar (sidebar mode only) |
+| ⌘B | Show / hide the workspace sidebar (sidebar mode only) |
 | ⌘⇧U | Jump to the next pane that needs attention |
 | ⌥⌘A / ⌥⇧⌘A | New agent pane / in a new git worktree |
+
+These menu shortcuts win over Ghostty keybinds, so a `keybind` in your Ghostty config on one of
+these keys never fires. Ghostty has no default ⌘B binding, but a `keybind = cmd+b=…` of yours is
+shadowed by the sidebar toggle.
 
 Double-click a tab to rename it; middle-click or hover × to close it.
 
@@ -71,7 +75,7 @@ Workspaces are listed in a sidebar on the left: number, name, attention dot, and
 with the focused pane's agent state, cwd and branch. Click a row to switch, double-click to
 rename, right-click for a menu, middle-click to close, drag to reorder, "New Workspace" to add.
 It shows by itself once a window has two workspaces; the toggle right of the traffic lights (or
-⌃⌘S) hides or shows it, and that choice is remembered per window. The Workspace menu also moves
+⌘B) hides or shows it, and that choice is remembered per window. The Workspace menu also moves
 the focused pane, tab or deck to another workspace or a new one, and reorders workspaces.
 
 To put the switcher in the top bar instead, as numbered pills right of the traffic lights, pick
@@ -79,7 +83,7 @@ To put the switcher in the top bar instead, as numbered pills right of the traff
 [settings.toml](#settings); `sidebar` is the default). The change applies to every open window at
 once. Pills do the same things as rows: click, double-click to rename, right-click, middle-click
 to close, drag to reorder, "+" to add, and take pane/tab drops. In top-bar mode the sidebar and
-its toggle are gone and ⌃⌘S is disabled; each window's sidebar choice is kept for when you switch
+its toggle are gone and ⌘B is disabled; each window's sidebar choice is kept for when you switch
 back.
 
 ## Dragging
