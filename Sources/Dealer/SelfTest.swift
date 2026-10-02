@@ -226,6 +226,7 @@ extension TerminalWindowController {
         workspaceSelfTestSteps(kit)
         sidebarSelfTestSteps(kit)
         switcherSelfTestSteps(kit)
+        settingsSelfTestSteps(kit)
         cliSelfTestSteps(kit)
         claudeHooksSelfTestSteps(kit)
 

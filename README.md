@@ -75,8 +75,8 @@ It shows by itself once a window has two workspaces; the toggle right of the tra
 the focused pane, tab or deck to another workspace or a new one, and reorders workspaces.
 
 To put the switcher in the top bar instead, as numbered pills right of the traffic lights, pick
-**Workspace › Workspace Switcher › In Top Bar** (or `defaults write dev.smithers.dealer
-workspaceSwitcher top`; `sidebar` is the default). The change applies to every open window at
+**Workspace › Workspace Switcher › In Top Bar** (or `switcher = "top"` under `[workspaces]` in
+[settings.toml](#settings); `sidebar` is the default). The change applies to every open window at
 once. Pills do the same things as rows: click, double-click to rename, right-click, middle-click
 to close, drag to reorder, "+" to add, and take pane/tab drops. In top-bar mode the sidebar and
 its toggle are gone and ⌃⌘S is disabled; each window's sidebar choice is kept for when you switch
@@ -136,9 +136,8 @@ tool doesn't mark its pane *done* mid-turn. A user `"disableAllHooks": true` tur
 too. Needs Claude Code 2.1.280 or later; older versions ignore the variable.
 
 **Turning it off**
-- Everywhere: the `agentInjectHooks` setting (`[agent] inject_hooks` in settings.toml). Until
-  then, use `defaults write dev.smithers.dealer agentInjectHooks -bool false`. New shells pick
-  it up.
+- Everywhere: `inject_hooks = false` under `[agent]` in [settings.toml](#settings). New shells
+  pick it up.
 - For one shell or one launch: `export DEALER_CLAUDE_HOOKS=0`, or
   `DEALER_CLAUDE_HOOKS=0 claude`.
 - If your organization's managed settings set `disableSideloadFlags`, Claude Code refuses to
@@ -197,8 +196,35 @@ The branch is read from `.git/HEAD`, and worktrees work too.
 **Shell > New Agent Pane** (⌥⌘A) splits the focused pane and starts an agent in the new pane.
 **New Agent Pane in Worktree** (⌥⇧⌘A) first runs `git worktree add -b agent-N` into
 `<repo>.worktrees/agent-N` and starts the agent there. The command is `claude` by default.
-Change it with `defaults write dev.smithers.dealer agentCommand 'codex'` or `DEALER_AGENT_COMMAND`.
+Change it with `command = "codex"` under `[agent]` in [settings.toml](#settings), or the
+`DEALER_AGENT_COMMAND` environment variable (which wins).
 It is typed into the pane's shell, so you're back at a prompt when the agent exits.
+
+## Settings
+
+Dealer's own settings live in `~/.config/dealer/settings.toml` (or `$XDG_CONFIG_HOME/dealer/`).
+Terminal settings (font, colors, keybinds) stay in your ghostty config. **Dealer › Open Settings
+File…** (⌘,) opens it, creating it from the commented
+[docs/settings.example.toml](docs/settings.example.toml) if it doesn't exist yet.
+
+```toml
+[agent]
+command = "claude"       # what New Agent Pane runs; DEALER_AGENT_COMMAND overrides it
+inject_hooks = true      # load Dealer's Claude Code plugin in new panes
+
+[workspaces]
+switcher = "sidebar"     # or "top" (pills in the titlebar)
+```
+
+- Changes apply live: Dealer watches the file (editors that save by replacing it work too).
+  **Dealer › Reload Settings** forces a re-read.
+- A mistake never blocks launch. A bad value falls back to its default, and a banner in each
+  window (plus a log line) lists the problems with line numbers.
+- Menu toggles (like Workspace Switcher) write back to the file, changing only their own value
+  and keeping your comments and layout. With no file yet, the toggle creates it from the example.
+- Settings made with `defaults write dev.smithers.dealer …` before this file existed
+  (`agentCommand`, `workspaceSwitcher`, `agentInjectHooks`) are still read when the file doesn't
+  set that key. Dealer doesn't delete them.
 
 ## Scripting: `dealer`
 
@@ -236,7 +262,8 @@ and asserts the tree after each step.
 - `Session.swift` – save/restore
 - `Workspace.swift` / `WorkspaceSidebar.swift` – workspaces, and the collapsible workspace sidebar + its titlebar toggle
 - `WorkspaceBar.swift` / `WorkspaceSwitcher.swift` – the top-bar pill switcher, and choosing between it and the sidebar
-- `Settings.swift` – user settings (currently backed by UserDefaults)
+- `Settings.swift` / `SettingsFile.swift` / `TOML.swift` / `SettingsBanner.swift` – settings.toml: schema and
+  precedence, file watching, comment-preserving write-back, the minimal TOML parser, the problem banner
 - `Theme.swift` – chrome colors derived from the ghostty config (light/dark), metrics, fonts, motion
 - `ControlServer.swift` / `ControlHandler.swift` / `ControlNotify.swift` – control socket, request handler, `dealer notify`
 - `SelfTest*.swift` – self-test, one file per feature section

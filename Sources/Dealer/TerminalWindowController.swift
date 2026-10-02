@@ -26,6 +26,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     let workspaceSidebar = WorkspaceSidebarView()
     /// The top-bar pill switcher, shown instead of the sidebar when `workspaceSwitcher = top` (#8).
     let workspaceBar = WorkspaceBarView()
+    /// Shows settings.toml problems (SettingsBanner.swift).
+    let settingsBanner = SettingsBannerView()
     /// The sidebar toggle in the titlebar row (WorkspaceSidebar.swift).
     let sidebarToggle = SidebarToggleButton()
     /// The user's explicit sidebar choice for this window; `nil` means automatic (shown with 2+

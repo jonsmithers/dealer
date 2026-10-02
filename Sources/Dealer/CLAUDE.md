@@ -89,14 +89,32 @@
   otherwise the top-edge promote band). A new switcher style only needs to conform.
 - Both draw attention only through `AttentionStyle.draw` (#7 owns the look), called last in `draw`.
 
-## Settings (`Settings.swift`)
+## Settings (`Settings.swift`, `SettingsFile.swift`, `TOML.swift`, `SettingsBanner.swift`)
 
-- All user settings go through `Settings` (UserDefaults today; #10 swaps in a TOML file), and
-  nothing else reads those keys. Setters post `Settings.didChange`; each window observes it
-  (`observeSettings()` in `init`) and re-lays out, so changes apply live without touching surfaces.
-- In self-test mode `Settings` keeps values in memory, so a test can flip a setting without writing
-  the user's preferences. (`agentCommand` in AgentLaunch.swift still reads UserDefaults directly;
-  move it here when #10 lands.)
+- Every Dealer setting is read through a `Settings` accessor; nothing else reads settings.toml or
+  the legacy UserDefaults keys. To add a setting: a `schema` entry (dotted key and `Kind`), an
+  accessor, a commented line in `SettingsFile.exampleText`, and regenerate
+  `docs/settings.example.toml` from it (the self-test checks they're identical). #9's `[colors]`
+  goes in the same way. Unknown keys are reported, so add the schema entry before documenting a key.
+- Precedence is env var (only where an accessor checks one) > file > legacy UserDefaults
+  (`legacyKeys`, read as a fallback when the file doesn't set the key, never written or deleted)
+  > default. A bad value is dropped as if unset and reported; `reload` never throws.
+- `TOML.swift` is a deliberate in-repo subset parser (no SwiftPM dependency, builds offline). It
+  reports unsupported syntax (multi-line strings, inline tables, `[[…]]`, dates) as problems.
+  Extend it there if a setting needs more.
+- Write-back (`Settings.write`) edits text via `SettingsFile.rewrite`: only the owned key's value
+  changes, so comments, spacing and other keys survive. Limit: the existing value must fit on one
+  line. Never re-serialize the whole document.
+- The watcher's dispatch sources run on a private queue and hop to the main **run loop in default
+  mode** (`CFRunLoopPerformBlock`, like `ControlServer.onMain`), with a run-loop timer for the
+  debounce. Main-queue delivery would never run during the self-test's nested run-loop waits.
+  It re-arms after every event and every reload (atomic saves replace the inode), and watches
+  the nearest existing ancestor while `dealer/` doesn't exist.
+- Reloads that change effective values or problems post `Settings.didChange` (userInfo `keys`);
+  windows observe it (`observeSettings()` in `init`) and re-lay out live without touching surfaces.
+  Settings read at pane spawn (`agentCommand`, `agentInjectHooks`) need no observer.
+- Self-test mode points `Settings` at a fresh temp config home and blanks the environment and
+  legacy lookup (`Settings.start()`), so tests never touch `~/.config/dealer` or the user's defaults.
 
 - `session.json` stores `workspaces` + `activeWorkspace` per window. The optional `root` field
   exists only to read pre-workspace files (`WindowSnapshot.allWorkspaces` migrates them); keep it
@@ -181,7 +199,7 @@
   after the CLI dispatch. Keep it after that line: `dealer` run from a hook must keep its
   environment. Panes inherit the scrubbed process environment; `childEnvironment` can only add or
   override variables (ghostty `env_vars`), not remove them.
-- The off switch is `Settings.agentInjectHooks`, read at pane spawn. Running shells keep the
+- The off switch is `Settings.agentInjectHooks` (`[agent] inject_hooks`), read at pane spawn. Running shells keep the
   environment they started with.
 
 ## Control socket (`ControlServer.swift`, `ControlHandler.swift`)

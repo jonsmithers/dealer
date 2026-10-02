@@ -53,6 +53,11 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   Don't "restore" by deleting the Dealer file: if it's missing on load, `SessionSnapshot.migrateLegacy`
   copies in the stale pre-rename `Application Support/MyTerm/session.json`. That legacy file is only
   ever read, never written.
+- **Don't touch the user's settings file** (`~/.config/dealer/settings.toml`, or under
+  `$XDG_CONFIG_HOME`). Self-test mode already uses a temp config home. For a normal launch against
+  a test file, set `XDG_CONFIG_HOME` to a temp dir (ghostty reads its config from there too).
+- Dealer's own settings belong in settings.toml via `Settings` (see `Sources/Dealer/CLAUDE.md`),
+  never new UserDefaults keys or env-var reads scattered through the code.
 - To test session restore: write a crafted session.json, launch `.build/debug/Dealer`, screenshot,
   then `kill -TERM` it. SIGTERM skips `applicationShouldTerminate`, so the file isn't rewritten.
   Afterwards restore your backup (or remove the Dealer dir if it didn't exist before).
@@ -96,8 +101,8 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   Ghostty-style by veiling unfocused panes (`unfocused-split-fill`/`-opacity`); pane rings are
   reserved for attention. Don't reintroduce focus borders.
 - Coding-agent keys: ⌘⇧U Jump to Next Unread, ⌥⌘A New Agent Pane, ⌥⇧⌘A New Agent Pane in
-  Worktree. The agent command comes from `DEALER_AGENT_COMMAND`, then the `agentCommand` user
-  default (`dev.smithers.dealer`), then `claude`. It is *typed* into the new pane's shell (not the
+  Worktree. The agent command comes from `DEALER_AGENT_COMMAND`, then `[agent] command` in
+  settings.toml, then the legacy `agentCommand` user default, then `claude`. It is *typed* into the new pane's shell (not the
   surface `command`), so the pane returns to a prompt when the agent exits.
 - `dealer` is the app binary itself: `main.swift` runs it as a socket client (no app launch) when
   argv[0] is `dealer` or argv[1] is a known subcommand. The symlink lives in

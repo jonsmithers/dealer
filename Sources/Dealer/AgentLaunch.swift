@@ -3,18 +3,16 @@ import AppKit
 /// Launch presets (#4): Shell > New Agent Pane starts a coding agent in a new pane beside the
 /// focused one, optionally in a fresh git worktree.
 ///
-/// The command defaults to `claude`. Override it with `defaults write dev.smithers.dealer
-/// agentCommand 'codex'` (or the `DEALER_AGENT_COMMAND` environment variable). It is typed
-/// into the new pane's shell, so the shell stays when the agent exits.
+/// The command is `Settings.agentCommand`: `[agent] command` in settings.toml (default `claude`),
+/// overridden by `DEALER_AGENT_COMMAND`. It is typed into the new pane's shell, so the shell stays
+/// when the agent exits.
 enum AgentPreset {
     /// Set by the self-test so it doesn't start a real agent.
     static var commandOverride: String?
 
     static var command: String {
         if let c = commandOverride { return c }
-        if let c = ProcessInfo.processInfo.environment["DEALER_AGENT_COMMAND"], !c.isEmpty { return c }
-        if let c = UserDefaults.standard.string(forKey: "agentCommand"), !c.isEmpty { return c }
-        return "claude"
+        return Settings.agentCommand
     }
 
     static func shellQuote(_ s: String) -> String {

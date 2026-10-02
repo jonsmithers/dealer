@@ -1,0 +1,134 @@
+import Foundation
+
+/// Text-level editing of settings.toml, so in-app changes keep the user's comments and layout.
+enum SettingsFile {
+    /// The commented default file, identical to `docs/settings.example.toml` (the self-test checks).
+    /// "Open Settings File" and the first menu write-back create the user's file from it.
+    static let exampleText = """
+    # Dealer settings. Terminal settings (font, colors, keybinds) stay in the ghostty config;
+    # this file is only for Dealer's own behaviour.
+    #
+    # Location: $XDG_CONFIG_HOME/dealer/settings.toml (default ~/.config/dealer/settings.toml).
+    # Dealer reloads it when it changes. Mistakes never block launch: a bad value falls back to
+    # its default, and the problem is shown in a banner and logged.
+    # Menu toggles (e.g. Workspace › Workspace Switcher) edit only their own line here.
+
+    [agent]
+    # The coding agent New Agent Pane (⌥⌘A) types into the new pane's shell.
+    # The DEALER_AGENT_COMMAND environment variable overrides it.
+    # command = "claude"
+
+    # Whether `claude` started in a pane loads Dealer's Claude Code plugin, which reports
+    # waiting/done to Dealer. Applies to panes opened after the change.
+    # inject_hooks = true
+
+    [workspaces]
+    # Where the workspace switcher lives: "sidebar" (a collapsible left column) or "top"
+    # (numbered pills in the titlebar row).
+    # switcher = "sidebar"
+
+    """
+
+    /// Returns `text` with `key` (dotted, e.g. "workspaces.switcher") set to `literal`.
+    ///
+    /// Only the value on the key's line changes; its indentation, spacing and trailing comment
+    /// stay. A missing key goes into its table: right after a commented-out `# key = …` line if
+    /// there is one, else after the table's last line. A missing table is appended.
+    /// Limits: the key's existing value must fit on one line (settings Dealer writes are scalars).
+    static func rewrite(_ text: String, key: String, literal: String) -> String {
+        var parts = key.split(separator: ".").map(String.init)
+        let leaf = parts.removeLast()
+        let table = parts
+        var lines = text.components(separatedBy: "\n")
+
+        var current: [String] = []
+        var headerIndex: Int?          // our table's header line
+        var sectionEnd: Int?           // index after our section's last non-blank line
+        var commentedIndex: Int?       // a "# leaf = …" line inside our section
+
+        for (i, line) in lines.enumerated() {
+            let t = line.trimmingCharacters(in: .whitespaces)
+            if let h = header(t) {
+                current = h
+                if h == table { headerIndex = i; sectionEnd = i + 1 }
+                continue
+            }
+            if t.isEmpty { continue }
+            if t.hasPrefix("#") {
+                if current == table, commentedKey(t) == leaf { commentedIndex = i }
+                if current == table, headerIndex != nil { sectionEnd = i + 1 }
+                continue
+            }
+            if let (k, valueRange) = keyValue(line), current + k == table + [leaf] {
+                lines[i] = line.replacingCharacters(in: valueRange, with: literal)
+                return lines.joined(separator: "\n")
+            }
+            if current == table, headerIndex != nil { sectionEnd = i + 1 }
+        }
+
+        let newLine = "\(leaf) = \(literal)"
+        if let c = commentedIndex {
+            lines.insert(newLine, at: c + 1)
+        } else if let end = sectionEnd {
+            lines.insert(newLine, at: end)
+        } else {
+            while lines.last == "" { lines.removeLast() }
+            if !lines.isEmpty { lines.append("") }
+            lines.append("[\(table.joined(separator: "."))]")
+            lines.append(newLine)
+            lines.append("")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// `[a.b]  # comment` → ["a", "b"].
+    private static func header(_ t: String) -> [String]? {
+        guard t.hasPrefix("["), !t.hasPrefix("[["), let close = t.firstIndex(of: "]") else { return nil }
+        let rest = t[t.index(after: close)...].trimmingCharacters(in: .whitespaces)
+        guard rest.isEmpty || rest.hasPrefix("#") else { return nil }
+        return splitKey(String(t[t.index(after: t.startIndex)..<close]))
+    }
+
+    /// `# switcher = "top"` → "switcher".
+    private static func commentedKey(_ t: String) -> String? {
+        let body = t.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces)
+        guard let eq = body.firstIndex(of: "=") else { return nil }
+        let k = body[..<eq].trimmingCharacters(in: .whitespaces)
+        return k.isEmpty || k.contains(" ") ? nil : k
+    }
+
+    /// For `  key = value  # c`: the key path and the range of `value` (without the comment and
+    /// the spaces before it).
+    private static func keyValue(_ line: String) -> ([String], Range<String.Index>)? {
+        guard let eq = line.firstIndex(of: "=") else { return nil }
+        let key = splitKey(String(line[..<eq]))
+        guard !key.isEmpty, !key.contains(where: \.isEmpty) else { return nil }
+        var start = line.index(after: eq)
+        while start < line.endIndex, line[start] == " " || line[start] == "\t" { start = line.index(after: start) }
+        // The value ends at a # outside quotes, then trailing spaces are left alone.
+        var end = line.endIndex
+        var quote: Character?
+        var i = start
+        while i < line.endIndex {
+            let c = line[i]
+            if let q = quote {
+                if c == "\\" && q == "\"" { i = line.index(after: i); if i < line.endIndex { i = line.index(after: i) }; continue }
+                if c == q { quote = nil }
+            } else if c == "\"" || c == "'" {
+                quote = c
+            } else if c == "#" {
+                end = i
+                break
+            }
+            i = line.index(after: i)
+        }
+        while end > start, line[line.index(before: end)] == " " || line[line.index(before: end)] == "\t" { end = line.index(before: end) }
+        return (key, start..<end)
+    }
+
+    private static func splitKey(_ s: String) -> [String] {
+        s.split(separator: ".", omittingEmptySubsequences: false).map {
+            $0.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+        }
+    }
+}

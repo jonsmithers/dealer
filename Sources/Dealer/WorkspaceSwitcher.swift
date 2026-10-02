@@ -2,7 +2,7 @@ import AppKit
 
 /// Where the workspace switcher lives (#8): the collapsible left sidebar (default) or pills in the
 /// titlebar row. A user setting shared by every window; changing it re-lays out open windows live.
-enum WorkspaceSwitcherStyle: String {
+enum WorkspaceSwitcherStyle: String, CaseIterable {
     case sidebar, top
 }
 

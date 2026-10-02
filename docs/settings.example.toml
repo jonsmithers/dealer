@@ -1,0 +1,21 @@
+# Dealer settings. Terminal settings (font, colors, keybinds) stay in the ghostty config;
+# this file is only for Dealer's own behaviour.
+#
+# Location: $XDG_CONFIG_HOME/dealer/settings.toml (default ~/.config/dealer/settings.toml).
+# Dealer reloads it when it changes. Mistakes never block launch: a bad value falls back to
+# its default, and the problem is shown in a banner and logged.
+# Menu toggles (e.g. Workspace › Workspace Switcher) edit only their own line here.
+
+[agent]
+# The coding agent New Agent Pane (⌥⌘A) types into the new pane's shell.
+# The DEALER_AGENT_COMMAND environment variable overrides it.
+# command = "claude"
+
+# Whether `claude` started in a pane loads Dealer's Claude Code plugin, which reports
+# waiting/done to Dealer. Applies to panes opened after the change.
+# inject_hooks = true
+
+[workspaces]
+# Where the workspace switcher lives: "sidebar" (a collapsible left column) or "top"
+# (numbered pills in the titlebar row).
+# switcher = "sidebar"

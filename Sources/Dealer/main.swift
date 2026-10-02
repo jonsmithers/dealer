@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var terminating = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Settings.start()
         GhosttyRuntime.shared.start()
         // Before any pane exists, so every shell gets DEALER_SOCKET.
         ControlServer.shared.start()
@@ -104,6 +105,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         submenu("Dealer", [
             item("About Dealer", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
+            .separator(),
+            item("Open Settings File…", #selector(AppDelegate.openSettingsFile(_:)), ","),
+            item("Reload Settings", #selector(AppDelegate.reloadSettings(_:))),
             .separator(),
             item("Hide Dealer", #selector(NSApplication.hide(_:)), "h"),
             item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),

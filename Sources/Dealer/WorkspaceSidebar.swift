@@ -321,5 +321,6 @@ extension TerminalWindowController {
         // reload() runs inside the window's layout pass, where its needsLayout would be dropped.
         sb.layoutSubtreeIfNeeded()
         layoutWorkspaceBar()
+        layoutSettingsBanner()
     }
 }
