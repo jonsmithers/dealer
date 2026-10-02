@@ -143,6 +143,13 @@
 
 ## Colors (`Colors.swift`)
 
+- `Workspace.color` is read only by the sidebar row (`WorkspaceSidebarView.reload` → `WorkspaceRow`),
+  the context menus, the session and the CLI (#15). Don't read it in tab, deck, pill or window
+  drawing. The self-test renders the deck-area band, every tab strip and every tab button with
+  and without a workspace color and requires identical bytes (`PixelProbe.pixels`); the sidebar row
+  is the control that must differ. Don't byte-compare views that contain terminals: the Metal
+  layers can change between captures (it made this check flaky).
+
 - `Workspace.color` / `Tab.color` are NSColors persisted as "#rrggbb" (`WorkspaceSnapshot.color`,
   `TabSnapshot.color`, both optional). A tab's color lives on the `Tab` object, so it follows any
   move that keeps the object: reordering or moving it to another strip, promoting a whole tab and
@@ -161,7 +168,7 @@
 
 - Feature steps live in their own files (e.g. `SelfTestWorkspaces.swift`) and are added through
   the `SelfTestKit` passed from `runSelfTest`, one call line per section.
-- **Pixel checks go through `PixelProbe` only** (SelfTestPixels.swift): `sample(_:at:)`,
+- **Pixel checks go through `PixelProbe` only** (SelfTestPixels.swift): `sample(_:at:)`, `pixels` (raw bytes for "renders identically"),
   `distance`, `matches`, `isWaitingOutlined`. Never call `cacheDisplay`/`colorAt` in a check
   directly. Two traps it handles:
   - `bitmapImageRepForCachingDisplay` gives a display-space bitmap for a window-backed view and a

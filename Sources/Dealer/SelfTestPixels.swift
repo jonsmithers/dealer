@@ -19,19 +19,33 @@ enum PixelProbe {
 
     /// Renders `v` offscreen (`cacheDisplay`) and returns the sRGB color at `p`, in the view's own
     /// (flipped) points. Works for views in a window and for detached views.
-    static func sample(_ v: NSView?, at p: CGPoint) -> NSColor? {
-        guard let v, v.bounds.width >= 1, v.bounds.height >= 1 else { return nil }
-        // Our own sRGB bitmap, not `bitmapImageRepForCachingDisplay`: that one is in the display's
-        // space for a window-backed view and Generic RGB for a detached one, where saturated sRGB
-        // colors (e.g. #aa00ff) are out of gamut and come back clipped.
+    /// Renders `rect` (default: all) of `v` into an sRGB bitmap of our own, not
+    /// `bitmapImageRepForCachingDisplay`: that one is in the display's space for a window-backed
+    /// view and Generic RGB for a detached one, where saturated sRGB colors (e.g. #aa00ff) are out
+    /// of gamut and come back clipped.
+    static func render(_ v: NSView?, rect: CGRect? = nil) -> NSBitmapImageRep? {
+        guard let v else { return nil }
+        let r = (rect ?? v.bounds).intersection(v.bounds)
+        guard r.width >= 1, r.height >= 1 else { return nil }
         let scale = v.window?.backingScaleFactor ?? 2
-        guard let blank = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(ceil(v.bounds.width * scale)),
-                                           pixelsHigh: Int(ceil(v.bounds.height * scale)), bitsPerSample: 8,
+        guard let blank = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(ceil(r.width * scale)),
+                                           pixelsHigh: Int(ceil(r.height * scale)), bitsPerSample: 8,
                                            samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
                                            colorSpaceName: .calibratedRGB, bytesPerRow: 0, bitsPerPixel: 0),
               let rep = blank.retagging(with: .sRGB) else { return nil }
-        rep.size = v.bounds.size
-        v.cacheDisplay(in: v.bounds, to: rep)
+        rep.size = r.size
+        v.cacheDisplay(in: r, to: rep)
+        return rep
+    }
+
+    /// The raw pixels of `rect` in `v`, for "renders exactly the same" checks.
+    static func pixels(_ v: NSView?, rect: CGRect? = nil) -> Data? {
+        guard let rep = render(v, rect: rect), let bytes = rep.bitmapData else { return nil }
+        return Data(bytes: bytes, count: rep.bytesPerRow * rep.pixelsHigh)
+    }
+
+    static func sample(_ v: NSView?, at p: CGPoint) -> NSColor? {
+        guard let v, let rep = render(v) else { return nil }
         let sx = CGFloat(rep.pixelsWide) / v.bounds.width, sy = CGFloat(rep.pixelsHigh) / v.bounds.height
         let x = min(max(Int(p.x * sx), 0), rep.pixelsWide - 1), y = min(max(Int(p.y * sy), 0), rep.pixelsHigh - 1)
         guard let raw = rep.colorAt(x: x, y: y) else { return nil }

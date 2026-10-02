@@ -102,9 +102,10 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   Ghostty-style by veiling unfocused panes (`unfocused-split-fill`/`-opacity`); pane rings are
   reserved for attention. Don't reintroduce focus borders.
 - Workspace and tab colors (#9) are a chip/underline plus a faint tint, never an outline (outlines
-  mean attention). Uncolored tabs stay neutral and don't inherit the workspace color; the per-deck
-  underline stays and a tab color overrides it on that tab. Only the active workspace's color shows
-  in the window (a hairline above the decks); the chrome isn't tinted. `[colors] auto_assign`
+  mean attention). **A workspace's color shows only on its sidebar row** (#15, the user's call):
+  not on top-bar pills, not in the deck area, and it has no effect at all on tabs (tint,
+  underline, fill, or deck-color fallback). Tabs get color only from their own `Tab.color`; the
+  per-deck underline stays and a tab color overrides it on that tab. `[colors] auto_assign`
   defaults to off.
 - Coding-agent keys: ⌘⇧U Jump to Next Unread, ⌥⌘A New Agent Pane, ⌥⇧⌘A New Agent Pane in
   Worktree. The agent command comes from `DEALER_AGENT_COMMAND`, then `[agent] command` in

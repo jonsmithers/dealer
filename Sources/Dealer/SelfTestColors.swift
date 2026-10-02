@@ -26,30 +26,82 @@ extension TerminalWindowController {
         func chip(_ i: Int) -> CGRect? { row(i).map { WorkspaceRow.chipRect(in: $0.bounds) } }
         let teal = NSColor(hex: "#11a08f")!, red = NSColor(hex: "#d03040")!
 
-        t.step("colors: a workspace color shows on its sidebar row, plus an accent while it's active", nil, {
+        t.step("colors: a workspace color shows on its sidebar row", nil, {
             all(row(0)?.color?.sameColor(as: teal) == true ? nil : "row 1 should carry the color",
                 row(1)?.color == nil ? nil : "row 2 should stay neutral",
-                shows(row(0), chip(0), teal, "row 1's chip"),
-                !self.workspaceAccent.isHidden && self.workspaceAccent.layer?.backgroundColor.map { NSColor(cgColor: $0)?.sameColor(as: teal) == true } == true
-                    ? nil : "the deck-area accent should show in the workspace color")
+                shows(row(0), chip(0), teal, "row 1's chip"))
         }) {
             self.newWorkspace(nil)
             t.named(self.focusedPane, "k2")
             self.activateWorkspace(index: 0)
             self.setColor(teal, workspace: self.workspaces[0])
         }
-        t.step("colors: the accent follows the active workspace", nil, {
-            self.workspaceAccent.isHidden ? nil : "no accent for an uncolored workspace"
-        }) {
-            self.activateWorkspace(index: 1)
+
+        // #15: everything except the sidebar row renders byte-for-byte the same with and without
+        // the workspace color: the band above the decks, each tab strip and each tab button. The scene has two decks (so deck-color underlines show), an
+        // inactive tab, and a tab with its own color.
+        var renders: [String: (Data?, Data?)] = [:]
+        var pillsShown = false
+        func capture(_ into: Int) {
+            self.layoutNow()
+            func put(_ key: String, _ d: Data?) {
+                var pair = renders[key] ?? (nil, nil)
+                if into == 0 { pair.0 = d } else { pair.1 = d }
+                renders[key] = pair
+            }
+            let area = self.deckArea
+            put("deck-area top band", PixelProbe.pixels(self.contentView, rect: CGRect(x: area.minX - 6, y: area.minY - 8, width: area.width + 12, height: 14)))
+            for (i, deck) in self.decks.enumerated() {
+                // The strip, not the whole deck: a deck view also contains the terminals' Metal layers,
+                // which ghostty's renderer thread can update between the two captures (cursor blink).
+                put("deck \(i + 1) tab strip", PixelProbe.pixels(deck.view.strip))
+                for (j, b) in deck.view.strip.buttons.enumerated() { put("deck \(i + 1) tab \(j + 1)", PixelProbe.pixels(b)) }
+            }
+            put("sidebar row 1 (control)", PixelProbe.pixels(row(0)))
         }
-        t.step("colors: in top-bar mode the pill shows the color", nil, {
-            all(bar.isHidden ? "pills should show" : nil,
-                (bar.button(at: 0) as? WorkspaceButton)?.color?.sameColor(as: teal) == true ? nil : "pill 1 should carry the color",
-                shows(bar.button(at: 0), (bar.button(at: 0) as? WorkspaceButton)?.chipRect, teal, "pill 1's chip"))
+        func compare() -> String? {
+            var problems: [String] = []
+            for (key, pair) in renders.sorted(by: { $0.key < $1.key }) {
+                guard let a = pair.0, let b = pair.1, !a.isEmpty else { problems.append("\(key): nothing rendered"); continue }
+                let same = a == b
+                if key.hasSuffix("(control)") { if same { problems.append("the sidebar row should change with the color") } }
+                else if !same { problems.append("\(key) changes with the workspace color") }
+            }
+            return problems.isEmpty ? nil : problems.joined(separator: "; ")
+        }
+        t.step("colors: a workspace color touches nothing but its sidebar row: deck area, decks and every tab render identically", nil, {
+            all(self.decks.count == 2 && self.decks.flatMap(\.tabs).count == 3 ? nil : "scene: expected 2 decks, 3 tabs",
+                renders.count >= 6 ? nil : "expected deck, tab and band renders, got \(renders.keys.sorted())",
+                compare())
         }) {
-            self.activateWorkspace(index: 0)
+            self.newTab(nil); t.named(self.focusedPane, "k5")
+            self.newTab(nil); t.named(self.focusedPane, "k6")
+            self.setColor(red, tab: self.locate(t.pane("k6"))!.tab)
+            self.promote(self.locate(t.pane("k5"))!.node, side: .right, allowWholeDeck: true)
+            self.focus(t.pane("srv"))
+            renders = [:]
+            self.setColor(nil, workspace: self.workspaces[0])
+            capture(0)
+            self.setColor(teal, workspace: self.workspaces[0])
+            capture(1)
+        }
+        t.step("colors: top-bar pills draw no workspace color", nil, {
+            all(pillsShown ? nil : "pills should have been showing", compare())
+        }) {
             Settings.workspaceSwitcher = .top
+            self.layoutNow()
+            pillsShown = !bar.isHidden && bar.button(at: 1) != nil
+            renders = [:]
+            for (i, ws) in [nil, teal].enumerated() {
+                self.setColor(ws, workspace: self.workspaces[0])
+                self.layoutNow()
+                let d = PixelProbe.pixels(bar)
+                var pair = renders["pill bar"] ?? (nil, nil)
+                if i == 0 { pair.0 = d } else { pair.1 = d }
+                renders["pill bar"] = pair
+            }
+            Settings.workspaceSwitcher = .sidebar
+            for p in ["k5", "k6"] { self.remove(t.pane(p)) }
         }
         t.step("colors: a tab color replaces the deck underline on its tab", nil, {
             all(tabButton("srv")?.color?.sameColor(as: red) == true ? nil : "srv's tab should carry the color",
@@ -101,7 +153,6 @@ extension TerminalWindowController {
         }
         t.step("colors: None restores the default look", nil, {
             all(row(0)?.color == nil && row(1)?.color == nil ? nil : "rows should be neutral",
-                self.workspaceAccent.isHidden ? nil : "accent should be gone",
                 tabButton("srv")?.color == nil ? nil : "srv's tab should be neutral",
                 PixelProbe.matches(PixelProbe.sample(row(0), at: CGPoint(x: chip(0)?.midX ?? 0, y: chip(0)?.midY ?? 0)),
                                    NSColor(hex: "#ff0000"), tolerance: 0.2) ? "row 1's chip should be gone" : nil)

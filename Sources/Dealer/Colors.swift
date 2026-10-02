@@ -3,9 +3,9 @@ import AppKit
 // Per-workspace and per-tab colors (#9).
 //
 // A color is an optional NSColor on `Workspace.color` / `Tab.color`, persisted as "#rrggbb".
-// It shows as a chip plus a faint tint on the workspace's sidebar row / top-bar pill, and as the
-// underline plus a faint tint on a tab button (overriding the deck color there). While a colored
-// workspace is active, a hairline runs along the top of the deck area. Colors are never drawn as
+// A workspace color shows ONLY on its sidebar row, as a chip plus a faint tint (#15): not on
+// top-bar pills, not in the deck area, and never on tabs. A tab color shows on its own tab button
+// as the underline plus a faint tint (overriding the deck color there). Colors are never drawn as
 // an outline: that look belongs to #7's attention (AttentionStyle), and the tint is inset so the
 // attention outline always sits outside it.
 
@@ -153,9 +153,9 @@ final class ColorPanelSession: NSObject {
 }
 
 extension TerminalWindowController {
+    /// Shows only on the workspace's sidebar row (#15).
     func setColor(_ color: NSColor?, workspace ws: Workspace) {
         ws.color = color
-        layoutNow()
         refreshChrome()
     }
 
@@ -175,16 +175,4 @@ extension TerminalWindowController {
             ?? swatches[workspaces.count % swatches.count]
     }
 
-    /// The hairline along the top of the deck area while a colored workspace is active.
-    /// Called from `layoutWorkspaceSidebar` (every layout pass).
-    func layoutWorkspaceAccent() {
-        let v = workspaceAccent
-        if v.superview !== contentView { contentView.addSubview(v) }
-        guard let color = activeWorkspace.color else { v.isHidden = true; return }
-        let area = deckArea
-        v.isHidden = false
-        v.layer?.backgroundColor = color.cgColor
-        v.layer?.cornerRadius = 1
-        v.frame = CGRect(x: area.minX + Theme.Metrics.deckRadius, y: area.minY - 3, width: max(area.width - 2 * Theme.Metrics.deckRadius, 0), height: 2)
-    }
 }
