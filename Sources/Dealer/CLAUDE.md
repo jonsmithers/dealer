@@ -143,9 +143,9 @@
 
 ## Colors (`Colors.swift`)
 
-- `Workspace.color` is read only by the sidebar row (`WorkspaceSidebarView.reload` → `WorkspaceRow`),
-  the context menus, the session and the CLI (#15). Don't read it in tab, deck, pill or window
-  drawing. The self-test renders the deck-area band, every tab strip and every tab button with
+- `Workspace.color` is read only by the switcher entries (sidebar `WorkspaceRow`, top-bar
+  `WorkspaceButton`), the context menus, the session and the CLI (#15, #18). Don't read it in tab,
+  deck or window drawing. The self-test renders the deck-area band, every tab strip and every tab button with
   and without a workspace color and requires identical bytes (`PixelProbe.pixels`); the sidebar row
   is the control that must differ. Don't byte-compare views that contain terminals: the Metal
   layers can change between captures (it made this check flaky).

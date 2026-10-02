@@ -52,6 +52,7 @@ final class WorkspaceBarView: FlippedView, WorkspaceDropTargets {
             b.title = ws.displayName
             b.isActive = ws === c.activeWorkspace
             b.attention = ws.attention
+            b.color = ws.color
             b.isHidden = quiet
         }
         needsLayout = true
@@ -105,6 +106,8 @@ final class WorkspaceButton: FlippedView {
     var title = "" { didSet { if title != oldValue { needsDisplay = true } } }
     var isActive = false { didSet { if isActive != oldValue { needsDisplay = true } } }
     var attention: Attention = .none { didSet { if attention != oldValue { needsDisplay = true } } }
+    /// The workspace's color (#9): a dot before the number plus a faint tint.
+    var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true; superview?.needsLayout = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
     private var dragStart: CGPoint?
     private var reordering = false
@@ -132,9 +135,13 @@ final class WorkspaceButton: FlippedView {
     private var numberWidth: CGFloat { number.isEmpty ? 0 : ceil((number as NSString).size(withAttributes: numberAttrs).width) + 6 }
     private var dotWidth: CGFloat { attention > .none ? Self.dotSize + 6 : 0 }
 
+    private var chipWidth: CGFloat { color == nil || isAddButton ? 0 : 10 }
+    /// Where the color dot sits (also sampled by the self-test).
+    var chipRect: CGRect { CGRect(x: Self.padding, y: (bounds.height - 6) / 2, width: 6, height: 6) }
+
     var idealWidth: CGFloat {
         if isAddButton { return 24 }
-        return Self.padding * 2 + numberWidth + ceil((title as NSString).size(withAttributes: titleAttrs).width) + dotWidth
+        return Self.padding * 2 + chipWidth + numberWidth + ceil((title as NSString).size(withAttributes: titleAttrs).width) + dotWidth
     }
 
     override var mouseDownCanMoveWindow: Bool { false }
@@ -151,6 +158,10 @@ final class WorkspaceButton: FlippedView {
             Theme.hover.setFill()
             NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).fill()
         }
+        if !isAddButton {
+            ColorStyle.drawTint(color, in: bounds, cornerRadius: radius)
+            ColorStyle.drawChip(color, in: chipRect)
+        }
 
         if isAddButton {
             let c = CGPoint(x: bounds.midX, y: bounds.midY)
@@ -166,7 +177,7 @@ final class WorkspaceButton: FlippedView {
             return
         }
 
-        var x = Self.padding
+        var x = Self.padding + chipWidth
         if !number.isEmpty {
             let font = numberAttrs[.font] as! NSFont
             let h = ceil(font.ascender - font.descender)

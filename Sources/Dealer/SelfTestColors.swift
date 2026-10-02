@@ -85,21 +85,30 @@ extension TerminalWindowController {
             self.setColor(teal, workspace: self.workspaces[0])
             capture(1)
         }
-        t.step("colors: top-bar pills draw no workspace color", nil, {
-            all(pillsShown ? nil : "pills should have been showing", compare())
+        // #18: the workspace's entry is colored in both switcher modes: the row in the sidebar and
+        // the pill in the top bar. A pill in the waiting blue still doesn't read as outlined.
+        var pillChip: NSColor?, pillTintDiffers = false, bluePillOutlined = true
+        t.step("colors: in top-bar mode the workspace's pill shows its color", nil, {
+            all(pillsShown ? nil : "pills should have been showing",
+                PixelProbe.matches(pillChip, teal) ? nil : "pill 1's chip should be \(teal.hexString), is \(pillChip?.hexString ?? "nil")",
+                pillTintDiffers ? nil : "pill 1 should be tinted (it renders the same as uncolored)",
+                bluePillOutlined ? "a waiting-blue pill must not read as outlined" : nil)
         }) {
             Settings.workspaceSwitcher = .top
             self.layoutNow()
             pillsShown = !bar.isHidden && bar.button(at: 1) != nil
-            renders = [:]
-            for (i, ws) in [nil, teal].enumerated() {
-                self.setColor(ws, workspace: self.workspaces[0])
-                self.layoutNow()
-                let d = PixelProbe.pixels(bar)
-                var pair = renders["pill bar"] ?? (nil, nil)
-                if i == 0 { pair.0 = d } else { pair.1 = d }
-                renders["pill bar"] = pair
-            }
+            let pill = bar.button(at: 0) as? WorkspaceButton
+            self.setColor(nil, workspace: self.workspaces[0])
+            self.layoutNow()
+            let plain = PixelProbe.pixels(pill)
+            self.setColor(teal, workspace: self.workspaces[0])
+            self.layoutNow()
+            pillChip = pill.flatMap { p in PixelProbe.sample(p, at: CGPoint(x: p.chipRect.midX, y: p.chipRect.midY)) }
+            pillTintDiffers = PixelProbe.pixels(pill) != plain
+            self.setColor(Theme.attentionWaiting, workspace: self.workspaces[0])
+            self.layoutNow()
+            bluePillOutlined = PixelProbe.isWaitingOutlined(pill)
+            self.setColor(teal, workspace: self.workspaces[0])
             Settings.workspaceSwitcher = .sidebar
             for p in ["k5", "k6"] { self.remove(t.pane(p)) }
         }

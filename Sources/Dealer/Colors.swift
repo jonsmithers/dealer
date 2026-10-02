@@ -3,8 +3,8 @@ import AppKit
 // Per-workspace and per-tab colors (#9).
 //
 // A color is an optional NSColor on `Workspace.color` / `Tab.color`, persisted as "#rrggbb".
-// A workspace color shows ONLY on its sidebar row, as a chip plus a faint tint (#15): not on
-// top-bar pills, not in the deck area, and never on tabs. A tab color shows on its own tab button
+// A workspace color shows ONLY on its switcher entry, the sidebar row or the top-bar pill, as a
+// chip plus a faint tint (#15, #18): not in the deck area, and never on tabs. A tab color shows on its own tab button
 // as the underline plus a faint tint (overriding the deck color there). Colors are never drawn as
 // an outline: that look belongs to #7's attention (AttentionStyle), and the tint is inset so the
 // attention outline always sits outside it.
