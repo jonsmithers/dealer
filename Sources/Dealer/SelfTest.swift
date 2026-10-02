@@ -229,6 +229,7 @@ extension TerminalWindowController {
         switcherSelfTestSteps(kit)
         settingsSelfTestSteps(kit)
         colorsSelfTestSteps(kit)
+        titlebarTabsSelfTestSteps(kit)
         cliSelfTestSteps(kit)
         claudeHooksSelfTestSteps(kit)
 

@@ -20,6 +20,11 @@
 # (numbered pills in the titlebar row).
 # switcher = "sidebar"
 
+[window]
+# Put the tab strips of decks along the window's top edge into the titlebar row, like
+# Safari's compact tabs. Empty titlebar space still drags the window.
+# tabs_in_titlebar = false
+
 [colors]
 # Workspace and tab colors: right-click a workspace or tab for Color › swatches, Custom…, None.
 # Give each new workspace the next unused swatch automatically.

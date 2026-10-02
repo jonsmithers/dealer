@@ -179,8 +179,16 @@ final class DeckView: FlippedView {
     /// True when the window has several decks and each shows its identity color.
     var showsColor = false { didSet { if showsColor != oldValue { strip.reload() } } }
 
+    /// True while `strip` lives in the window's titlebar row (#16, TitlebarTabs.swift); the content
+    /// card then fills the whole deck. Set by the controller, which also reparents the strip.
+    var stripInTitlebar = false { didSet { if stripInTitlebar != oldValue { needsLayout = true } } }
+
     override func layout() {
         super.layout()
+        if stripInTitlebar {
+            content.frame = CGRect(x: 0, y: 0, width: max(bounds.width, 1), height: max(bounds.height, 1))
+            return
+        }
         strip.frame = CGRect(x: 0, y: 0, width: bounds.width, height: Self.stripHeight)
         content.frame = CGRect(x: 0, y: Self.stripHeight, width: max(bounds.width, 1), height: max(bounds.height - Self.stripHeight, 1))
     }

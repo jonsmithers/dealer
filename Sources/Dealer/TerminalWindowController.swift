@@ -660,6 +660,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             deck.view.isHidden = true
             deck.activeTab?.panes.forEach { $0.surface.setVisible(false) }
         }
+        placeTabStrips(frames)  // #16: titlebar or in-deck, before the decks lay out
         for (deck, r) in frames {
             let dv = deck.view
             if dv.superview !== contentView { contentView.addSubview(dv) }

@@ -93,6 +93,10 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
 - Keyboard/IME handling is a trimmed port of Ghostty's own
   `~/git/ghostty/macos/Sources/Ghostty/Surface View/SurfaceView_AppKit.swift`. Check that file
   before changing key handling.
+- `[window] tabs_in_titlebar` (#16, off by default) moves only top-edge decks' strips into the
+  titlebar row; lower decks keep theirs. In top-bar workspace mode the pills keep a fixed left
+  segment and strips start after it (not disabled). A strip that would be clipped below
+  `titlebarStripMinWidth` stays in its deck.
 - Workspaces are per-window (a window shows one at a time), not global. Closing the last deck of a
   workspace closes the workspace, and the last workspace closes the window; there is no empty
   workspace state. Moves into another workspace don't follow (the view stays put), except for

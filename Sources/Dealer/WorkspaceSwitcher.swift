@@ -33,8 +33,11 @@ extension TerminalWindowController {
         if bar.superview !== contentView { contentView.addSubview(bar) }
         bar.isHidden = WorkspaceSwitcher.style != .top
         let x = WorkspaceBarView.leadingInset
-        bar.frame = CGRect(x: x, y: 0, width: max(contentView.bounds.width - x - Self.deckGap, 0), height: deckArea.minY)
         bar.reload()
+        // With tab strips in the titlebar (#16), the bar is only its pill segment so it never
+        // sits over (and swallows clicks for) a strip.
+        let full = max(contentView.bounds.width - x - Self.deckGap, 0)
+        bar.frame = CGRect(x: x, y: 0, width: Settings.tabsInTitlebar ? min(full, bar.contentWidth) : full, height: deckArea.minY)
         // reload() runs inside the window's layout pass, where its needsLayout would be dropped.
         bar.layoutSubtreeIfNeeded()
     }

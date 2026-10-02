@@ -61,6 +61,24 @@
   also sets `GHOSTTY_RESOURCES_DIR` from `/Applications/Ghostty.app` so shell integration and
   terminfo work.
 
+## Tabs in the titlebar (`TitlebarTabs.swift`, #16)
+
+- `placeTabStrips(frames)` runs in `layoutWindow` before the decks lay out, every pass. It
+  reparents a top-edge deck's `strip` into the content view's titlebar row and sets
+  `DeckView.stripInTitlebar` (the card then fills the deck). Every other deck gets its strip back,
+  and strips in the content view whose deck isn't placed this pass are removed. That covers decks
+  that were folded, closed or moved to another workspace: `detach(deck:)` removes the deck view,
+  not a strip living outside it. Only strip views move; never recreate decks or surfaces for this.
+- The clear line (`titlebarClearX`) is the zoom button, the sidebar toggle, or in top-bar mode the
+  pill segment (`WorkspaceBarView.contentWidth`); the bar shrinks to its pills in this mode so it
+  doesn't cover strips. New titlebar chrome must push `titlebarClearX` right.
+- Empty strip space in the titlebar drags the window (`performDrag`) and runs the system
+  double-click action (`AppleActionOnDoubleClick` from the global domain: a macOS setting, not a
+  Dealer one). DragController checks titlebar strips before the top-edge promote band they sit in.
+- Tests: the strip's frame must equal its deck's x-range clipped at the clear line. For the
+  empty-space hit test, pick a point after the strip's last control; with several tabs a strip can
+  be full.
+
 ## Workspaces (`Workspace.swift`, `WorkspaceSidebar.swift`, `WorkspaceBar.swift`, `WorkspaceSwitcher.swift`)
 
 - Moves into another workspace follow the usual order: detach, then `place(tab:in:)` /

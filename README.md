@@ -86,6 +86,16 @@ to close, drag to reorder, "+" to add, and take pane/tab drops. In top-bar mode 
 its toggle are gone and ⌘B is disabled; each window's sidebar choice is kept for when you switch
 back.
 
+### Tabs in the titlebar
+
+With `[window] tabs_in_titlebar = true` in [settings.toml](#settings), the tab strips of decks
+along the window's top edge move up into the titlebar row (like Safari's compact tabs), and those
+decks start right under the titlebar. Each strip stays over its own deck. Decks lower down keep
+their strips. The strips start after the traffic lights and the sidebar toggle, or after the
+workspace pills in top-bar mode. A deck too narrow for that keeps its strip. Empty titlebar space,
+including the space after a strip's tabs, still drags the window, and double-clicking it zooms or
+minimizes per System Settings. Tabs there drag and drop as usual. The change applies live.
+
 ### Colors
 
 Right-click a workspace (sidebar row or pill) or a tab for **Workspace Color** / **Tab Color**:
@@ -230,6 +240,9 @@ inject_hooks = true      # load Dealer's Claude Code plugin in new panes
 
 [workspaces]
 switcher = "sidebar"     # or "top" (pills in the titlebar)
+
+[window]
+tabs_in_titlebar = false # put top-edge decks' tab strips in the titlebar row
 
 [colors]
 auto_assign = false      # color new workspaces with the next unused swatch

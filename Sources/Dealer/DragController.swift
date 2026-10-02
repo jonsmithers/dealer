@@ -140,6 +140,13 @@ final class DragController {
             return (.workspace(hit.workspace), nil)
         }
 
+        // A tab strip in the titlebar row (#16), before the top-edge band it sits in.
+        for deck in controller.titlebarStripDecks {
+            let s = deck.view.strip
+            let sp = s.convert(p, from: view)
+            if s.bounds.contains(sp) { return stripTarget(source, deck: deck, strip: s, at: sp) }
+        }
+
         // Past the decks, at the window edge: promote.
         let edge: Side?
         if p.y < area.minY { edge = .top }
@@ -159,14 +166,7 @@ final class DragController {
             guard dv.bounds.contains(local) else { continue }
 
             let sp = dv.strip.convert(p, from: view)
-            if dv.strip.bounds.contains(sp) {
-                var hovered: Tab?
-                if let i = dv.strip.tabIndex(at: sp), i != deck.activeIndex {
-                    hovered = deck.tabs[i]
-                    if case .tab(let t) = source, t === hovered { hovered = nil }
-                }
-                return (.tabStrip(deck, dv.strip.insertionIndex(atX: sp.x)), hovered)
-            }
+            if !dv.stripInTitlebar, dv.strip.bounds.contains(sp) { return stripTarget(source, deck: deck, strip: dv.strip, at: sp) }
 
             guard let tab = deck.activeTab else { return (nil, nil) }
             for pane in tab.panes where !pane.view.isHidden {
@@ -177,6 +177,16 @@ final class DragController {
             return (nil, nil)
         }
         return (nil, nil)
+    }
+
+    /// Over a tab strip (in its deck or in the titlebar): insert there; hovering a tab switches to it.
+    private func stripTarget(_ source: Source, deck: Deck, strip: TabStripView, at sp: CGPoint) -> (Target?, Tab?) {
+        var hovered: Tab?
+        if let i = strip.tabIndex(at: sp), i != deck.activeIndex {
+            hovered = deck.tabs[i]
+            if case .tab(let t) = source, t === hovered { hovered = nil }
+        }
+        return (.tabStrip(deck, strip.insertionIndex(atX: sp.x)), hovered)
     }
 
     private func target(_ source: Source, over pane: Pane, rect r: CGRect, at p: CGPoint) -> Target? {

@@ -49,6 +49,7 @@ enum Settings {
         "agent.inject_hooks": .bool,
         "workspaces.switcher": .oneOf(WorkspaceSwitcherStyle.allCases.map(\.rawValue)),
         "colors.auto_assign": .bool,
+        "window.tabs_in_titlebar": .bool,
         "colors.palette": .colorArray,
     ]
 
@@ -237,6 +238,9 @@ enum Settings {
     /// `[agent] inject_hooks` (#12, ClaudeHooks.swift): whether `claude` started in a pane loads
     /// Dealer's Claude Code plugin. Read when a pane's shell starts; default true.
     static var agentInjectHooks: Bool { bool("agent.inject_hooks") ?? true }
+
+    /// `[window] tabs_in_titlebar` (#16): top-edge decks' tab strips sit in the titlebar row.
+    static var tabsInTitlebar: Bool { bool("window.tabs_in_titlebar") ?? false }
 
     /// `[colors] auto_assign` (#9): new workspaces take the next unused swatch. Default false.
     static var autoAssignColors: Bool { bool("colors.auto_assign") ?? false }
