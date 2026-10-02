@@ -6,7 +6,7 @@ import Foundation
 enum CLI {
     static let commands: Set<String> = [
         "identify", "list", "ls", "find", "create", "new", "send-text", "send", "focus", "resize",
-        "rename", "notify", "close", "help", "--help", "-h",
+        "rename", "color", "notify", "close", "help", "--help", "-h",
     ]
 
     /// True when this process should act as the CLI rather than launch the app.
@@ -34,6 +34,7 @@ enum CLI {
       focus [TARGET]                             focus a pane/tab/deck/workspace/window
       resize [-t T] [--axis width|height] (--to 0.3|30% | --by +5|-3|+10%)
       rename [-t T] [--tab | --workspace] [TITLE]  empty title follows the terminal again
+      color [-t T] [--tab | --workspace] COLOR|none  swatch name or number, or #rrggbb
       notify [-t T] [--state unread|done|waiting|none] [--title T] [--body B]
       close [-t T]
 
@@ -180,6 +181,9 @@ enum CLI {
             if let t = positional.first { a["target"] = t }
         case "rename":
             a["title"] = positional.joined(separator: " ")
+        case "color":
+            guard positional.count == 1 else { throw Usage(message: "color takes one COLOR: a swatch name or number, #rrggbb, or none") }
+            a["color"] = positional[0]
         case "notify":
             if !positional.isEmpty, a["body"] == nil { a["body"] = positional.joined(separator: " ") }
         case "identify", "list", "find", "resize":

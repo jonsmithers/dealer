@@ -27,6 +27,13 @@ enum SettingsFile {
     # (numbered pills in the titlebar row).
     # switcher = "sidebar"
 
+    [colors]
+    # Workspace and tab colors: right-click a workspace or tab for Color › swatches, Custom…, None.
+    # Give each new workspace the next unused swatch automatically.
+    # auto_assign = false
+    # Replace the preset swatches (numbered 1, 2, … in menus and `dealer color`).
+    # palette = ["#e06c75", "#98c379", "#61afef", "#c678dd"]
+
     """
 
     /// Returns `text` with `key` (dotted, e.g. "workspaces.switcher") set to `literal`.

@@ -14,6 +14,8 @@ struct PaneSnapshot: Codable {
 
 struct TabSnapshot: Codable {
     var customTitle: String?
+    /// "#rrggbb" (#9); absent in older files.
+    var color: String?
     var root: TreeSnapshot<PaneSnapshot>
 }
 
@@ -25,6 +27,8 @@ struct DeckSnapshot: Codable {
 
 struct WorkspaceSnapshot: Codable {
     var name: String?
+    /// "#rrggbb" (#9); absent in older files.
+    var color: String?
     var root: TreeSnapshot<DeckSnapshot>
 }
 
@@ -47,7 +51,7 @@ struct WindowSnapshot: Codable {
 
     /// The window's workspaces; an old single-tree file becomes one workspace.
     var allWorkspaces: [WorkspaceSnapshot] {
-        workspaces ?? root.map { [WorkspaceSnapshot(name: nil, root: $0)] } ?? []
+        workspaces ?? root.map { [WorkspaceSnapshot(name: nil, color: nil, root: $0)] } ?? []
     }
 }
 
@@ -108,7 +112,7 @@ extension TerminalWindowController {
         }
         func deckTree(_ n: Node<Deck>) -> TreeSnapshot<DeckSnapshot> {
             if let d = n.leaf {
-                let tabs = d.tabs.map { TabSnapshot(customTitle: $0.customTitle, root: paneTree($0.root)) }
+                let tabs = d.tabs.map { TabSnapshot(customTitle: $0.customTitle, color: $0.color?.hexString, root: paneTree($0.root)) }
                 return .leaf(DeckSnapshot(tabs: tabs, activeIndex: d.activeIndex, colorIndex: d.colorIndex))
             }
             return .split(axis: n.axis, ratio: n.ratio, a: deckTree(n.a!), b: deckTree(n.b!))
@@ -117,7 +121,7 @@ extension TerminalWindowController {
         guard !live.isEmpty else { return nil }
         let wss = live.map { ws -> WorkspaceSnapshot in
             focusedPane = ws.validFocusedPane
-            return WorkspaceSnapshot(name: ws.name, root: deckTree(ws.root!))
+            return WorkspaceSnapshot(name: ws.name, color: ws.color?.hexString, root: deckTree(ws.root!))
         }
         return WindowSnapshot(frame: window.frame, workspaces: wss,
                               activeWorkspace: live.firstIndex { $0 === activeWorkspace } ?? 0,
@@ -129,6 +133,7 @@ extension TerminalWindowController {
         snap.allWorkspaces.map { wss in
             let (root, focus) = restoreTree(wss.root)
             let ws = Workspace(root: root, name: wss.name)
+            ws.color = wss.color.flatMap { NSColor(hex: $0) }
             ws.focusedPane = focus
             return ws
         }
@@ -155,6 +160,7 @@ extension TerminalWindowController {
                 deck.tabs = ds.tabs.map { ts in
                     let tab = Tab(root: paneTree(ts.root))
                     tab.customTitle = ts.customTitle
+                    tab.color = ts.color.flatMap { NSColor(hex: $0) }
                     return tab
                 }
                 deck.activeIndex = min(max(ds.activeIndex, 0), max(deck.tabs.count - 1, 0))

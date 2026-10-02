@@ -1,7 +1,7 @@
 # `dealer`: scripting a running Dealer
 
 `dealer` drives a running Dealer over a control socket: create panes, tabs, decks and
-workspaces, type into them, focus, resize, rename, list, and notify.
+workspaces, type into them, focus, resize, rename, color, list, and notify.
 
 ## Setup
 
@@ -43,6 +43,7 @@ workspaces, type into them, focus, resize, rename, list, and notify.
 | `focus [TARGET]` | Focuses the target and brings its window, workspace and tab forward, all in one call. |
 | `resize [--axis width\|height] (--to 0.3\|30% \| --by +5\|-3\|+10%)` | Moves the divider of the nearest enclosing split (of that axis) of a pane, or of a deck (`-t deck:N`). `--to` sets the target's share. `--by` changes it by cells or percent. |
 | `rename [--tab \| --workspace] [TITLE]` | Names a pane (or its tab or workspace, or `-t tab:N`). An empty title goes back to following the terminal. |
+| `color [--tab \| --workspace] COLOR\|none` | Colors a tab or workspace (#9). COLOR is a swatch name (`red`, `orange`, `yellow`, `green`, `teal`, `blue`, `purple`, `pink`, or numbers 1… with a `[colors] palette`), a swatch number, or `#rrggbb`; `none` clears it. A workspace/window target colors the workspace; a pane/tab target colors its tab. `list --json` shows `color` on workspaces and `tab_color` on tabs. |
 | `notify [--state unread\|done\|waiting\|none] [--title T] [--body B]` | Marks the pane for attention. See the README's Attention section. |
 | `close` | Closes a pane or tab without asking. |
 

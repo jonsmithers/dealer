@@ -237,6 +237,7 @@ final class TabStripView: FlippedView {
             b.isActive = i == deck.activeIndex
             b.accent = showsColor ? deck.color : nil
             b.attention = tab.attention
+            b.color = tab.color
             b.toolTip = tab.focusTarget?.statusLine  // AgentStatus.swift
         }
         needsLayout = true
@@ -322,6 +323,8 @@ final class TabButton: FlippedView {
     var isActive = false { didSet { if isActive != oldValue { needsDisplay = true } } }
     /// Deck identity color, or nil in a single-deck window.
     var accent: NSColor? { didSet { if accent != oldValue { needsDisplay = true } } }
+    /// The tab's own color (#9): its underline (instead of the deck accent) and a faint tint.
+    var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true } } }
     /// Badge for the most urgent pane in this tab (#4); drawn by `drawAttentionDot` in Attention.swift.
     var attention: Attention = .none { didSet { if attention != oldValue { needsDisplay = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
@@ -349,13 +352,16 @@ final class TabButton: FlippedView {
         if isActive {
             Theme.surface.setFill()
             NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius).fill()
-            if let accent {
-                accent.setFill()
-                NSBezierPath(roundedRect: CGRect(x: 10, y: r.height - 2, width: r.width - 20, height: 2), xRadius: 1, yRadius: 1).fill()
-            }
         } else if hovering {
             Theme.hover.setFill()
             NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius).fill()
+        }
+        // #9: a tab color tints the button and replaces the deck accent in the underline, which
+        // then shows on inactive tabs too (fainter), so colored tabs are findable in the strip.
+        ColorStyle.drawTint(color, in: r, cornerRadius: radius)
+        if let underline = color.map({ isActive ? $0 : $0.withAlphaComponent(0.55) }) ?? (isActive ? accent : nil) {
+            underline.setFill()
+            NSBezierPath(roundedRect: underlineRect, xRadius: 1, yRadius: 1).fill()
         }
 
         let para = NSMutableParagraphStyle()
@@ -407,6 +413,25 @@ final class TabButton: FlippedView {
     override func otherMouseUp(with event: NSEvent) {
         guard let tab, let c = controller else { return }
         c.close(tab: tab)
+    }
+
+    /// Where the underline sits (also sampled by the self-test).
+    var underlineRect: CGRect { CGRect(x: 10, y: bounds.height - 2, width: bounds.width - 20, height: 2) }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard let tab else { return nil }
+        let menu = NSMenu()
+        menu.addItem(ClosureMenuItem("Rename Tab…") { [weak self, weak tab] in
+            if let tab { self?.controller?.renameTab(tab) }
+        })
+        menu.addItem(ColorMenu.item("Tab Color", current: tab.color) { [weak self, weak tab] c in
+            if let tab { self?.controller?.setColor(c, tab: tab) }
+        })
+        menu.addItem(.separator())
+        menu.addItem(ClosureMenuItem("Close Tab") { [weak self, weak tab] in
+            if let tab { self?.controller?.close(tab: tab) }
+        })
+        return menu
     }
 }
 

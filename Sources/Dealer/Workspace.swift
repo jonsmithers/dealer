@@ -11,6 +11,8 @@ final class Workspace {
     let id: Int
     /// A name the user typed; otherwise `displayName` follows the focused terminal.
     var name: String?
+    /// The workspace's color (#9, Colors.swift); nil is neutral.
+    var color: NSColor?
     var root: Node<Deck>?
     /// The pane that had focus last time this workspace was active. It can be stale (moved to
     /// another workspace); the controller validates it.

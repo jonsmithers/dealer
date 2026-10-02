@@ -214,6 +214,8 @@ final class Tab {
     weak var lastFocused: Pane?
     /// A title the user typed; otherwise the focused pane's title is used.
     var customTitle: String?
+    /// The tab's own color (#9, Colors.swift). It belongs to the tab and moves with it.
+    var color: NSColor?
 
     init(root: Node<Pane>) {
         self.root = root

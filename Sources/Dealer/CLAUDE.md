@@ -136,6 +136,26 @@
   run anyway, because surfaces are created in `SurfaceView.init`). Ghostty keybind actions from
   those panes find no window controller until the workspace is first shown.
 
+## Colors (`Colors.swift`)
+
+- `Workspace.color` / `Tab.color` are NSColors persisted as "#rrggbb" (`WorkspaceSnapshot.color`,
+  `TabSnapshot.color`, both optional). A tab's color lives on the `Tab` object, so it follows any
+  move that keeps the object: reordering or moving it to another strip, promoting a whole tab and
+  folding it back, moving it to another workspace. Operations that wrap panes in a *new* `Tab`
+  (`moveToNewTab`, promoting a pane) start uncolored, and dropping a tab onto a pane
+  (`merge(tab:)`) or a fold that splits it into another tab dissolves it and its color.
+- Draw colors only through `ColorStyle.drawTint` (inset by `AttentionStyle.outlineWidth`, so the
+  attention outline stays outside it) and `drawChip`, and call `AttentionStyle.draw` after them. The
+  self-test checks that a waiting-blue workspace or tab doesn't read as outlined.
+- Swatches come from `Theme.swatches` (light/dark variants, or `[colors] palette`). Parse
+  user-given colors with `Theme.parseColor` (CLI and settings share it).
+- `autoAssignColor` runs from `insert(workspace:)`, so it covers every workspace created after the
+  window's first: menus, CLI, and moves into a new workspace.
+- Pixel checks: `NSBitmapImageRep.colorAt` tags components "calibrated RGB" although they're in
+  the bitmap's (display) color space. Use `renderedPixel(_:at:)` (SelfTestColors.swift), which
+  re-tags them with `rep.colorSpace` before converting to sRGB. Naive conversion is off by about
+  0.25 for saturated colors.
+
 ## Self-test sections
 
 - Feature steps live in their own files (e.g. `SelfTestWorkspaces.swift`) and are added through

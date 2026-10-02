@@ -100,6 +100,11 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   vs dark follows the terminal background's luminance, not the macOS appearance. Focus is shown
   Ghostty-style by veiling unfocused panes (`unfocused-split-fill`/`-opacity`); pane rings are
   reserved for attention. Don't reintroduce focus borders.
+- Workspace and tab colors (#9) are a chip/underline plus a faint tint, never an outline (outlines
+  mean attention). Uncolored tabs stay neutral and don't inherit the workspace color; the per-deck
+  underline stays and a tab color overrides it on that tab. Only the active workspace's color shows
+  in the window (a hairline above the decks); the chrome isn't tinted. `[colors] auto_assign`
+  defaults to off.
 - Coding-agent keys: ⌘⇧U Jump to Next Unread, ⌥⌘A New Agent Pane, ⌥⇧⌘A New Agent Pane in
   Worktree. The agent command comes from `DEALER_AGENT_COMMAND`, then `[agent] command` in
   settings.toml, then the legacy `agentCommand` user default, then `claude`. It is *typed* into the new pane's shell (not the

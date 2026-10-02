@@ -131,6 +131,22 @@ extension TerminalWindowController {
             call("rename", ["target": "\(ids["c2"]!)", "title": "editor"])
             call("rename", ["target": "\(ids["c0"]!)", "level": "tab", "title": "work"])
         }
+        t.step("cli: color a tab and its workspace (#9); none clears", nil, {
+            let tab = self.locate(t.pane("c0"))!.tab, ws = self.locate(t.pane("c0"))!.workspace
+            let listed = (call("list")?["windows"] as? [[String: Any]] ?? []).flatMap { $0["workspaces"] as? [[String: Any]] ?? [] }
+                .first { $0["id"] as? Int == ws.id }
+            return all(tab.color?.hexString == "#123456" ? nil : "tab color should be #123456",
+                       ws.color == nil ? nil : "none should clear the workspace color",
+                       listed?["color"] is NSNull ? nil : "list should show no workspace color",
+                       ControlHandler.handle(["cmd": "color", "args": ["target": "tab:\(tab.id)", "color": "chartreuse-ish"]])["ok"] as? Bool == false
+                           ? nil : "a bad color should fail",
+                       (try? CLI.parse("color", ["--workspace", "teal"]).1["level"] as? String) == "workspace" ? nil : "argv parse")
+        }) {
+            let tab = self.locate(t.pane("c0"))!.tab
+            call("color", ["target": "tab:\(tab.id)", "color": "#123456"])
+            call("color", ["target": "\(ids["c0"]!)", "level": "workspace", "color": "teal"])
+            call("color", ["target": "\(ids["c0"]!)", "level": "workspace", "color": "none"])
+        }
         t.step("cli: send-text types into the shell; --command runs a command", nil, {
             if !live { return all(skipped("shell output")) }
             let typed = tmp + "/typed", ran = tmp + "/ran"

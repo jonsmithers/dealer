@@ -28,6 +28,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     let workspaceBar = WorkspaceBarView()
     /// Shows settings.toml problems (SettingsBanner.swift).
     let settingsBanner = SettingsBannerView()
+    /// Hairline in the active workspace's color along the top of the deck area (Colors.swift).
+    let workspaceAccent = FlippedView()
     /// The sidebar toggle in the titlebar row (WorkspaceSidebar.swift).
     let sidebarToggle = SidebarToggleButton()
     /// The user's explicit sidebar choice for this window; `nil` means automatic (shown with 2+
@@ -289,6 +291,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     /// Adds `ws` to the window's list; used by workspace commands in Workspace.swift.
     func insert(workspace ws: Workspace, at index: Int) {
+        autoAssignColor(ws)
         workspaces.insert(ws, at: min(max(index, 0), workspaces.count))
     }
 

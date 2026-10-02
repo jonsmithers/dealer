@@ -46,6 +46,7 @@ final class WorkspaceSidebarView: FlippedView {
             r.detail = (ws.validFocusedPane ?? ws.decks.first?.activeTab?.focusTarget)?.statusLine ?? ""
             r.isActive = ws === c.activeWorkspace
             r.attention = ws.attention
+            r.color = ws.color
         }
         needsLayout = true
     }
@@ -99,11 +100,16 @@ final class WorkspaceRow: FlippedView {
     var detail = "" { didSet { if detail != oldValue { needsDisplay = true } } }
     var isActive = false { didSet { if isActive != oldValue { needsDisplay = true } } }
     var attention: Attention = .none { didSet { if attention != oldValue { needsDisplay = true } } }
+    /// The workspace's color (#9): a chip at the left edge plus a faint tint.
+    var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
     private var dragStart: CGPoint?
     private var reordering = false
 
     private static let padding: CGFloat = 10
+
+    /// Where the color chip sits (also sampled by the self-test).
+    static func chipRect(in bounds: CGRect) -> CGRect { CGRect(x: 4, y: 7, width: 3, height: bounds.height - 14) }
     private static let dotSize: CGFloat = 6
 
     override init(frame: NSRect) {
@@ -147,6 +153,10 @@ final class WorkspaceRow: FlippedView {
         } else if hovering {
             Theme.hover.setFill()
             NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).fill()
+        }
+        if !isAddRow {
+            ColorStyle.drawTint(color, in: bounds, cornerRadius: radius)
+            ColorStyle.drawChip(color, in: Self.chipRect(in: bounds))
         }
 
         let titleFont = titleAttrs[.font] as! NSFont
@@ -229,6 +239,12 @@ final class WorkspaceRow: FlippedView {
         guard workspace != nil else { return nil }
         let menu = NSMenu()
         menu.addItem(withTitle: "Rename Workspace…", action: #selector(renameIt), keyEquivalent: "").target = self
+        if let ws = workspace {
+            menu.addItem(ColorMenu.item("Workspace Color", current: ws.color) { [weak self, weak ws] c in
+                guard let ws else { return }
+                self?.controller?.setColor(c, workspace: ws)
+            })
+        }
         menu.addItem(withTitle: "Close Workspace", action: #selector(closeIt), keyEquivalent: "").target = self
         return menu
     }
@@ -321,6 +337,7 @@ extension TerminalWindowController {
         // reload() runs inside the window's layout pass, where its needsLayout would be dropped.
         sb.layoutSubtreeIfNeeded()
         layoutWorkspaceBar()
+        layoutWorkspaceAccent()
         layoutSettingsBanner()
     }
 }

@@ -28,6 +28,7 @@ enum ControlHandler {
             case "focus": result = try focus(args, ctx)
             case "resize": result = try resize(args, ctx)
             case "rename": result = try rename(args, ctx)
+            case "color": result = try color(args, ctx)
             case "notify": result = try notify(args, ctx)
             case "close": result = try close(args, ctx)
             default: throw Failure(message: "unknown command '\(cmd)'")
@@ -186,6 +187,7 @@ enum ControlHandler {
                         "id": ws.id,
                         "name": ws.displayName,
                         "custom_name": ws.name ?? NSNull(),
+                        "color": ws.color?.hexString ?? NSNull(),
                         "active": ws === wc.activeWorkspace,
                         "decks": ws.decks.map { d -> [String: Any] in
                             [
@@ -196,6 +198,7 @@ enum ControlHandler {
                                         "id": t.id,
                                         "title": t.title,
                                         "custom_title": t.customTitle ?? NSNull(),
+                                        "tab_color": t.color?.hexString ?? NSNull(),
                                         "active": t === d.activeTab,
                                         "panes": t.panes.map { describe($0, ws: ws, byTTY: byTTY, focused: focused) },
                                     ]
@@ -642,6 +645,27 @@ enum ControlHandler {
         }
         loc.wc.refreshChrome()
         return r
+    }
+
+    // MARK: - color (#9)
+
+    /// Colors a tab or workspace. Level: `--tab` / `--workspace`, else from the target (a workspace
+    /// or window target colors the workspace; a pane or tab target colors its tab).
+    static func color(_ args: [String: Any], _ ctx: Context) throws -> [String: Any] {
+        let loc = try resolve(args["target"], ctx)
+        let raw = args["color"] as? String ?? ""
+        guard !raw.isEmpty else { throw Failure(message: "give a color: a swatch name (\(Theme.swatches.map(\.name).joined(separator: ", "))), a number, #rrggbb, or none") }
+        guard case .some(let color) = Theme.parseColor(raw) else { throw Failure(message: "can't read color '\(raw)'") }
+        let level = (args["level"] as? String)?.lowercased()
+        if level == "workspace" || (level == nil && loc.pane == nil && loc.tab == nil && loc.deck == nil) {
+            guard let ws = loc.ws ?? loc.focusPane.flatMap({ loc.wc.locate($0)?.workspace }) else { throw Failure(message: "no workspace to color") }
+            loc.wc.setColor(color, workspace: ws)
+            return ["workspace": ws.id, "color": color?.hexString ?? NSNull()]
+        }
+        guard level == nil || level == "tab" else { throw Failure(message: "color applies to a tab or a workspace") }
+        guard let tab = loc.tab ?? loc.focusPane.flatMap({ loc.wc.locate($0)?.tab }) else { throw Failure(message: "no tab to color") }
+        loc.wc.setColor(color, tab: tab)
+        return ["tab": tab.id, "color": color?.hexString ?? NSNull()]
     }
 
     // MARK: - notify

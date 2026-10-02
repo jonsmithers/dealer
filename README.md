@@ -86,6 +86,18 @@ to close, drag to reorder, "+" to add, and take pane/tab drops. In top-bar mode 
 its toggle are gone and ⌘B is disabled; each window's sidebar choice is kept for when you switch
 back.
 
+### Colors
+
+Right-click a workspace (sidebar row or pill) or a tab for **Workspace Color** / **Tab Color**:
+preset swatches, **Custom…** (the system color panel) or **None**. A colored workspace gets a chip
+and a faint tint on its row or pill, plus a thin line in its color along the top of the decks
+while it's active. A colored tab gets a faint tint and an underline in its color, which replaces
+the deck's color on that tab. Uncolored tabs stay neutral. A tab's color moves with the tab;
+a workspace's color stays with the workspace. Colors are saved with the session. From a script:
+`dealer color -t workspace:2 teal`, `dealer color --tab '#e06c75'`, `dealer color --workspace none`.
+In settings.toml, `[colors] auto_assign = true` colors each new workspace with the next unused
+swatch, and `palette = ["#…", …]` replaces the swatches.
+
 ## Dragging
 
 Drag a pane by its bar (shown once a tab has two panes; ⌥-drag grabs its parent split),
@@ -218,6 +230,10 @@ inject_hooks = true      # load Dealer's Claude Code plugin in new panes
 
 [workspaces]
 switcher = "sidebar"     # or "top" (pills in the titlebar)
+
+[colors]
+auto_assign = false      # color new workspaces with the next unused swatch
+palette = ["#e06c75", "#98c379", "#61afef"]   # replaces the preset swatches
 ```
 
 - Changes apply live: Dealer watches the file (editors that save by replacing it work too).
@@ -265,6 +281,7 @@ and asserts the tree after each step.
 - `Views.swift` – deck, tab strip, pane bar, dividers, overlays
 - `Session.swift` – save/restore
 - `Workspace.swift` / `WorkspaceSidebar.swift` – workspaces, and the collapsible workspace sidebar + its titlebar toggle
+- `Colors.swift` – workspace and tab colors: swatches, color menus, drawing, the active-workspace accent
 - `WorkspaceBar.swift` / `WorkspaceSwitcher.swift` – the top-bar pill switcher, and choosing between it and the sidebar
 - `Settings.swift` / `SettingsFile.swift` / `TOML.swift` / `SettingsBanner.swift` – settings.toml: schema and
   precedence, file watching, comment-preserving write-back, the minimal TOML parser, the problem banner

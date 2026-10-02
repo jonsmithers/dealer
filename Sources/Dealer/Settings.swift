@@ -21,12 +21,18 @@ enum Settings {
         case bool
         case oneOf([String])
         case stringArray
+        /// An array of "#rrggbb" strings.
+        case colorArray
 
         func validate(_ v: TOML.Value) -> String? {
             switch (self, v) {
             case (.string, .string), (.bool, .bool): return nil
             case (.oneOf(let options), .string(let s)):
                 return options.contains(s) ? nil : "must be one of \(options.map { "\"\($0)\"" }.joined(separator: ", "))"
+            case (.colorArray, .array(let a)):
+                return a.allSatisfy { if case .string(let s) = $0 { return NSColor(hex: s) != nil } else { return false } }
+                    ? nil : "must be an array of \"#rrggbb\" colors"
+            case (.colorArray, _): return "must be an array of \"#rrggbb\" colors, not \(v.typeName)"
             case (.stringArray, .array(let a)):
                 return a.allSatisfy { if case .string = $0 { return true } else { return false } } ? nil : "must be an array of strings"
             case (.string, _), (.oneOf, _): return "must be a string, not \(v.typeName)"
@@ -42,6 +48,8 @@ enum Settings {
         "agent.command": .string,
         "agent.inject_hooks": .bool,
         "workspaces.switcher": .oneOf(WorkspaceSwitcherStyle.allCases.map(\.rawValue)),
+        "colors.auto_assign": .bool,
+        "colors.palette": .colorArray,
     ]
 
     /// Pre-#10 UserDefaults keys, read only when the file doesn't set the setting.
@@ -229,6 +237,15 @@ enum Settings {
     /// `[agent] inject_hooks` (#12, ClaudeHooks.swift): whether `claude` started in a pane loads
     /// Dealer's Claude Code plugin. Read when a pane's shell starts; default true.
     static var agentInjectHooks: Bool { bool("agent.inject_hooks") ?? true }
+
+    /// `[colors] auto_assign` (#9): new workspaces take the next unused swatch. Default false.
+    static var autoAssignColors: Bool { bool("colors.auto_assign") ?? false }
+
+    /// `[colors] palette` (#9): replaces the default swatches (Theme.swatches). Nil when unset.
+    static var colorPalette: [NSColor]? {
+        guard case .array(let a)? = values["colors.palette"] else { return nil }
+        return a.compactMap { if case .string(let s) = $0 { return NSColor(hex: s) } else { return nil } }
+    }
 
     /// `[workspaces] switcher` (#8): "sidebar" (default) or "top". Setting it writes the file.
     static var workspaceSwitcher: WorkspaceSwitcherStyle {
