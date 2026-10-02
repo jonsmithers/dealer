@@ -246,6 +246,14 @@ palette = ["#e06c75", "#98c379", "#61afef"]   # replaces the preset swatches
   (`agentCommand`, `workspaceSwitcher`, `agentInjectHooks`) are still read when the file doesn't
   set that key. Dealer doesn't delete them.
 
+Environment variables:
+
+| Variable | Effect |
+|---|---|
+| `DEALER_AGENT_COMMAND` | Overrides `[agent] command` |
+| `DEALER_CLAUDE_HOOKS=0` | Turns off Dealer's Claude Code hooks for one shell or one `claude` launch (`[agent] inject_hooks` turns them off everywhere) |
+| `DEALER_SOCKET`, `DEALER_PANE_ID` | Set by Dealer in every pane; `dealer` uses them to find the app and its own pane (see [docs/cli.md](docs/cli.md)) |
+
 ## Scripting: `dealer`
 
 `dealer` drives a running Dealer over a Unix socket: `create` panes/tabs/decks/workspaces
