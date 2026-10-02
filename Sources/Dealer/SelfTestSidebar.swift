@@ -67,7 +67,7 @@ extension TerminalWindowController {
                            : "pane should narrow by the sidebar (\(paneWidth) → \(t.pane("srv").view.frame.width))",
                        sb.row(at: 0) != nil ? nil : "one row expected")
         }) {
-            self.toggleSidebar(nil)
+            self.toggleWorkspaceSidebar(nil)
         }
         t.step("sidebar: clicking a row switches workspace", nil, {
             all(expect("*1:Deck0[*srv, db, \(deep)] | 2:Deck0[*s2]"), visible("srv") && !visible("s2") ? nil : "wrong visibility")
@@ -99,7 +99,7 @@ extension TerminalWindowController {
         t.step("sidebar: ⌘B hides it even with several workspaces", nil, {
             all(collapsed(), self.sidebarPreference == false ? nil : "the choice should stick")
         }) {
-            self.toggleSidebar(nil)
+            self.toggleWorkspaceSidebar(nil)
         }
         t.step("sidebar: the choice round-trips through the session; old files decode", nil, {
             guard let snap = self.snapshot(), let data = try? JSONEncoder().encode(snap),

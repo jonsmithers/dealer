@@ -129,9 +129,14 @@
   window routes to the pressed view), and runs DragController's real tracking loop by
   `window.postEvent`-queuing the drag and release before calling `drag.begin` (`SelfTestSidebar.swift`).
   Keep these working through restyles.
-- Self-test runs usually aren't the active app, so there is no key window and a nil-target menu
-  action reaches no controller. `pressCmdB` in `SelfTestSwitcher.swift` drives a key equivalent
-  through `NSApp.mainMenu.performKeyEquivalent` and points the matched item at the window for the press.
+- Don't name an action after a selector AppKit already answers higher in the responder chain.
+  NSWindow implements `toggleSidebar(_:)`, and it sits ahead of the window controller, so a
+  nil-target menu item with that action never reached us (#13); hence `toggleWorkspaceSidebar(_:)`.
+  Check with `NSWindow.instancesRespond(to:)` when adding a menu action.
+- Self-test runs usually aren't the active app, so there is no key window and AppKit routes a
+  nil-target menu action nowhere. `pressCmdB` in `SelfTestSwitcher.swift` uses `NSApp.sendEvent` when
+  the run is active; otherwise it sends the key through the window and SurfaceView to the menu, then
+  resolves the action from SurfaceView up the responder chain as AppKit does. It never re-targets the item.
 - Workspaces restored but never shown have deck views that aren't in the window yet (their shells
   run anyway, because surfaces are created in `SurfaceView.init`). Ghostty keybind actions from
   those panes find no window controller until the workspace is first shown.

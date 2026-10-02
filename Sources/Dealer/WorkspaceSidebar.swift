@@ -301,7 +301,7 @@ final class SidebarToggleButton: FlippedView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        controller?.toggleSidebar(nil)
+        controller?.toggleWorkspaceSidebar(nil)
     }
 }
 
@@ -312,7 +312,9 @@ extension TerminalWindowController {
         WorkspaceSwitcher.style == .sidebar && (sidebarPreference ?? (workspaces.count > 1))
     }
 
-    @objc func toggleSidebar(_ sender: Any?) {
+    /// Not `toggleSidebar(_:)`: NSWindow implements that selector, and it sits ahead of this
+    /// controller in the responder chain, so a nil-target menu item (⌘B) would never get here (#13).
+    @objc func toggleWorkspaceSidebar(_ sender: Any?) {
         guard WorkspaceSwitcher.style == .sidebar else { return NSSound.beep() }
         sidebarPreference = !isSidebarVisible
         layoutNow()
