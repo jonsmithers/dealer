@@ -25,4 +25,13 @@ enum Settings {
         get { string("workspaceSwitcher").flatMap(WorkspaceSwitcherStyle.init(rawValue:)) ?? .sidebar }
         set { set(newValue.rawValue, for: "workspaceSwitcher") }
     }
+
+    /// Load Dealer's Claude Code hooks into every `claude` started in a pane (#12, ClaudeHooks.swift).
+    /// Default on. Read when a pane's shell starts. Until #10 lands it's the UserDefaults key
+    /// `agentInjectHooks` (`defaults write dev.smithers.dealer agentInjectHooks -bool false`);
+    /// #10 maps it to `[agent] inject_hooks` in settings.toml.
+    static var agentInjectHooks: Bool {
+        get { string("agentInjectHooks").map { !["0", "false", "no", "off"].contains($0.lowercased()) } ?? true }
+        set { set(newValue ? "true" : "false", for: "agentInjectHooks") }
+    }
 }

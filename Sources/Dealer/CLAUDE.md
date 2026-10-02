@@ -163,6 +163,23 @@
   escapes, `\r` = Enter). `ghostty_surface_text` is a *paste* (bracketed), so a newline in it
   won't run a command.
 
+## Automatic Claude Code hooks (`ClaudeHooks.swift`, `Resources/claude-plugin/dealer`)
+
+- Hooks reach Claude through a bundled **plugin named in `CLAUDE_CODE_PLUGIN_DIRS`**, set by
+  `Pane.childEnvironment`. They do *not* go through a `claude` wrapper on PATH: rc files that
+  prepend PATH would shadow one. docs/claude-code-states.md (#12) has the research.
+  Don't switch to a wrapper or `--settings` without rereading that section.
+- `pluginDirectory` resolves the bundle's `Resources/claude-plugin/dealer`, or, for
+  `.build/<config>/Dealer`, the repo's copy. Edit the plugin in `Resources/`; `scripts/bundle.sh`
+  copies it. Panes also get `DEALER_CLI` (this binary's absolute path), which the hook script
+  calls, so hooks don't depend on `dealer` being on PATH.
+- `hooks/dealer-hook.sh` must print nothing and exit 0. Output from a `PermissionRequest` hook
+  is a permission decision. It keeps three guards: `DEALER_PANE_ID` set,
+  `CLAUDE_CODE_ENTRYPOINT = cli` (skips nested `claude -p`), and `DEALER_CLAUDE_HOOKS != 0`.
+  It uses `/usr/bin/plutil` for JSON, not `jq`. The self-test runs it against a stub `dealer`.
+- The off switch is `Settings.agentInjectHooks`, read at pane spawn. Running shells keep the
+  environment they started with.
+
 ## Control socket (`ControlServer.swift`, `ControlHandler.swift`)
 
 - `ControlHandler.handle` is a plain request → response function; the self-test drives it

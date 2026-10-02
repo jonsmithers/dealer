@@ -114,10 +114,42 @@ Sources:
 - `dealer notify` from inside the pane (the control socket/CLI, #5). Each shell gets
   `DEALER_PANE_ID`, so `dealer notify` targets its own pane by default.
 
-### Claude Code hooks
+### Claude Code hooks (automatic)
 
-Add this to `~/.claude/settings.json` (or a project's `.claude/settings.json`). The
-`DEALER_PANE_ID` guard makes the hooks a no-op in other terminals.
+Every `claude` started in a Dealer pane reports *waiting* and *done* with no setup. That
+covers `claude` typed at the prompt, an alias, an absolute path, and New Agent Pane. Dealer
+ships a small Claude Code plugin (`Contents/Resources/claude-plugin/dealer`) and names it in
+each pane's `CLAUDE_CODE_PLUGIN_DIRS`. If you already set that variable, Dealer appends to it.
+Nothing is written to your `~/.claude` settings. The plugin's hooks:
+
+- `PermissionRequest`: *waiting* the moment Claude asks to use a tool or approve a plan. It
+  makes no decision; you still answer the prompt in the pane.
+- `Notification` (`permission_prompt`, `elicitation_dialog`, `elicitation_url_dialog`):
+  *waiting*. It leaves out `idle_prompt`, which would turn a *done* pane into *waiting*
+  about 60 s after every turn.
+- `Stop`: *done*.
+- `StopFailure` (API errors such as rate limits or auth): *waiting*.
+
+The hooks do nothing outside Dealer (no `DEALER_PANE_ID`). They also do nothing for
+non-interactive runs (`claude -p`, the SDK), so an agent that runs `claude -p` from its Bash
+tool doesn't mark its pane *done* mid-turn. A user `"disableAllHooks": true` turns them off
+too. Needs Claude Code 2.1.280 or later; older versions ignore the variable.
+
+**Turning it off**
+- Everywhere: the `agentInjectHooks` setting (`[agent] inject_hooks` in settings.toml). Until
+  then, use `defaults write dev.smithers.dealer agentInjectHooks -bool false`. New shells pick
+  it up.
+- For one shell or one launch: `export DEALER_CLAUDE_HOOKS=0`, or
+  `DEALER_CLAUDE_HOOKS=0 claude`.
+- If your organization's managed settings set `disableSideloadFlags`, Claude Code refuses to
+  start with `CLAUDE_CODE_PLUGIN_DIRS` set. Dealer leaves the variable out when
+  `/Library/Application Support/ClaudeCode/managed-settings.json` says so. Policy delivered by
+  MDM or the server can't be detected, so turn the setting off.
+
+**Manual recipe.** Use this for a `claude` that doesn't inherit a pane's environment, such as
+one inside a tmux server started outside Dealer, or for Claude Code older than 2.1.280. Add it
+to `~/.claude/settings.json`. The `DEALER_PANE_ID` guard makes it a no-op in other terminals.
+If the plugin also loads, both fire, which is harmless: the same state twice is a no-op.
 
 ```json
 {
@@ -143,23 +175,15 @@ Add this to `~/.claude/settings.json` (or a project's `.claude/settings.json`). 
 }
 ```
 
-- `PermissionRequest` fires the moment Claude asks to use a tool or to approve a plan. The
-  `permission_prompt` notification only arrives about 6 s later. A hook that prints nothing
-  doesn't answer the prompt; you still answer it in the pane.
-- The `Notification` matcher leaves out `idle_prompt`. That type fires about 60 s after every
-  finished turn and would turn a *done* pane into *waiting*.
-- `StopFailure` replaces `Stop` when a turn ends in an API error (rate limit, overload, auth).
-- The hooks read their JSON from stdin, which is why `jq` is used.
-- States are `waiting`, `done`, `unread` and `none` (clears the pane).
+States are `waiting`, `done`, `unread` and `none` (clears the pane). Without any hooks, Claude
+Code still sends its own OSC 777 notification (shown as *unread*) and OSC 9;4 progress
+(*running*). [docs/claude-code-states.md](docs/claude-code-states.md) covers every state,
+signal and timing, plus the research behind the automatic hooks.
 
-Without hooks, Claude Code still sends its own OSC 777 notification (shown as *unread*) and
-OSC 9;4 progress (*running*). [docs/claude-code-states.md](docs/claude-code-states.md) covers
-every state, signal and timing in detail.
-
-Inside Dealer panes, `dealer` is on `PATH` (the bundle's `Contents/Resources/bin` is appended).
-Codex and other agents work the same way through their own hook or notify settings. Anything
-that prints an OSC 9 notification (`printf '\e]9;done\a'`) also works with no setup.
-The hooks need the bundled app (`scripts/bundle.sh`); a bare `.build/debug/Dealer` has no `dealer` on `PATH`.
+Inside Dealer panes, `dealer` is on `PATH` (the bundle's `Contents/Resources/bin` is appended),
+and `DEALER_CLI` holds its absolute path. Codex and other agents work the same way through their
+own hook or notify settings. Anything that prints an OSC 9 notification
+(`printf '\e]9;done\a'`) also works with no setup.
 
 ### Status and agent panes
 

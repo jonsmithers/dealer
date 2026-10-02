@@ -170,6 +170,9 @@ final class Pane {
         var env = ["DEALER_PANE_ID": String(id)]
         if let socket = ControlServer.shared.path { env["DEALER_SOCKET"] = socket }
         if let path = ControlServer.childPath { env["PATH"] = path }
+        // Absolute path to this binary, which also acts as the `dealer` CLI (hooks use it, #12).
+        if let exe = Bundle.main.executablePath { env["DEALER_CLI"] = exe }
+        env.merge(ClaudeHooks.environment()) { $1 }
         return env
     }
     let surface: SurfaceView

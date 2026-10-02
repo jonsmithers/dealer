@@ -38,6 +38,15 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
 - **Kill only your own Dealer processes, by PID** (start it in the background, keep `$!`,
   `kill $PID`). Never `pkill`/`killall` by name or `-f` pattern: other agents' self-tests and
   merges are live Dealer processes too, and `pkill -f` can kill your own shell.
+- **Real Claude Code runs:** never against the user's `~/.claude`. Set `CLAUDE_CONFIG_DIR` to a
+  scratch directory; auth still works, and transcripts land there instead of
+  `~/.claude/projects`. Pre-set `hasCompletedOnboarding` and the project's
+  `hasTrustDialogAccepted` in its `.claude.json` to skip first-run dialogs. Drive interactive
+  sessions in a self-test-mode Dealer pane with `dealer create pane --no-focus` +
+  `dealer send-text`. `dealer list` has no attention field, so to see hook calls, point
+  `DEALER_CLI` at a logging shim. A Dealer you launch from inside a Claude Code session passes
+  Claude's `CLAUDECODE`/`CLAUDE_CODE_*` session variables down to its panes, and a `claude` there
+  then warns "Transcript saving is off". Expected in agent tests; not seen in Finder launches.
 - **Don't clobber the user's session.** A normal launch restores, and on quit overwrites,
   `~/Library/Application Support/Dealer/session.json`. Self-test mode neither reads nor writes it.
   If you do a normal launch for testing, back up that file first and restore it afterwards.

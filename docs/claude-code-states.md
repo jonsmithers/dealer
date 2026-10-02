@@ -108,18 +108,21 @@ Other relevant payload fields:
 | Dealer state | Set by | Cleared by |
 |---|---|---|
 | **running** | OSC 9;4 progress set (automatic, no setup) | progress removed (`9;4;0`); outranked by waiting/done |
-| **waiting** | `dealer notify --state waiting` from hooks: `PermissionRequest`, `Notification` (`permission_prompt`, `elicitation_*`), `StopFailure` | focusing the pane |
-| **done** | `dealer notify --state done` from the `Stop` hook | focusing the pane |
+| **waiting** | `dealer notify --state waiting` from hooks: `PermissionRequest`, `Notification` (`permission_prompt`, `elicitation_*`), `StopFailure`. Automatic since #12 (bundled plugin) | focusing the pane |
+| **done** | `dealer notify --state done` from the `Stop` hook. Automatic since #12 | focusing the pane |
 | **unread** | OSC 9/99/777 desktop notifications (Claude's own OSC 777 included), the bell, commands running ≥ 10 s | focusing the pane |
 
-The README's "Claude Code hooks" section has the recommended configuration.
+Since #12 these hooks load automatically in every Dealer pane; see
+[Injecting the hooks automatically](#injecting-the-hooks-automatically-12). The README's
+"Claude Code hooks" section keeps a manual recipe for other launch paths.
 
 ### Gaps
 
 1. **Without hooks, a waiting Claude is labelled *unread*, not *waiting*.** Claude's own
    OSC 777 lands as `unread` (a quiet grey dot since #7), and only after about 6 s. Until
    then the pane shows *running*, because progress stays set while the dialog is open. Hooks
-   fix this.
+   fix this, and since #12 they're on by default. #11 (title detection) covers Claude Code
+   older than 2.1.280.
 2. **The catch-all `Notification` hook mislabelled idle as waiting.** `idle_prompt` fires
    about 60 s after every finished turn, so a *done* pane turned blue a minute later.
    *Fixed in #7:* the README hook now matches only
@@ -143,18 +146,154 @@ The README's "Claude Code hooks" section has the recommended configuration.
   while progress is still set as *waiting*. Alternatively, map OSC 777 notifications from
   "Claude Code" whose body is a known prompt text to *waiting*. Both key on Claude-specific
   strings ([bin]/[obs], not a contract), so this should be opt-in or clearly isolated.
-- **New Agent Pane with built-in hooks:** launch `claude --settings '<json>'` with the hooks
-  above, so preset panes get accurate states without the user editing
-  `~/.claude/settings.json`. cmux does the same, and also sets
-  `"preferredNotifChannel": "notifications_disabled"` so the terminal alert doesn't
-  duplicate the hook [obs].
+- ~~New Agent Pane with built-in hooks~~: superseded by #12, which covers every `claude` in a
+  pane, not just New Agent Pane.
 - **Watch** the dormant OSC 21337 "tab status" sequence in the binary
   (`status=Idle|Working|Waiting`). It's disabled in 2.1.285. If it ships, Dealer could read
   the state directly [bin].
 
+## Injecting the hooks automatically (#12)
+
+Every `claude` started in a Dealer pane gets Dealer's hooks with no user setup. The research
+was done on 2026-10-01/02. Claude Code observations are from 2.1.285 (`-p` and interactive runs
+with a temporary `CLAUDE_CONFIG_DIR`, so the user's `~/.claude` was never touched); the final
+real-session check ran on 2.1.287.
+
+### What cmux does
+
+Read in the user's checkout at `7d78b6e4cb` (2026-09-06). Upstream `5fbbc0c844` (2026-09-30)
+has the same design with a larger wrapper (about 2,300 lines vs 1,636).
+
+- **A bash wrapper, `Resources/bin/cmux-claude-wrapper`, exposed as `claude` in two ways:**
+  - a per-terminal shim directory `…/cmux-cli-shims/<surface-uuid>/claude`, **prepended** to
+    `PATH` at spawn (`Packages/macOS/CmuxTerminal/Sources/CmuxTerminal/Spawn/TerminalSurface+AgentCommandShims.swift`,
+    `TerminalSurface+StartupEnvironment.swift`);
+  - a `claude()` **shell function** defined by cmux's own shell integration
+    (`Resources/shell-integration/cmux-{bash,zsh}-integration.*`, `_cmux_install_cli_wrapper`).
+    The comment there: "Keep the bundled wrapper ahead of later PATH mutations". In other words,
+    rc files that prepend `PATH` would otherwise shadow the shim. It's skipped if the user already
+    has a `claude` alias or function.
+- **Finding the real `claude`** (`find_real_claude`): it uses `CMUX_CUSTOM_CLAUDE_PATH` (a
+  setting), else walks `PATH`, skipping its own directory, the shim directories, and anything
+  that is the same file as itself (`-ef`). A re-exec guard (16 hops) breaks loops with other
+  tools' `claude` shims.
+- **When it injects:** only when `CMUX_SURFACE_ID` is set and the cmux socket answers, and only
+  for session entry points (`should_inject_claude_hooks`). `--help`/`--version` and subcommands
+  (`mcp`, `config`, `doctor`, `plugin`, `update`, …) pass through untouched. Note that `-p` *is*
+  injected. It execs `claude --session-id <uuid> --settings <private temp file>`.
+- **The injected settings** (`HOOKS_JSON`): `preferredNotifChannel: notifications_disabled`,
+  plus hooks on SessionStart, Stop (+ feed, + async auto-name), SubagentStop, SessionEnd,
+  Notification, UserPromptSubmit, PreToolUse (synchronous CronCreate guard + async status),
+  PostToolUse (PushNotification bridge) and PermissionRequest (a **synchronous** approval
+  "feed" with a 125 s timeout, used for cmux's own approval UI). All call `cmux hooks …`.
+- **User hooks and flags:** it relies on Claude merging `--settings` additively. A user's own
+  `--settings` is deep-merged with node into one file, because "with two --settings Claude
+  reads only one … first-wins on <=2.1.168, last-wins on >=2.1.169". A `__cmux` marker
+  lets a re-entered wrapper replace only its own block.
+- **Outside cmux:** it passes straight through and scrubs `CMUX_*` and inherited Claude
+  session-identity variables.
+- **Opting out:** the `claudeCodeHooksEnabled` setting (default on) exports
+  `CMUX_CLAUDE_INTEGRATION_DISABLED`/`CMUX_CLAUDE_HOOKS_DISABLED=1`, which make the wrapper
+  completely inert. Setting `CMUX_CLAUDE_HOOKS_DISABLED=1` per launch does the same.
+- **Sessions not started from a cmux shell:** `cmux claude-hook install` writes the hooks into
+  `${CLAUDE_CONFIG_DIR:-~/.claude}/settings.json` (`docs/agent-hooks.md`).
+
+### How Claude Code combines hook sources [obs 2.1.285 unless marked]
+
+| Experiment | Result |
+|---|---|
+| User + project + `--settings` hooks | all three run (additive) |
+| Two `--settings` flags | **both** hook sets ran. cmux's "only one is read" no longer holds for hooks on 2.1.285 |
+| Identical handler in user settings and in `--settings` | runs **once** (deduplicated) |
+| `CLAUDE_CODE_PLUGIN_DIRS=<plugin>` (documented, v2.1.280+) | the plugin's `hooks/hooks.json` runs, in addition to settings hooks, in `-p` and interactive sessions, with no prompt. `CLAUDE_PLUGIN_ROOT` is set |
+| Same handler from a plugin and from settings | both run; a plugin's copy isn't deduplicated [docs] |
+| User `disableAllHooks: true` | turns off `--settings` and plugin hooks too |
+| Hook environment | `CLAUDE_CODE_ENTRYPOINT=cli` interactively, `sdk-cli` for `-p`/SDK; `CLAUDECODE=1` in both |
+| Plugin settings | a plugin can only set `agent`/`subagentStatusLine`, so not `preferredNotifChannel` [docs] |
+| Managed `disableSideloadFlags: true` | Claude exits if `CLAUDE_CODE_PLUGIN_DIRS` is set [docs]. Not reproducible locally: `CLAUDE_CODE_MANAGED_SETTINGS_PATH` didn't act as a managed source |
+
+### Options considered
+
+1. **A `claude` wrapper on PATH adding `--settings`** (cmux's approach, and the proposal in #12).
+   It needs to win the PATH race. Dealer appends its `bin` directory, and rc files commonly
+   prepend `~/.local/bin`, where Claude's installer puts `claude`. This user's `~/.zshrc` does
+   exactly that, so a PATH shim alone is shadowed. Beating that takes a shell function from our
+   own shell integration for zsh, bash and fish. Dealer relies on Ghostty's integration and has
+   none. It also brings resolving the real binary, re-exec loops with other shims, and argv
+   rewriting.
+2. **A shell function only:** the same shell-integration cost, and it misses non-shell launches.
+3. **Only New Agent Pane adds the flag:** ruled out by the user, since people type `claude`
+   directly.
+4. **Writing the user's `~/.claude/settings.json`** (like `cmux claude-hook install`): edits
+   user files and affects `claude` outside Dealer. Kept only as the README's manual recipe.
+5. **A bundled plugin named in `CLAUDE_CODE_PLUGIN_DIRS`.** This is the one chosen.
+
+### Decision
+
+Dealer ships `Resources/claude-plugin/dealer` (`.claude-plugin/plugin.json`,
+`hooks/hooks.json`, `hooks/dealer-hook.sh`), copied into the bundle by `scripts/bundle.sh`.
+`Pane.childEnvironment` sets `CLAUDE_CODE_PLUGIN_DIRS` for every pane (`ClaudeHooks.swift`),
+appending to a value the user already has. It also exports `DEALER_CLI`, the absolute path of
+the binary, which doubles as the `dealer` CLI. That way the hooks don't depend on `PATH`.
+
+Why:
+- It covers a plain `claude` in any pane, whatever the PATH order, shell, alias, absolute path
+  or launcher.
+- It never touches argv, so there's no real-binary lookup, no loops, no `--settings`
+  collisions, and subcommands are unaffected.
+- It's additive with the user's hooks and respects `disableAllHooks`.
+- It's small enough to test end to end.
+
+The hook script guards on `DEALER_PANE_ID` (outside Dealer: nothing), `CLAUDE_CODE_ENTRYPOINT = cli`
+(a nested `claude -p` run by an agent's Bash tool doesn't mark the pane), and
+`DEALER_CLAUDE_HOOKS != 0` (per-shell/per-launch opt-out). It reads JSON fields with
+`/usr/bin/plutil` (no `jq` dependency), prints nothing (so it never makes a permission
+decision), and always exits 0. The global off switch is `Settings.agentInjectHooks`
+(`[agent] inject_hooks`, #10).
+
+Trade-offs accepted:
+- It needs Claude Code ≥ 2.1.280. Older versions ignore the variable.
+- Claude's own OSC 777 can't be silenced from a plugin. It lands as *unread* with raise-only,
+  so it never downgrades *waiting*/*done*.
+- The manual recipe plus the plugin fire twice; the same state twice is a no-op.
+- Under managed `disableSideloadFlags`, Dealer skips the variable when the file-based managed
+  settings say so. MDM or server-delivered policy needs the off switch.
+
+### How #11 and #12 complement each other
+
+- **#11** (a `✳` title while progress is set → *waiting*) needs nothing from Claude's hook
+  system. It works on any Claude Code version and reacts the instant any dialog opens. It reads
+  Claude-internal title strings, though, and can't tell *done* from idle.
+- **#12** (hooks) uses the documented interface. It gives *done* on `Stop`, *waiting* on API
+  errors, and tool names in notification bodies, but only on ≥ 2.1.280 and only where the
+  pane's environment reaches Claude.
+
+Both go through `setAttention`, so with both on, the pane simply ends up *waiting* or *done*.
+
+### Verification
+
+- The self-test section `SelfTestClaudeHooks.swift` covers:
+  - the plugin is valid;
+  - the pane environment (sets, appends, no duplicate, off switch, sideload block, `DEALER_CLI`);
+  - the hook script against a stub `dealer` (each event, plus all three guards);
+  - **end to end:** a plain `claude` typed into a real pane's shell, using a stub `claude` on
+    `PATH` that runs the plugin's hook from `CLAUDE_CODE_PLUGIN_DIRS`. The pane turns *waiting*
+    through the real `dealer` CLI and socket.
+- A real session in the bundled app (Claude Code 2.1.287, a temp config dir with no user
+  settings, an unfocused pane, `--permission-mode default`, "touch a file"):
+  - At the permission prompt, `PermissionRequest` produced `dealer notify --state waiting
+    --body "Permission: Bash"` (exit 0), and the pane showed the blue ring, tab outline and
+    "waiting".
+  - After approval, `Stop` produced `--state done` (exit 0), and the pane showed "done" with
+    a muted tab dot.
+  - The permission prompt itself worked normally.
+- The same plugin in a scratch interactive run also produced the ~6 s `permission_prompt`
+  notification → *waiting*.
+
 ## Sources
 
-Claude Code 2.1.285. `docs.claude.com/en/docs/claude-code/*` now redirects to `code.claude.com/docs/en/*`:
+Claude Code 2.1.285 (2.1.287 for the #12 real-session check). cmux: the user's checkout at
+`7d78b6e4cb`, upstream `5fbbc0c844`. `docs.claude.com/en/docs/claude-code/*` now redirects to `code.claude.com/docs/en/*`:
 - Hooks reference: https://code.claude.com/docs/en/hooks
 - Hooks guide: https://code.claude.com/docs/en/hooks-guide
 - Settings reference: https://code.claude.com/docs/en/settings-reference

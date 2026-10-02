@@ -227,6 +227,7 @@ extension TerminalWindowController {
         sidebarSelfTestSteps(kit)
         switcherSelfTestSteps(kit)
         cliSelfTestSteps(kit)
+        claudeHooksSelfTestSteps(kit)
 
         var failures = 0
         func run(_ i: Int) {

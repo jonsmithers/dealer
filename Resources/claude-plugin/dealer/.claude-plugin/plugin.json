@@ -1,0 +1,5 @@
+{
+  "name": "dealer",
+  "version": "1.0.0",
+  "description": "Reports Claude Code's state (waiting for you, done) to the Dealer pane it runs in. Loaded automatically in Dealer panes through CLAUDE_CODE_PLUGIN_DIRS; does nothing elsewhere."
+}

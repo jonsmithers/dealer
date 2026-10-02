@@ -13,6 +13,8 @@ cp ".build/$CONFIG/Dealer" "$APP/Contents/MacOS/Dealer"
 # case-insensitive volumes. Panes get this directory appended to PATH.
 mkdir -p "$APP/Contents/Resources/bin"
 ln -s ../../MacOS/Dealer "$APP/Contents/Resources/bin/dealer"
+# Claude Code plugin with Dealer's hooks; panes load it through CLAUDE_CODE_PLUGIN_DIRS (#12).
+cp -R Resources/claude-plugin "$APP/Contents/Resources/claude-plugin"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
