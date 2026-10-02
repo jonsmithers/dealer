@@ -44,9 +44,9 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   `hasTrustDialogAccepted` in its `.claude.json` to skip first-run dialogs. Drive interactive
   sessions in a self-test-mode Dealer pane with `dealer create pane --no-focus` +
   `dealer send-text`. `dealer list` has no attention field, so to see hook calls, point
-  `DEALER_CLI` at a logging shim. A Dealer you launch from inside a Claude Code session passes
-  Claude's `CLAUDECODE`/`CLAUDE_CODE_*` session variables down to its panes, and a `claude` there
-  then warns "Transcript saving is off". Expected in agent tests; not seen in Finder launches.
+  `DEALER_CLI` at a logging shim. A Dealer launched from inside a Claude Code session (as an agent
+  does) scrubs Claude's session-identity variables at startup (`ClaudeHooks.inheritedSessionVariables`),
+  so `claude` in its panes behaves like a top-level session.
 - **Don't clobber the user's session.** A normal launch restores, and on quit overwrites,
   `~/Library/Application Support/Dealer/session.json`. Self-test mode neither reads nor writes it.
   If you do a normal launch for testing, back up that file first and restore it afterwards.

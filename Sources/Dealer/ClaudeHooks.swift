@@ -36,6 +36,24 @@ enum ClaudeHooks {
         return obj["disableSideloadFlags"] as? Bool == true
     }
 
+    /// Session-identity variables a running Claude Code exports to its children. When Dealer itself
+    /// is started from inside a Claude Code session (e.g. an agent testing it), panes would inherit
+    /// them, and a `claude` there then believes it's a child session (it turns transcript saving
+    /// off, among other things). The list is cmux's `clear_inherited_claude_session_identity_env`
+    /// (Resources/bin/cmux-claude-wrapper, cmux 7d78b6e4cb). Auth-selection variables are left alone.
+    static let inheritedSessionVariables = [
+        "CLAUDECODE", "CLAUDE_CODE", "CLAUDE_CODE_CHILD_SESSION", "CLAUDE_CODE_BRIDGE_SESSION_ID",
+        "CLAUDE_CODE_PARENT_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_ENTRYPOINT",
+        "CLAUDE_CODE_EXECPATH", "CLAUDE_CODE_SSE_PORT",
+    ]
+
+    /// Removes those variables from the app's own environment, which every pane's shell inherits
+    /// (ghostty builds the child environment from it). Runs once at app launch, never in CLI mode,
+    /// so `dealer` invoked from a hook keeps its environment.
+    static func scrubInheritedSessionEnvironment() {
+        inheritedSessionVariables.forEach { unsetenv($0) }
+    }
+
     /// Environment to add to a pane's shell. Appends to a CLAUDE_CODE_PLUGIN_DIRS the user already
     /// set rather than replacing it.
     static func environment(inherited: [String: String] = ProcessInfo.processInfo.environment,

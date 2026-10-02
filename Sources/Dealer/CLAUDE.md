@@ -177,6 +177,10 @@
   is a permission decision. It keeps three guards: `DEALER_PANE_ID` set,
   `CLAUDE_CODE_ENTRYPOINT = cli` (skips nested `claude -p`), and `DEALER_CLAUDE_HOOKS != 0`.
   It uses `/usr/bin/plutil` for JSON, not `jq`. The self-test runs it against a stub `dealer`.
+- At app launch, `main.swift` calls `ClaudeHooks.scrubInheritedSessionEnvironment()` right
+  after the CLI dispatch. Keep it after that line: `dealer` run from a hook must keep its
+  environment. Panes inherit the scrubbed process environment; `childEnvironment` can only add or
+  override variables (ghostty `env_vars`), not remove them.
 - The off switch is `Settings.agentInjectHooks`, read at pane spawn. Running shells keep the
   environment they started with.
 

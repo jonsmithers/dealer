@@ -121,8 +121,8 @@ Since #12 these hooks load automatically in every Dealer pane; see
 1. **Without hooks, a waiting Claude is labelled *unread*, not *waiting*.** Claude's own
    OSC 777 lands as `unread` (a quiet grey dot since #7), and only after about 6 s. Until
    then the pane shows *running*, because progress stays set while the dialog is open. Hooks
-   fix this, and since #12 they're on by default. #11 (title detection) covers Claude Code
-   older than 2.1.280.
+   fix this, and since #12 they're on by default. Title-based detection (#11) was closed as
+   not planned in favor of #12, so Claude Code older than 2.1.280 still needs the manual recipe.
 2. **The catch-all `Notification` hook mislabelled idle as waiting.** `idle_prompt` fires
    about 60 s after every finished turn, so a *done* pane turned blue a minute later.
    *Fixed in #7:* the README hook now matches only
@@ -142,10 +142,11 @@ Since #12 these hooks load automatically in every Dealer pane; see
 
 ### Proposed (not done)
 
-- **Zero-config waiting detection:** in `GhosttyRuntime`, treat a title starting with `✳`
-  while progress is still set as *waiting*. Alternatively, map OSC 777 notifications from
-  "Claude Code" whose body is a known prompt text to *waiting*. Both key on Claude-specific
-  strings ([bin]/[obs], not a contract), so this should be opt-in or clearly isolated.
+- **Zero-config waiting detection without hooks:** treat a title starting with `✳` while
+  progress is still set as *waiting*, or map Claude's known OSC 777 texts to *waiting*. Both key
+  on Claude-specific strings ([bin]/[obs], not a contract). Filed as #11 and closed as not
+  planned ("Superseded by #12"). It would only add value for Claude Code < 2.1.280, where the
+  plugin variable is ignored, and for the first instant before `PermissionRequest` fires.
 - ~~New Agent Pane with built-in hooks~~: superseded by #12, which covers every `claude` in a
   pane, not just New Agent Pane.
 - **Watch** the dormant OSC 21337 "tab status" sequence in the binary
@@ -259,16 +260,33 @@ Trade-offs accepted:
 - Under managed `disableSideloadFlags`, Dealer skips the variable when the file-based managed
   settings say so. MDM or server-delivered policy needs the off switch.
 
-### How #11 and #12 complement each other
+### #12 and title detection (#11)
 
-- **#11** (a `✳` title while progress is set → *waiting*) needs nothing from Claude's hook
-  system. It works on any Claude Code version and reacts the instant any dialog opens. It reads
-  Claude-internal title strings, though, and can't tell *done* from idle.
-- **#12** (hooks) uses the documented interface. It gives *done* on `Stop`, *waiting* on API
+#11 proposed detecting *waiting* from a `✳` title while progress is set. It was closed as not
+planned ("Superseded by #12"), so only the hooks ship. For the record:
+- **Title detection** needs nothing from Claude's hook system. It works on any Claude Code
+  version and reacts the instant any dialog opens. It reads Claude-internal title strings,
+  though, can't tell *done* from idle, and misreads an idle Claude with background subagents
+  (progress stays set) as waiting.
+- **Hooks (#12)** use the documented interface. They give *done* on `Stop`, *waiting* on API
   errors, and tool names in notification bodies, but only on ≥ 2.1.280 and only where the
   pane's environment reaches Claude.
 
-Both go through `setAttention`, so with both on, the pane simply ends up *waiting* or *done*.
+If #11 is ever revived, both would go through `setAttention`, and title detection must only
+clear a *waiting* it set itself.
+
+### Inherited session variables
+
+A running Claude Code exports session-identity variables to its children: `CLAUDECODE`,
+`CLAUDE_CODE`, `CLAUDE_CODE_CHILD_SESSION`, `CLAUDE_CODE_BRIDGE_SESSION_ID`,
+`CLAUDE_CODE_PARENT_SESSION_ID`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_CODE_ENTRYPOINT`,
+`CLAUDE_CODE_EXECPATH` and `CLAUDE_CODE_SSE_PORT` (cmux's list). If Dealer itself is started from
+inside a Claude session, its panes would inherit them, and a `claude` there behaves as a child
+session: it warns "Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION" [obs 2.1.287].
+At app launch (not in CLI mode), Dealer unsets them from its own environment, which every pane
+inherits (`ClaudeHooks.scrubInheritedSessionEnvironment`). A self-test step checks the app and a
+pane's shell, and a real session launched from a Claude shell no longer shows the warning.
+Auth-selection variables, which cmux also handles with per-key preserve rules, are left alone.
 
 ### Verification
 
