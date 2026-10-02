@@ -68,8 +68,9 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
 - **Locked screen:** `ghostty_surface_new` returns nil for every pane and `screencapture -l` fails.
   Self-test checks that need a live shell or cell metrics print `(skipped …)` and still pass; if
   you see those, say that shell-level behavior (send-text, `--command`, process listing, `--size`
-  in rows) was not verified. To check custom drawing, render the view offscreen from a temporary
-  step (`bitmapImageRepForCachingDisplay` + `cacheDisplay`); Metal surfaces come out blank that way.
+  in rows) was not verified. To check custom drawing, read pixels only through
+  `PixelProbe.sample` (SelfTestPixels.swift), which renders offscreen and works while locked;
+  Metal surfaces come out blank that way.
 - To try the CLI against a dev build: run `DEALER_SELFTEST=1 .build/debug/Dealer` (it listens on
   `$TMPDIR/dealer-selftest-<pid>.sock`), then
   `DEALER_SOCKET=$TMPDIR/dealer-selftest-<pid>.sock .build/debug/Dealer list`. Inside a Dealer pane,

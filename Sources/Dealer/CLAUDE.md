@@ -151,15 +151,23 @@
   user-given colors with `Theme.parseColor` (CLI and settings share it).
 - `autoAssignColor` runs from `insert(workspace:)`, so it covers every workspace created after the
   window's first: menus, CLI, and moves into a new workspace.
-- Pixel checks: `NSBitmapImageRep.colorAt` tags components "calibrated RGB" although they're in
-  the bitmap's (display) color space. Use `renderedPixel(_:at:)` (SelfTestColors.swift), which
-  re-tags them with `rep.colorSpace` before converting to sRGB. Naive conversion is off by about
-  0.25 for saturated colors.
 
 ## Self-test sections
 
 - Feature steps live in their own files (e.g. `SelfTestWorkspaces.swift`) and are added through
   the `SelfTestKit` passed from `runSelfTest`, one call line per section.
+- **Pixel checks go through `PixelProbe` only** (SelfTestPixels.swift): `sample(_:at:)`,
+  `distance`, `matches`, `isWaitingOutlined`. Never call `cacheDisplay`/`colorAt` in a check
+  directly. Two traps it handles:
+  - `bitmapImageRepForCachingDisplay` gives a display-space bitmap for a window-backed view and a
+    Generic RGB one for a detached view. The latter clips saturated sRGB colors (`#aa00ff` reads
+    0.22 off). `sample` renders into its own sRGB bitmap instead.
+  - `colorAt` can label display-space components "calibrated RGB"; converting them as labeled
+    is off by up to ~0.25. `sample` re-tags mislabeled components with the bitmap's color space.
+- Compare with `PixelProbe.matches` (tolerance 2/255) against the exact expected color, e.g.
+  `Theme.attentionWaiting`. Reads are exact for solid fills. Don't loosen the tolerance to make a
+  check pass; that hid the bug above. The `pixels:` steps fail first if the probe regresses.
+  `Theme.withBackground(_:_:)` checks light/dark variants of draw-time colors on a detached view.
 
 ## Styling (`Theme.swift`)
 
@@ -195,8 +203,8 @@
   workspace entry, in `Theme.attentionWaiting` (adaptive blue). `done`/`unread` are a muted dot
   only (`Theme.attentionDone` = `textMuted`). Chrome elements draw attention only through
   `AttentionStyle.draw(_:in:cornerRadius:dotRect:)`, called last in `draw(_:)` so the outline
-  sits on the element's outer edge. The self-test renders the view with `cacheDisplay` and
-  samples the top edge's centre pixel, so don't inset the outline or draw it in a sublayer.
+  sits on the element's outer edge. The self-test samples the top edge's centre pixel
+  (`PixelProbe.isWaitingOutlined`), so don't inset the outline or draw it in a sublayer.
 - "running" is `Pane.isReportingProgress` (OSC 9;4 from `GHOSTTY_ACTION_PROGRESS_REPORT`), not a
   process check; attention outranks it in `agentState`. `GitInfo.lookup` is main-thread only and
   caches for 3s; it reads `.git/HEAD` (following a worktree's `gitdir:` file) with no subprocess.

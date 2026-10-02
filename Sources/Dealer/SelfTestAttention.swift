@@ -29,15 +29,8 @@ extension TerminalWindowController {
             guard let i = d.index(of: tab(n)), d.view.strip.buttons.indices.contains(i) else { return nil }
             return d.view.strip.buttons[i]
         }
-        /// #7: renders the view and checks that the middle of its top edge is the waiting blue.
-        func outlined(_ v: NSView?) -> Bool {
-            guard let v, v.bounds.width > 4, let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { return false }
-            v.cacheDisplay(in: v.bounds, to: rep)
-            guard let px = rep.colorAt(x: rep.pixelsWide / 2, y: 1)?.usingColorSpace(.sRGB),
-                  let want = Theme.attentionWaiting.usingColorSpace(.sRGB) else { return false }
-            return abs(px.redComponent - want.redComponent) < 0.15 && abs(px.greenComponent - want.greenComponent) < 0.15
-                && abs(px.blueComponent - want.blueComponent) < 0.15
-        }
+        /// #7: the waiting outline in exactly Theme.attentionWaiting (SelfTestPixels.swift).
+        func outlined(_ v: NSView?) -> Bool { PixelProbe.isWaitingOutlined(v) }
 
         step("a bell in a background tab badges the pane, its tab and its deck", check: {
             expect([("srv", p("srv").attention, .unread), ("srv's tab", tab("srv").attention, .unread),

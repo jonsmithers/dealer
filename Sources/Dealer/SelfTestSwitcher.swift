@@ -16,15 +16,8 @@ extension TerminalWindowController {
             return p.isEmpty ? nil : p.joined(separator: "; ")
         }
         func near(_ a: CGFloat, _ b: CGFloat, _ what: String) -> String? { abs(a - b) < 0.5 ? nil : "\(what): \(a), expected \(b)" }
-        /// #7's check: render the view and sample the middle of its top edge for the waiting blue.
-        func outlined(_ v: NSView?) -> Bool {
-            guard let v, v.bounds.width > 4, let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { return false }
-            v.cacheDisplay(in: v.bounds, to: rep)
-            guard let px = rep.colorAt(x: rep.pixelsWide / 2, y: 1)?.usingColorSpace(.sRGB),
-                  let want = Theme.attentionWaiting.usingColorSpace(.sRGB) else { return false }
-            return abs(px.redComponent - want.redComponent) < 0.15 && abs(px.greenComponent - want.greenComponent) < 0.15
-                && abs(px.blueComponent - want.blueComponent) < 0.15
-        }
+        /// #7's check: the waiting outline in exactly Theme.attentionWaiting (SelfTestPixels.swift).
+        func outlined(_ v: NSView?) -> Bool { PixelProbe.isWaitingOutlined(v) }
         func toggleEnabled() -> Bool {
             validateWorkspaceMenuItem(NSMenuItem(title: "", action: #selector(toggleSidebar(_:)), keyEquivalent: "")) ?? true
         }

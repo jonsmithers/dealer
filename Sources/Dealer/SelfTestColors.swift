@@ -3,20 +3,6 @@ import AppKit
 // MARK: - Self-test section: workspace and tab colors (issue #9)
 
 extension TerminalWindowController {
-    /// Renders `v` offscreen and returns the sRGB color at `p` (view points, flipped like the view).
-    ///
-    /// `colorAt` labels the pixel "calibrated RGB" although its components are in the bitmap's
-    /// (the display's) color space, so converting it directly shifts colors noticeably. Re-tag the
-    /// components with `rep.colorSpace` first.
-    func renderedPixel(_ v: NSView?, at p: CGPoint) -> NSColor? {
-        guard let v, v.bounds.width > 2, let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { return nil }
-        v.cacheDisplay(in: v.bounds, to: rep)
-        let sx = CGFloat(rep.pixelsWide) / v.bounds.width, sy = CGFloat(rep.pixelsHigh) / v.bounds.height
-        guard let raw = rep.colorAt(x: Int(p.x * sx), y: Int(p.y * sy))?.usingColorSpace(.genericRGB) else { return nil }
-        var c: [CGFloat] = [raw.redComponent, raw.greenComponent, raw.blueComponent, raw.alphaComponent]
-        return NSColor(colorSpace: rep.colorSpace, components: &c, count: 4).usingColorSpace(.sRGB)
-    }
-
     func colorsSelfTestSteps(_ t: SelfTestKit) {
         let sb = workspaceSidebar
         let bar = workspaceBar
@@ -24,21 +10,13 @@ extension TerminalWindowController {
             let p = problems.compactMap { $0 }
             return p.isEmpty ? nil : p.joined(separator: "; ")
         }
-        func close(_ a: NSColor?, _ b: NSColor?, _ tol: CGFloat = 0.12) -> Bool {
-            guard let a = a?.usingColorSpace(.sRGB), let b = b?.usingColorSpace(.sRGB) else { return false }
-            return abs(a.redComponent - b.redComponent) < tol && abs(a.greenComponent - b.greenComponent) < tol
-                && abs(a.blueComponent - b.blueComponent) < tol
-        }
+
         func shows(_ v: NSView?, _ rect: CGRect?, _ c: NSColor, _ what: String) -> String? {
             guard let v, let rect else { return "\(what): no view" }
-            let px = renderedPixel(v, at: CGPoint(x: rect.midX, y: rect.midY))
-            return close(px, c) ? nil : "\(what) should be \(c.hexString), is \(px?.hexString ?? "nil")"
+            let px = PixelProbe.sample(v, at: CGPoint(x: rect.midX, y: rect.midY))
+            return PixelProbe.matches(px, c) ? nil : "\(what) should be \(c.hexString), is \(px?.hexString ?? "nil")"
         }
-        /// #7's check: the middle of the top edge is the waiting blue.
-        func outlined(_ v: NSView?) -> Bool {
-            guard let v else { return false }
-            return close(renderedPixel(v, at: CGPoint(x: v.bounds.midX, y: 0.5)), Theme.attentionWaiting, 0.15)
-        }
+        func outlined(_ v: NSView?) -> Bool { PixelProbe.isWaitingOutlined(v) }
         func tabButton(_ pane: String) -> TabButton? {
             guard let loc = locate(t.pane(pane)), let i = loc.deck.index(of: loc.tab) else { return nil }
             let b = loc.deck.view.strip.buttons
@@ -125,8 +103,8 @@ extension TerminalWindowController {
             all(row(0)?.color == nil && row(1)?.color == nil ? nil : "rows should be neutral",
                 self.workspaceAccent.isHidden ? nil : "accent should be gone",
                 tabButton("srv")?.color == nil ? nil : "srv's tab should be neutral",
-                close(self.renderedPixel(row(0), at: CGPoint(x: chip(0)?.midX ?? 0, y: chip(0)?.midY ?? 0)), NSColor(hex: "#ff0000"), 0.2)
-                    ? "row 1's chip should be gone" : nil)
+                PixelProbe.matches(PixelProbe.sample(row(0), at: CGPoint(x: chip(0)?.midX ?? 0, y: chip(0)?.midY ?? 0)),
+                                   NSColor(hex: "#ff0000"), tolerance: 0.2) ? "row 1's chip should be gone" : nil)
         }) {
             self.setAttention(.none, on: t.pane("k3"))
             self.workspaces.forEach { self.setColor(nil, workspace: $0) }

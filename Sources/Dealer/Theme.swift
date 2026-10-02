@@ -22,6 +22,15 @@ enum Theme {
 
     /// True when the terminal background is dark. Picks the AppKit appearance too.
     static var isDark: Bool { background.luminance < 0.25 }
+
+    /// Self-test only (#14): runs `body` with `background` (and so `isDark` and every derived
+    /// color) temporarily replaced, to check light and dark variants of draw-time colors.
+    static func withBackground<T>(_ bg: NSColor, _ body: () -> T) -> T {
+        let old = background
+        background = bg
+        defer { background = old }
+        return body()
+    }
     static var appearance: NSAppearance? { NSAppearance(named: isDark ? .darkAqua : .aqua) }
 
     // MARK: Derived chrome colors

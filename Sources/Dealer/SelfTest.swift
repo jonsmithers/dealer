@@ -223,6 +223,7 @@ extension TerminalWindowController {
         // Feature sections live in their own files and append steps through this kit.
         let kit = SelfTestKit(step: { step($0, expect: $1, check: $2, $3) }, named: named, pane: p,
                               name: { names[ObjectIdentifier($0)] ?? $0.title })
+        pixelSelfTestSteps(kit)
         workspaceSelfTestSteps(kit)
         sidebarSelfTestSteps(kit)
         switcherSelfTestSteps(kit)
