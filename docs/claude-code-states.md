@@ -288,6 +288,13 @@ inherits (`ClaudeHooks.scrubInheritedSessionEnvironment`). A self-test step chec
 pane's shell, and a real session launched from a Claude shell no longer shows the warning.
 Auth-selection variables, which cmux also handles with per-key preserve rules, are left alone.
 
+The same goes for another **terminal's** identity. A Dealer started from a cmux shell gave every
+pane `CMUX_SURFACE_ID`, `CMUX_SOCKET_PATH`, and cmux's `claude` shim directory on `PATH`. The
+user's `claude` launcher branched on `CMUX_SURFACE_ID` and ran `cmux claude-teams`, so Claude's hooks
+reported to cmux and Dealer saw nothing (#12, reopened). At launch, Dealer now also unsets every
+`CMUX_*` variable and drops `…/cmux-cli-shims/…` from `PATH` (`InheritedEnvironment.scrub`). The
+self-test checks both the app and a pane's shell.
+
 ### Verification
 
 - The self-test section `SelfTestClaudeHooks.swift` covers:

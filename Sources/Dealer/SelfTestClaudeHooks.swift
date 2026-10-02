@@ -114,9 +114,11 @@ extension TerminalWindowController {
             chmod(stubDir + "/claude", 0o755)
             target.surface.typeText("PATH='\(stubDir)':\"$PATH\" command claude\r")
         }
-        t.step("claude hooks: a parent Claude session's identity variables don't reach pane shells", nil, {
-            let leftInApp = ClaudeHooks.inheritedSessionVariables.filter { getenv($0) != nil }
+        t.step("claude hooks: a parent terminal's (cmux) and Claude session's identity don't reach pane shells", nil, {
+            let env = ProcessInfo.processInfo.environment
+            let leftInApp = ClaudeHooks.inheritedSessionVariables.filter { getenv($0) != nil } + env.keys.filter { $0.hasPrefix("CMUX_") }.sorted()
             if !leftInApp.isEmpty { return "still in the app's environment: \(leftInApp)" }
+            if (env["PATH"] ?? "").contains("cmux-cli-shims") { return "a cmux shim directory is still on PATH" }
             guard target != nil else { return "no scratch pane" }
             let out = tmp + "/pane-env.txt"
             let end = Date().addingTimeInterval(10)
@@ -126,7 +128,7 @@ extension TerminalWindowController {
             return text().contains("END") ? (lines.isEmpty ? nil : "pane shell inherited: \(lines)") : "pane never wrote its environment"
         }) {
             guard let target else { return }
-            let names = ClaudeHooks.inheritedSessionVariables.joined(separator: "|")
+            let names = (ClaudeHooks.inheritedSessionVariables + ["CMUX_[A-Z_]*"]).joined(separator: "|")
             target.surface.typeText("env | grep -E '^(\(names))=' | cut -d= -f1 > '\(tmp)/pane-env.txt'; echo END >> '\(tmp)/pane-env.txt'\r")
         }
         t.step("claude hooks: clean up", nil, {

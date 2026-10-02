@@ -2,8 +2,9 @@ import AppKit
 
 // `dealer <command>` / `Dealer <command>`: act as the control-socket client, don't launch the app.
 if CLI.shouldRun(CommandLine.arguments) { exit(CLI.run(CommandLine.arguments)) }
-// App mode: don't pass a parent Claude Code session's identity on to the panes (ClaudeHooks.swift).
-ClaudeHooks.scrubInheritedSessionEnvironment()
+// App mode: don't pass a parent terminal's or Claude Code session's identity on to the panes
+// (InheritedEnvironment.swift).
+InheritedEnvironment.scrub()
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static let shared = AppDelegate()
