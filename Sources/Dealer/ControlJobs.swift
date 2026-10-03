@@ -70,8 +70,10 @@ enum ControlJobs {
                 // directory, as its only pane. On success its shell exits and the workspace goes too.
                 let callerWS = wc.locate(anchor)?.workspace
                 let name = (c as NSString).lastPathComponent
+                // The title goes on the pane only: the tab follows it, so it doesn't keep a stale
+                // RUN title once later jobs share the tab and this one has closed.
                 let pane = wc.controlNewWorkspace(after: callerWS, name: name.isEmpty ? c : name, workingDirectory: c,
-                                                  command: nil, title: title, focus: focus)
+                                                  command: nil, title: nil, focus: focus)
                 pane.customTitle = title
                 var info = r.info
                 if let ws = wc.locate(pane)?.workspace { info["workspace"] = ws.id; info["name"] = ws.displayName }
@@ -138,12 +140,14 @@ enum ControlJobs {
         let target = canonical(cwd)
         let home = ControlHandler.locate(caller)
         var best: (pane: Pane, wc: TerminalWindowController, ws: Workspace, key: [Int])?
+        var callerMatched = false
         for wc in ControlHandler.controllers {
             for ws in wc.workspaces {
                 for p in ws.panes {
                     guard let dir = directory(of: p) else { continue }
                     let contains = target == dir || target.hasPrefix(dir == "/" ? "/" : dir + "/")
                     guard contains else { continue }
+                    if ws === home?.ws { callerMatched = true }
                     // Deeper wins; then the caller's workspace, the caller itself, the workspace's focus.
                     let key = [dir.count, ws === home?.ws ? 1 : 0, p === caller ? 1 : 0, p === ws.validFocusedPane ? 1 : 0]
                     if best == nil || key.lexicographicallyPrecedes(best!.key) == false && key != best!.key {
@@ -157,7 +161,8 @@ enum ControlJobs {
         }
         let outcome = b.ws === home?.ws ? "caller" : "other"
         return ((b.pane, b.wc), ["outcome": outcome, "workspace": b.ws.id, "name": b.ws.displayName,
-                                 "pane": b.pane.id, "owner": directory(of: b.pane) ?? cwd, "cwd": cwd])
+                                 "pane": b.pane.id, "owner": b.pane.pwd ?? directory(of: b.pane) ?? cwd, "cwd": cwd,
+                                 "caller_matched": callerMatched])
     }
 
     /// Called from the job's own shell (`caller` is the job pane) with the command's exit status.

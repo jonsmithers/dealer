@@ -233,7 +233,9 @@ enum CLI {
         let line: String
         switch r["outcome"] as? String {
         case "caller": line = "re-using this workspace (\(ws)), which owns \(cwd)"
-        case "other": line = "re-using \(ws), whose pane in \(r["owner"] as? String ?? "?") owns \(cwd) more deeply than this one"
+        case "other":
+            let than = (r["caller_matched"] as? Bool) == true ? " more deeply than this one" : ""
+            line = "re-using \(ws), whose pane in \(r["owner"] as? String ?? "?") owns \(cwd)\(than)"
         default: line = "no workspace owned \(cwd); created \(ws) there"
         }
         FileHandle.standardError.write(Data("dealer run: \(line)\n".utf8))
