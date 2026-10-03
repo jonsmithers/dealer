@@ -133,6 +133,11 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
 - Control-socket commands are synchronous: the reply is sent only after main has applied the
   change. New commands go in `ControlHandler`, call the same controller methods the menus use, get
   a step in `SelfTestCLI.swift`, and are documented in `docs/cli.md`.
+- `dealer run` (#21, `ControlJobs.swift`) types the command into a normal interactive shell with
+  the tail `; "$DEALER_CLI" job-done $? && exit`, and keeps the outcome policy (close on success,
+  stay and mark waiting on failure) in Dealer, not in user shell functions. Don't switch it to the
+  surface `command` (aliases and the failed-job prompt would be lost), and don't detect the end
+  with ghostty's COMMAND_FINISHED (it fires for every command and needs shell integration).
 - `DEALER_*` env vars read through `SelfTest.env` fall back to the pre-rename `MYTERM_*` spelling,
   so code that strips an env var for a child process must strip both (see `SelfTestCLI.swift`).
   New variables such as `DEALER_PANE_ID` don't get the fallback.

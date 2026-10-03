@@ -77,7 +77,7 @@ b_str() { dealer run --quiet -- "$*"; }   # same, without the "done" mark on suc
 - **Success:** the shell exits and the pane closes. With `[jobs] close_on_success = false` or
   `--keep` it stays. The pane you ran it from gets the *done* mark (a muted dot), plus a macOS
   notification when Dealer isn't in front; `--quiet` skips both.
-- **Failure:** the pane stays open at a prompt with the command in history reach. It's marked
+- **Failure:** the pane stays open at a prompt, so you can inspect and rerun. It's marked
   *waiting* (the accent outline), so ⌘⇧U (Jump to Next Unread) goes straight to it.
 - If Dealer can't be reached when the job ends (it was restarted, say), the pane just stays open.
 

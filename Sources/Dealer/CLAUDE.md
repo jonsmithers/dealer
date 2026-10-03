@@ -223,7 +223,10 @@
 ## Attention and agent status (`Attention.swift`, `AgentStatus.swift`, `AgentLaunch.swift`)
 
 - `setAttention(_:on:raiseOnly:title:body:)` is the only writer of `Pane.attention` besides
-  `didFocus`, which clears it (so does `windowDidBecomeKey`, in Attention.swift). It refreshes
+  `didFocus`, which clears it (so does `windowDidBecomeKey`, in Attention.swift). `didFocus` clears
+  only on a real focus change or when the user is looking (`isLookingAt`): `finishChange` re-focuses
+  the already-focused pane after any background change (e.g. a `dealer run` job pane closing), and
+  that must not wipe the mark the job just set. It refreshes
   chrome and posts the macOS notification; don't assign `pane.attention` elsewhere.
 - Automatic sources (bell, OSC 9/99/777, long `COMMAND_FINISHED`) pass `raiseOnly: true` so they
   never downgrade `waiting`; explicit `dealer notify` sets the state exactly (including `none`).
