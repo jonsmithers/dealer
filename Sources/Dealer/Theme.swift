@@ -20,6 +20,10 @@ enum Theme {
     /// Hairline between panes (`split-divider-color`, else derived).
     private(set) static var divider = NSColor.black
 
+    /// The theme's 16 ANSI colors (`palette = 0..15`), so chrome can borrow theme accents
+    /// (e.g. blue = 4, bright blue = 12). Empty until `load`. Not used for drawing yet (#23).
+    private(set) static var ansi: [NSColor] = []
+
     /// True when the terminal background is dark. Picks the AppKit appearance too.
     static var isDark: Bool { background.luminance < 0.25 }
 
@@ -123,6 +127,15 @@ enum Theme {
         let key = "unfocused-split-opacity"
         _ = ghostty_config_get(config, &opacity, key, UInt(key.utf8.count))
         unfocusedAlpha = CGFloat(1 - min(max(opacity, 0), 1))
+        var palette = ghostty_config_palette_s()
+        let pkey = "palette"
+        if ghostty_config_get(config, &palette, pkey, UInt(pkey.utf8.count)) {
+            ansi = withUnsafeBytes(of: &palette.colors) { raw in
+                raw.bindMemory(to: ghostty_config_color_s.self).prefix(16).map {
+                    NSColor(srgbRed: CGFloat($0.r) / 255, green: CGFloat($0.g) / 255, blue: CGFloat($0.b) / 255, alpha: 1)
+                }
+            }
+        }
         divider = color(config, "split-divider-color")
             ?? background.mixed(with: .black, isDark ? 0.4 : 0.1)
     }

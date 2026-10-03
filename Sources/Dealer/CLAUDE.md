@@ -214,6 +214,12 @@
 - The unfocused-pane veil is a subview kept on top of the surface in `PaneView.layout`.
   `dimsWhenUnfocused` is set by the controller in `layout(deck:)` (on when more than one pane is on
   screen). The attention ring is a separate sublayer at zPosition 20, above the veil.
+- What the C API can read (#23): plain colors (`background`, `foreground`, `unfocused-split-fill`,
+  `split-divider-color`) and `palette` (`ghostty_config_palette_s`, 256 entries; `Theme.ansi` keeps
+  0–15). `TerminalColor` keys (`cursor-color`, `cursor-text`, `selection-background`/`-foreground`)
+  have no C conversion, so `ghostty_config_get` returns false for them even when a theme sets them.
+  Dealer never calls `ghostty_app_set_color_scheme`, so a conditional `theme = light:…,dark:…`
+  always resolves to its light side.
 - The pane bar's × (#24) is a `PaneCloseButton` subview, so its click never reaches the bar's
   `mouseDown` (which starts a drag). It closes on mouse-up through `close(pane:)`. Hover state lives
   on the bar (`setHoveringForTest` in the self-test); the status line ends at `statusTrailing`.

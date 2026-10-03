@@ -234,6 +234,7 @@ extension TerminalWindowController {
         jobsSelfTestSteps(kit)
         claudeHooksSelfTestSteps(kit)
         paneCloseSelfTestSteps(kit)
+        themeSelfTestSteps(kit)
 
         var failures = 0
         func run(_ i: Int) {
