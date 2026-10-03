@@ -1,17 +1,25 @@
 # Dealer
 
+> **Disclaimer:** Dealer is 100% vibe-coded. I (Jon) don't know Swift, and I won't be able to
+> maintain it properly: I don't trust coding agents to keep a codebase healthy over time, so
+> expect the codebase to get out of hand.
+
 A small macOS terminal built on **libghostty** (Ghostty's embedding API) and Swift/AppKit,
 implementing the *Panes and Decks* layout model:
 
 ```
 Window
-└─ Decks    split side by side or stacked; each has its own tab strip
-   └─ Tabs    one active per deck
-      └─ Panes  split inside a single tab; hidden when the tab is
+└─ Workspaces  per-window; one shown at a time, switched with ⌃1–9
+   └─ Decks      split side by side or stacked; each has its own tab strip
+      └─ Tabs      one active per deck
+         └─ Panes   split inside a single tab; hidden when their tab isn't active
 ```
 
-A **pane** is owned by a tab. A **deck** owns tabs. Splitting always makes panes;
-**promote** turns a pane into a deck, **fold** turns it back.
+A **workspace** owns a set of decks; a window has one or more and shows one at a time
+(switch from the sidebar, the top-bar pills, or ⌃1–9). A **deck** owns tabs. A **pane** is
+owned by a tab. Splitting always makes panes; **promote** turns a pane into a deck, **fold**
+turns it back. Closing the last deck of a workspace closes the workspace, and closing the last
+workspace closes the window.
 
 ## Build & run
 
