@@ -108,7 +108,7 @@ extension PaneBarView {
         let para = NSMutableParagraphStyle()
         para.lineBreakMode = .byTruncatingMiddle
         text.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: text.length))
-        text.draw(in: CGRect(x: bounds.width - 10 - width, y: (bounds.height - h) / 2, width: width, height: h))
-        return width + 12
+        text.draw(in: CGRect(x: bounds.width - statusTrailing - width, y: (bounds.height - h) / 2, width: width, height: h))
+        return width + statusTrailing + 2
     }
 }

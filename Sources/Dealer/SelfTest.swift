@@ -232,6 +232,7 @@ extension TerminalWindowController {
         titlebarTabsSelfTestSteps(kit)
         cliSelfTestSteps(kit)
         claudeHooksSelfTestSteps(kit)
+        paneCloseSelfTestSteps(kit)
 
         var failures = 0
         func run(_ i: Int) {

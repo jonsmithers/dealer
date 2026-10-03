@@ -86,6 +86,8 @@ enum Theme {
         static let sidebarRowHeight: CGFloat = 28
         static let sidebarRowDetailHeight: CGFloat = 40
         static let paneBarHeight: CGFloat = 20
+        /// The hover-only × on a pane bar (#24).
+        static let paneBarCloseSize: CGFloat = 16
         /// Visible hairline between panes of one tab.
         static let paneGap: CGFloat = 1
         /// Gap between decks.
@@ -160,5 +162,20 @@ extension NSColor {
         guard let c = usingColorSpace(.sRGB) else { return 0 }
         func lin(_ v: CGFloat) -> CGFloat { v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
         return 0.2126 * lin(c.redComponent) + 0.7152 * lin(c.greenComponent) + 0.0722 * lin(c.blueComponent)
+    }
+}
+
+extension Theme {
+    /// The × used by every close control (tab, pane bar), so they read as one family.
+    static func drawCross(in r: CGRect, color: NSColor) {
+        let path = NSBezierPath()
+        path.move(to: r.origin)
+        path.line(to: CGPoint(x: r.maxX, y: r.maxY))
+        path.move(to: CGPoint(x: r.minX, y: r.maxY))
+        path.line(to: CGPoint(x: r.maxX, y: r.minY))
+        path.lineWidth = 1.2
+        path.lineCapStyle = .round
+        color.setStroke()
+        path.stroke()
     }
 }

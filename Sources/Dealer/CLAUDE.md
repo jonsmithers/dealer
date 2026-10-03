@@ -214,6 +214,9 @@
 - The unfocused-pane veil is a subview kept on top of the surface in `PaneView.layout`.
   `dimsWhenUnfocused` is set by the controller in `layout(deck:)` (on when more than one pane is on
   screen). The attention ring is a separate sublayer at zPosition 20, above the veil.
+- The pane bar's × (#24) is a `PaneCloseButton` subview, so its click never reaches the bar's
+  `mouseDown` (which starts a drag). It closes on mouse-up through `close(pane:)`. Hover state lives
+  on the bar (`setHoveringForTest` in the self-test); the status line ends at `statusTrailing`.
 - Height math that includes deck chrome (promote keeping a pane's size) uses
   `DeckView.chromeSize`. Update it if the strip/card insets change.
 

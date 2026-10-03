@@ -93,10 +93,38 @@ final class PaneBarView: FlippedView {
     var isFocusedPane = false { didSet { if isFocusedPane != oldValue { needsDisplay = true } } }
     /// Right-aligned agent state, cwd and branch (AgentStatus.swift).
     var status = "" { didSet { if status != oldValue { needsDisplay = true } } }
+    /// Close ×, shown only while the pointer is over the bar (#24). Closing goes through
+    /// `close(pane:)`, the same path as ⌘W, busy-process confirmation included.
+    let closeButton = PaneCloseButton()
+    private(set) var hovering = false {
+        didSet {
+            guard hovering != oldValue else { return }
+            closeButton.isHidden = !hovering
+            needsDisplay = true
+        }
+    }
+    /// Where the status line ends: it slides left to make room for the × while hovering.
+    var statusTrailing: CGFloat { hovering ? Self.closeSlot + 6 : 10 }
+    private static let closeSlot: CGFloat = 22
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         layer?.backgroundColor = Theme.surface.mixed(with: Theme.chrome, 0.4).cgColor
+        closeButton.isHidden = true
+        addSubview(closeButton)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+
+    override func mouseEntered(with event: NSEvent) { hovering = true }
+    override func mouseExited(with event: NSEvent) { hovering = false }
+    /// Self-test hook: tracking areas need a real pointer.
+    func setHoveringForTest(_ on: Bool) { hovering = on }
+
+    override func layout() {
+        super.layout()
+        let s = Theme.Metrics.paneBarCloseSize
+        closeButton.frame = CGRect(x: bounds.width - Self.closeSlot + (Self.closeSlot - s) / 2 - 2,
+                                   y: ((bounds.height - s) / 2).rounded(), width: s, height: s)
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -123,7 +151,7 @@ final class PaneBarView: FlippedView {
         ]
         let h = ceil(font.ascender - font.descender)
         let statusWidth = drawStatus(font: font, height: h)
-        (title as NSString).draw(in: CGRect(x: 26, y: (bounds.height - h) / 2, width: bounds.width - 34 - statusWidth, height: h), withAttributes: attrs)
+        (title as NSString).draw(in: CGRect(x: 26, y: (bounds.height - h) / 2, width: bounds.width - 34 - max(statusWidth, hovering ? Self.closeSlot : 0), height: h), withAttributes: attrs)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -135,6 +163,42 @@ final class PaneBarView: FlippedView {
         } else {
             c.drag.begin(.pane(pane), event: event)
         }
+    }
+}
+
+/// The × on a pane bar. A subview, so its click never starts the bar's drag.
+final class PaneCloseButton: FlippedView {
+    private var pressed = false
+    private var hovering = false { didSet { if hovering != oldValue { needsDisplay = true } } }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        toolTip = "Close Pane"
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .arrow) }
+    override func mouseEntered(with event: NSEvent) { hovering = true }
+    override func mouseExited(with event: NSEvent) { hovering = false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        if hovering {
+            Theme.foreground.withAlphaComponent(0.12).setFill()
+            NSBezierPath(roundedRect: bounds, xRadius: 4, yRadius: 4).fill()
+        }
+        Theme.drawCross(in: bounds.insetBy(dx: 4.5, dy: 4.5), color: hovering ? Theme.text : Theme.textMuted)
+    }
+
+    override func mouseDown(with event: NSEvent) { pressed = true }
+
+    override func mouseUp(with event: NSEvent) {
+        defer { pressed = false }
+        guard pressed, bounds.contains(convert(event.locationInWindow, from: nil)),
+              let pane = (superview?.superview as? PaneView)?.pane, let c = controller else { return }
+        c.close(pane: pane)
     }
 }
 
@@ -390,16 +454,7 @@ final class TabButton: FlippedView {
                 Theme.foreground.withAlphaComponent(0.12).setFill()
                 NSBezierPath(roundedRect: closeRect, xRadius: 4, yRadius: 4).fill()
             }
-            let c = closeRect.insetBy(dx: 4.5, dy: 4.5)
-            let path = NSBezierPath()
-            path.move(to: c.origin)
-            path.line(to: CGPoint(x: c.maxX, y: c.maxY))
-            path.move(to: CGPoint(x: c.minX, y: c.maxY))
-            path.line(to: CGPoint(x: c.maxX, y: c.minY))
-            path.lineWidth = 1.2
-            path.lineCapStyle = .round
-            (hoveringClose ? Theme.text : Theme.textMuted).setStroke()
-            path.stroke()
+            Theme.drawCross(in: closeRect.insetBy(dx: 4.5, dy: 4.5), color: hoveringClose ? Theme.text : Theme.textMuted)
         }
         drawAttentionDot(hidden: hovering)
     }

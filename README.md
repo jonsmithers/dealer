@@ -87,7 +87,7 @@ These menu shortcuts win over Ghostty keybinds, so a `keybind` in your Ghostty c
 these keys never fires. Ghostty has no default ⌘B binding, but a `keybind = cmd+b=…` of yours is
 shadowed by the sidebar toggle.
 
-Double-click a tab to rename it; middle-click or hover × to close it.
+Double-click a tab to rename it; middle-click or hover × to close it. A pane's bar (shown once a tab has two panes) has the same hover ×, which closes the pane like ⌘W.
 
 Workspaces are listed in a sidebar on the left: number, name, attention dot, and a dim line
 with the focused pane's agent state, cwd and branch. Click a row to switch, double-click to
