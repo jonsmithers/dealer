@@ -267,6 +267,11 @@ tabs_in_titlebar = false # put top-edge decks' tab strips in the titlebar row
 [colors]
 auto_assign = false      # color new workspaces with the next unused swatch
 palette = ["#e06c75", "#98c379", "#61afef"]   # replaces the preset swatches
+
+[jobs]                   # `dealer run` (see Scripting below)
+placement = "split"      # or "tab" (a background tab next to yours)
+size = 12                # job split height: rows, "30%" or "0.3"
+close_on_success = true  # failed jobs always stay open
 ```
 
 - Changes apply live: Dealer watches the file (editors that save by replacing it work too).
@@ -293,7 +298,17 @@ Environment variables:
 (`--side`, `--size`, `--cwd`, `--command`, `--title`, `--no-focus`), `send-text`, `focus`,
 `resize`, `rename`, `identify`, `list --json` (IDs, cwd, foreground process and PIDs),
 `find --process RE`, and `notify`. Commands are synchronous and IDs are stable. See
-[docs/cli.md](docs/cli.md) for the reference and the `b` / `focus-nvim` recipes.
+[docs/cli.md](docs/cli.md) for the reference and the `focus-nvim` recipe.
+
+**Background jobs:** `dealer run <cmd>` runs a command in a short pane below yours (or a
+background tab, per `[jobs] placement`), in your current directory, titled `RUN <cmd>`, without
+taking focus. On success the job pane closes and your pane gets the *done* mark (plus a macOS
+notification if Dealer isn't in front). On failure it stays open as a shell, titled
+`FAILED (status) <cmd>` and marked *waiting*, so ⌘⇧U takes you there. A one-line `b`:
+
+```zsh
+b() { dealer run -- "$*"; }          # b make test
+```
 
 ## Session restore
 

@@ -46,27 +46,46 @@ workspaces, type into them, focus, resize, rename, color, list, and notify.
 | `color [--tab \| --workspace] COLOR\|none` | Colors a tab or workspace (#9). COLOR is a swatch name (`red`, `orange`, `yellow`, `green`, `teal`, `blue`, `purple`, `pink`, or numbers 1… with a `[colors] palette`), a swatch number, or `#rrggbb`; `none` clears it. A workspace/window target colors the workspace; a pane/tab target colors its tab. `list --json` shows `color` on workspaces and `tab_color` on tabs. |
 | `notify [--state unread\|done\|waiting\|none] [--title T] [--body B]` | Marks the pane for attention. See the README's Attention section. |
 | `close` | Closes a pane or tab without asking. |
+| `run [--split \| --tab] [--size 12\|30%] [--keep] [--quiet] [--focus] [--title T] [--cwd DIR] [--] CMD...` | Runs CMD as a background job next to the caller (see below) and prints the job's pane ID. A single argument is used verbatim (`dealer run "$*"`); several are shell-quoted. |
+| `job-done STATUS` | Internal: the tail `run` types into the job's shell. Exits 0 when the shell should close. |
 
 ## Recipes
 
-### `b <cmd>`: run a command in a small pane below, keep typing here
+### Background jobs: `dealer run` (replaces `b` / `b_str`)
 
 ```zsh
-b() {
-  local cmd="$*" id where=${DEALER_B_WHERE:-pane}   # DEALER_B_WHERE=tab: new background tab instead
-  if [[ $where == tab ]]; then
-    id=$(dealer create tab --no-focus --cwd "$PWD" --title "RUN $cmd") || return
-  else
-    id=$(dealer create pane --side down --size 12 --no-focus --cwd "$PWD" --title "RUN $cmd") || return
-  fi
-  dealer send-text -t "$id" --enter -- \
-    "$cmd && dealer notify --state done --title ✅ --body ${(q)cmd} && exit; dealer notify --state waiting --title ❌ --body ${(q)cmd}"
-}
+b() { dealer run -- "$*"; }               # b make test: notify and close on success
+b_str() { dealer run --quiet -- "$*"; }   # same, without the "done" mark on success
 ```
 
-`--no-focus` means focus never leaves the calling pane, so there's no refocus step and no race.
-`--size 12` asks for 12 rows. `send-text` works right away: the text waits in the new pane's tty
-until its shell reads it.
+`dealer run` does the whole job in one synchronous call:
+
+- **Placement:** by default a split below the calling pane, 12 rows tall. With
+  `[jobs] placement = "tab"` (or `--tab`) it's a background tab right after the caller's. The split
+  height comes from `[jobs] size` or `--size`. Focus never moves, unless you pass `--focus`.
+- **Where:** next to `$DEALER_PANE_ID` (outside Dealer: the focused pane, or `-t`), in your `$PWD`.
+- **Title:** `RUN <cmd>`, which changes to `FAILED (status) <cmd>` (or `DONE <cmd>` with `--keep`).
+- **Running:** the command is typed into a normal interactive shell, so aliases, functions and
+  your rc environment work, followed by a tail that reports the exit status:
+
+  ```
+   make test; "$DEALER_CLI" job-done $? && exit
+  ```
+
+  The leading space keeps the line out of history if you `setopt HIST_IGNORE_SPACE` (zsh) or
+  set `HISTCONTROL=ignorespace` (bash).
+- **Success:** the shell exits and the pane closes. With `[jobs] close_on_success = false` or
+  `--keep` it stays. The pane you ran it from gets the *done* mark (a muted dot), plus a macOS
+  notification when Dealer isn't in front; `--quiet` skips both.
+- **Failure:** the pane stays open at a prompt with the command in history reach. It's marked
+  *waiting* (the accent outline), so ⌘⇧U (Jump to Next Unread) goes straight to it.
+- If Dealer can't be reached when the job ends (it was restarted, say), the pane just stays open.
+
+Shells: zsh, bash and other POSIX shells. fish doesn't have `$?`; use
+`dealer create --no-focus` + `send-text` with your own tail there.
+
+**Not built in (see #21):** routing to the workspace that "owns" `$PWD`. Workspaces have no root
+directory yet; use `-t workspace:N` to pick one explicitly.
 
 ### `focus-nvim`: cycle through every pane running nvim
 
