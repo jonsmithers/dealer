@@ -71,12 +71,27 @@ final class DragController {
 
         guard dragging else { return }
         NSCursor.pop()
-        clear()
+        let previewed = !view.dropHighlight.isHidden
+        clear(keepHighlight: previewed)
         if let target { perform(source, target) }
+        // The preview settles onto where the content landed (#28), or just goes away.
+        if previewed, target != nil, let r = landedRect(source) {
+            view.dropHighlight.settle(to: r)
+        } else {
+            view.dropHighlight.hide()
+        }
     }
 
-    private func clear() {
-        view.dropHighlight.hide()
+    /// The moved content's frame after the drop, in content-view coordinates; nil when it isn't on
+    /// screen (moved to another workspace, or a tab that went into a strip).
+    private func landedRect(_ source: Source) -> CGRect? {
+        guard let n = sourceNode(source), let ws = n.leaves.first.flatMap({ controller.workspace(of: $0) }),
+              ws === controller.activeWorkspace else { return nil }
+        return controller.frame(of: n)
+    }
+
+    private func clear(keepHighlight: Bool = false) {
+        if !keepHighlight { view.dropHighlight.hide() }
         view.ghost.isHidden = true
         controller.decks.forEach { $0.view.strip.showMarker(at: nil, color: .clear) }
     }

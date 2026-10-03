@@ -74,15 +74,32 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   `XDG_CONFIG_HOME` at a temp dir containing `ghostty/config` (e.g. `theme = Catppuccin Latte`).
   Ghostty also reads `~/Library/Application Support/com.mitchellh.ghostty/config`, which XDG
   doesn't redirect and which loads after it; check that it has no color settings.
-- **README recordings (#26):** `scripts/record-demo.sh <out-dir> [panes workspaces attention]` runs
-  `DEALER_SELFTEST=1 DEALER_DEMO=<name>` (Demo.swift: scripted steps with captions, every pane in a
-  neutral zsh with `ZDOTDIR=/tmp/demo`) and records the window region with ffmpeg/avfoundation,
-  without the pointer. Use that rather than `screencapture -v -l`, which records the pointer and
-  makes macOS swap the traffic lights for a capture badge. It needs an unlocked screen and Screen
-  Recording permission. The demo window floats, so nothing else gets into the frame. **GIFs/MP4s live
-  only on the orphan `media` branch** (its own worktree), never on master; the README links them as
-  `https://github.com/jonsmithers/dealer/raw/media/demos/<file>`. Review every frame (contact sheets
-  via ffmpeg `tile`) before pushing `media`.
+- **README demo recordings (#26, #28).** Regenerate after any visual change:
+  `swift build && scripts/record-demo.sh <out-dir>` records every demo (or name some: `drag tabs
+  workspaces attention`). Prerequisites: an unlocked screen, Screen Recording permission for the
+  app running the script, ffmpeg, and hands off the machine while it runs (the demo window floats
+  on top). The script writes `<demo>.gif` (5 MB budget, enforced), `<demo>.mp4`, and contact sheets
+  in `<out-dir>/review/`. **Read every sheet before publishing** (privacy: only `/tmp/demo` paths,
+  a `demo $` prompt, nothing but the Dealer window). Then publish explicitly with
+  `scripts/record-demo.sh <out-dir> --publish <worktree of the media branch>`, which commits there
+  and prints the `git push origin media` to run. Nothing is pushed implicitly. GIFs/MP4s live only on
+  the orphan `media` branch, never on master; the README links
+  `https://github.com/jonsmithers/dealer/raw/media/demos/<file>`.
+  - How it works: `DEALER_SELFTEST=1 DEALER_DEMO=<name>` runs a script in `Demo.swift`.
+    `DemoMouse` posts real mouse events (`window.postEvent`) along eased paths at 60 Hz, so
+    DragController's tracking loop, buttons and rows handle them as they would a person's, and
+    draws a pointer sprite (system arrow, open hand over pane bars, closed hand while dragging).
+    Hover can't come from posted events (tracking areas follow the window server's cursor), so the
+    driver sends `mouseEntered`/`mouseExited`/`mouseMoved` to the views under its pointer itself.
+  - Targets are found by identity (the pane titled X, its tab button or bar, the sidebar row for
+    workspace Y, a fraction of a view's bounds, the deck area's edge), never pixel coordinates, so
+    restyles don't break the scripts. Add new beats the same way.
+  - The recorder (ffmpeg/avfoundation on the window's screen region, without the real pointer) stops
+    when the demo prints `DEMO DONE`, *before* the app exits: a frame after the window closes would
+    show the user's screen. `screencapture -v -l` isn't used because it records the real pointer
+    and macOS swaps the traffic lights for a capture badge.
+  - Demo shells use `ZDOTDIR=/tmp/demo` (set up by the script) and source Ghostty's shell integration;
+    without it every pane counts as busy and closing one asks for confirmation.
 - **Locked screen:** `ghostty_surface_new` returns nil for every pane and `screencapture -l` fails.
   Self-test checks that need a live shell or cell metrics print `(skipped …)` and still pass; if
   you see those, say that shell-level behavior (send-text, `--command`, process listing, `--size`

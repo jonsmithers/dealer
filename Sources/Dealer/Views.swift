@@ -263,7 +263,8 @@ final class DeckView: FlippedView {
 final class TabStripView: FlippedView {
     unowned let deck: Deck
     private(set) var buttons: [TabButton] = []
-    private let addButton = HoverButton()
+    /// The strip's "+" (internal for the demo pointer and tests).
+    let addButton = HoverButton()
     /// Insertion marker shown while dragging something over the strip.
     private let marker = CALayer()
 
@@ -542,7 +543,14 @@ final class HighlightView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
+    /// Bumped by every show/hide, so a settle's delayed completion can't hide a newer preview.
+    private var generation = 0
+    /// Where the last `settle` glided to (self-test hook).
+    private(set) var settleTarget: CGRect?
+
     func show(_ rect: CGRect, color: NSColor, fill: CGFloat = 0.16) {
+        generation += 1
+        alphaValue = isHidden ? alphaValue : 1
         layer?.backgroundColor = color.withAlphaComponent(fill).cgColor
         layer?.borderColor = color.withAlphaComponent(0.9).cgColor
         if isHidden {
@@ -562,7 +570,34 @@ final class HighlightView: NSView {
         }
     }
 
-    func hide() { isHidden = true }
+    func hide() {
+        generation += 1
+        isHidden = true
+        alphaValue = 1
+    }
+
+    /// After a drop (#28): the preview glides to where the content landed, then fades. Chrome only;
+    /// the terminals underneath were laid out once, so no surface is resized per frame.
+    func settle(to rect: CGRect) {
+        guard !isHidden else { return }
+        generation += 1
+        let g = generation
+        settleTarget = rect
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = Theme.Motion.standard
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            animator().frame = rect
+        }, completionHandler: { [weak self] in
+            guard let self, self.generation == g else { return }
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = Theme.Motion.standard
+                self.animator().alphaValue = 0
+            }, completionHandler: { [weak self] in
+                guard let self, self.generation == g else { return }
+                self.hide()
+            })
+        })
+    }
 }
 
 /// The little label that follows the cursor while dragging a pane or tab.

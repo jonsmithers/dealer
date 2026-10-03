@@ -223,6 +223,11 @@
 - The pane bar's × (#24) is a `PaneCloseButton` subview, so its click never reaches the bar's
   `mouseDown` (which starts a drag). It closes on mouse-up through `close(pane:)`. Hover state lives
   on the bar (`setHoveringForTest` in the self-test); the status line ends at `statusTrailing`.
+- After a drop, the drop preview settles (#28): `DragController.begin` keeps the highlight through
+  `perform` and calls `HighlightView.settle(to:)` with the moved content's new frame, which glides
+  and fades the overlay only. Terminals are laid out once; never animate pane or surface frames.
+  `HighlightView` bumps a generation on every show/hide so a late settle completion can't hide a
+  newer preview. Self-test: `SelfTestDragSettle.swift`.
 - Height math that includes deck chrome (promote keeping a pane's size) uses
   `DeckView.chromeSize`. Update it if the strip/card insets change.
 

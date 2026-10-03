@@ -25,34 +25,42 @@ workspace closes the window.
 
 ## Demos
 
-Short recordings, played back by Dealer's scripted demo mode (`scripts/record-demo.sh`). Steps go
-through the same controller commands as the menus and shortcuts; drags are applied as the drop
-they'd make, so no pointer is shown.
+Recorded from Dealer's scripted demo mode (`scripts/record-demo.sh`): the pointer is drawn by the
+demo, but every press, drag and release is a real mouse event going through the app's own drag
+and click handling.
 
-<details>
-<summary><b>Panes and decks</b>: split, promote, fold, tabs per deck, moving a pane to another deck</summary>
+<details open>
+<summary><b>Drag tabs and panes</b>: new deck, split, re-split, swap, move to another deck, close</summary>
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/panes.gif" alt="Splitting a tab into panes, promoting a pane to its own deck, folding it back, giving each deck its own tabs, and dropping a pane onto another deck's tab strip" width="1000">
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/drag.gif" alt="Dragging a tab to the window edge to make a new deck, dropping a tab on a pane's edge to split, dragging panes by their bars to re-split and swap, dropping a pane on a tab strip, and closing a pane with the hover × on its bar" width="960">
 
-[Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/panes.mp4)
+[Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/drag.mp4)
 </details>
 
 <details>
-<summary><b>Workspaces</b>: the sidebar, switching with ⌃1–9, moving a tab to another workspace</summary>
+<summary><b>Tabs</b>: reorder, hover to switch mid-drag, out to a new deck and back into a pane</summary>
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/workspaces.gif" alt="Creating workspaces, which brings up the sidebar, switching between them, and moving a tab into another workspace" width="1000">
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/tabs.gif" alt="Reordering tabs by dragging, hovering a tab mid-drag to switch to it and dropping in that deck, dragging a tab to the window edge for a new deck, and dropping it back into a pane as a split" width="960">
+
+[Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/tabs.mp4)
+</details>
+
+<details>
+<summary><b>Workspaces</b>: open the sidebar, add one, click to switch, drag a tab onto a workspace</summary>
+
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/workspaces.gif" alt="Opening the workspace sidebar, adding a workspace, clicking rows to switch, and dragging a tab onto another workspace's row" width="960">
 
 [Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/workspaces.mp4)
 </details>
 
 <details>
-<summary><b>Agent attention</b>: waiting outline, ⌘⇧U jump, done dot</summary>
+<summary><b>Agent attention</b>: a waiting outline you can see from anywhere, click to go there</summary>
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/attention.gif" alt="A pane turns waiting with a blue outline on the pane, its tab and its workspace, stays visible from another workspace, Jump to Next Unread goes back to it, then it turns done with a quiet dot" width="1000">
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/attention.gif" alt="An agent pane turns waiting: its workspace row gets a blue outline while you're in another workspace; clicking the row goes there, where the pane and tab are outlined too; clicking into the pane clears it, and a finished agent leaves a quiet dot" width="960">
 
-The states here are driven with `dealer notify`, which is exactly what Dealer's automatic
-Claude Code hooks call (see [Attention](#attention-coding-agents)). This is not a live Claude
-session: a real one shows its own permission prompt in the pane.
+The states here are driven with `dealer notify`, typed into the pane; that's exactly what Dealer's
+automatic Claude Code hooks call (see [Attention](#attention-coding-agents)). This is not a live
+Claude session: a real one shows its own permission prompt in the pane.
 
 [Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/attention.mp4)
 </details>
@@ -390,5 +398,5 @@ and asserts the tree after each step.
 - `SelfTest*.swift` – self-test, one file per feature section
 - `AgentStatus.swift` – pane status line (agent state, cwd, git branch)
 - `AgentLaunch.swift` – New Agent Pane presets
-- `Demo.swift` – scripted demo mode for the README recordings (`DEALER_DEMO`, `scripts/record-demo.sh`)
+- `Demo.swift` – scripted mouse demos for the README recordings (`DEALER_DEMO`, `scripts/record-demo.sh`)
 - `Attention.swift` – per-pane attention (bell/OSC/agent), badges, jump to next unread, macOS notifications
