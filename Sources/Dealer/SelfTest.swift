@@ -231,6 +231,7 @@ extension TerminalWindowController {
         colorsSelfTestSteps(kit)
         titlebarTabsSelfTestSteps(kit)
         cliSelfTestSteps(kit)
+        jobsSelfTestSteps(kit)
         claudeHooksSelfTestSteps(kit)
         paneCloseSelfTestSteps(kit)
 

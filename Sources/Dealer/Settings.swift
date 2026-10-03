@@ -23,10 +23,16 @@ enum Settings {
         case stringArray
         /// An array of "#rrggbb" strings.
         case colorArray
+        /// A pane size like `dealer create --size`: rows/columns (an integer, or a string of
+        /// digits), a percentage ("30%") or a fraction ("0.3").
+        case size
 
         func validate(_ v: TOML.Value) -> String? {
             switch (self, v) {
             case (.string, .string), (.bool, .bool): return nil
+            case (.size, .integer(let n)): return n > 0 ? nil : "must be a positive number of rows"
+            case (.size, .string(let s)): return Settings.isSizeSpec(s) ? nil : "must be rows (12), a percentage (\"30%\") or a fraction (\"0.3\")"
+            case (.size, _): return "must be rows (12), a percentage (\"30%\") or a fraction (\"0.3\"), not \(v.typeName)"
             case (.oneOf(let options), .string(let s)):
                 return options.contains(s) ? nil : "must be one of \(options.map { "\"\($0)\"" }.joined(separator: ", "))"
             case (.colorArray, .array(let a)):
@@ -51,6 +57,9 @@ enum Settings {
         "colors.auto_assign": .bool,
         "window.tabs_in_titlebar": .bool,
         "colors.palette": .colorArray,
+        "jobs.placement": .oneOf(["split", "tab"]),
+        "jobs.size": .size,
+        "jobs.close_on_success": .bool,
     ]
 
     /// Pre-#10 UserDefaults keys, read only when the file doesn't set the setting.
@@ -249,6 +258,30 @@ enum Settings {
     static var colorPalette: [NSColor]? {
         guard case .array(let a)? = values["colors.palette"] else { return nil }
         return a.compactMap { if case .string(let s) = $0 { return NSColor(hex: s) } else { return nil } }
+    }
+
+    /// `[jobs] placement` (#21): where `dealer run` puts a job: "split" (a short pane below the
+    /// caller, default) or "tab" (a background tab next to the caller's).
+    static var jobPlacement: String { string("jobs.placement") ?? "split" }
+
+    /// `[jobs] size` (#21): the job split's height, as `dealer create --size` takes it. Default 12 rows.
+    static var jobSize: String {
+        switch values["jobs.size"] {
+        case .integer(let n)?: return String(n)
+        case .string(let s)?: return s
+        default: return "12"
+        }
+    }
+
+    /// `[jobs] close_on_success` (#21): close a job's pane when its command succeeds. Default true.
+    static var jobCloseOnSuccess: Bool { bool("jobs.close_on_success") ?? true }
+
+    static func isSizeSpec(_ s: String) -> Bool {
+        let t = s.trimmingCharacters(in: .whitespaces)
+        if t.hasSuffix("%"), let v = Double(t.dropLast()) { return v > 0 && v < 100 }
+        if t.contains("."), let v = Double(t) { return v > 0 && v < 1 }
+        if let n = Int(t) { return n > 0 }
+        return false
     }
 
     /// `[workspaces] switcher` (#8): "sidebar" (default) or "top". Setting it writes the file.

@@ -31,3 +31,13 @@
 # auto_assign = false
 # Replace the preset swatches (numbered 1, 2, … in menus and `dealer color`).
 # palette = ["#e06c75", "#98c379", "#61afef", "#c678dd"]
+
+[jobs]
+# `dealer run <cmd>` (#21) opens a job: the command runs in a new shell next to yours, focus
+# stays where it is, and the outcome shows as attention. Where the job goes: "split" (a short
+# pane below the caller) or "tab" (a background tab next to the caller's).
+# placement = "split"
+# Height of a job split: rows (12), a percentage ("30%") or a fraction ("0.3").
+# size = 12
+# Close the job's pane when the command succeeds. A failed job always stays open.
+# close_on_success = true

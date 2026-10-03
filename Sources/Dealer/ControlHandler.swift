@@ -31,6 +31,8 @@ enum ControlHandler {
             case "color": result = try color(args, ctx)
             case "notify": result = try notify(args, ctx)
             case "close": result = try close(args, ctx)
+            case "run": result = try ControlJobs.run(args, ctx)
+            case "job-done": result = try ControlJobs.done(args, ctx)
             default: throw Failure(message: "unknown command '\(cmd)'")
             }
             return ["ok": true, "result": result]

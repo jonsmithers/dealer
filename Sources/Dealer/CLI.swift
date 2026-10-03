@@ -6,7 +6,7 @@ import Foundation
 enum CLI {
     static let commands: Set<String> = [
         "identify", "list", "ls", "find", "create", "new", "send-text", "send", "focus", "resize",
-        "rename", "color", "notify", "close", "help", "--help", "-h",
+        "rename", "color", "notify", "close", "run", "job-done", "help", "--help", "-h",
     ]
 
     /// True when this process should act as the CLI rather than launch the app.
@@ -37,6 +37,10 @@ enum CLI {
       color [-t T] [--tab | --workspace] COLOR|none  swatch name or number, or #rrggbb
       notify [-t T] [--state unread|done|waiting|none] [--title T] [--body B]
       close [-t T]
+      run [-t T] [--split | --tab] [--size 12|30%] [--keep] [--quiet] [--focus] [--title T] [--cwd DIR] CMD...
+                                                 run CMD in a job pane next to you (focus stays);
+                                                 success closes it and marks you done, failure keeps
+                                                 it open, marked waiting. Prints the job's pane ID.
 
     Environment: DEALER_SOCKET (socket path), DEALER_PANE_ID (default target).
     """
@@ -72,6 +76,8 @@ enum CLI {
                 return 1
             }
             let result = resp["result"] as? [String: Any] ?? [:]
+            // The job's shell runs `job-done $? && exit`: exit 0 means "close this pane".
+            if cmd == "job-done" { return result["close"] as? Bool == true ? 0 : 1 }
             print(format(cmd, result, output), terminator: "")
             return 0
         } catch let u as Usage {
@@ -119,6 +125,8 @@ enum CLI {
             func val() throws -> String { try inline ?? value(flag) }
             if textEnded || !arg.hasPrefix("-") || arg == "-" {
                 positional.append(arg)
+                // Everything after `run`'s first word is the command, flags included.
+                if cmd == "run" { textEnded = true }
                 if cmd == "send-text" { items.append(["text": arg, "word": true]) }
                 i += 1
                 continue
@@ -150,7 +158,10 @@ enum CLI {
             case "--axis": a["axis"] = try val()
             case "--to": a["to"] = try val()
             case "--by", "--increment": a["by"] = try val()
-            case "--tab": a["level"] = "tab"
+            case "--tab": a["level"] = "tab"; a["placement"] = "tab"
+            case "--split": a["placement"] = "split"
+            case "--keep": a["close"] = false
+            case "--quiet": a["notify"] = false
             case "--workspace": a["level"] = "workspace"
             case "--pane": a["level"] = "pane"
             case "--state": a["state"] = try val()
@@ -179,6 +190,19 @@ enum CLI {
             a["items"] = merged
         case "focus", "close":
             if let t = positional.first { a["target"] = t }
+        case "run":
+            guard !positional.isEmpty else { throw Usage(message: "run needs a command, e.g. dealer run make test") }
+            // One argument is used verbatim (`dealer run "$*"`); several are shell-quoted.
+            a["command"] = positional.count == 1 ? positional[0] : positional.map(shellQuote).joined(separator: " ")
+            a.removeValue(forKey: "level")
+            if a["cwd"] == nil {
+                let env = ProcessInfo.processInfo.environment
+                a["cwd"] = env["PWD"].flatMap { FileManager.default.fileExists(atPath: $0) ? $0 : nil }
+                    ?? FileManager.default.currentDirectoryPath
+            }
+        case "job-done":
+            guard positional.count == 1, Int(positional[0]) != nil else { throw Usage(message: "job-done takes the exit status") }
+            a["status"] = Int(positional[0])
         case "rename":
             a["title"] = positional.joined(separator: " ")
         case "color":
@@ -192,6 +216,13 @@ enum CLI {
             throw Usage(message: "unknown command '\(cmd)' (see dealer help)")
         }
         return (cmd, a, out)
+    }
+
+    /// POSIX single-quoting, only where needed.
+    static func shellQuote(_ s: String) -> String {
+        let safe = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@%_+=:,./-")
+        if !s.isEmpty && s.unicodeScalars.allSatisfy(safe.contains) { return s }
+        return "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     // MARK: - Output
@@ -214,7 +245,7 @@ enum CLI {
                 return ((r[only] as? [String: Any])?["pane"]).map { "\($0)\n" } ?? ""
             }
             return "caller  \(line(r["caller"]))\nfocused \(line(r["focused"]))\n"
-        case "create":
+        case "create", "run":
             return "\(r["pane"] ?? "")\n"
         case "find":
             return (r["panes"] as? [Int] ?? []).map { "\($0)\n" }.joined()
