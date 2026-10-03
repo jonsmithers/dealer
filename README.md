@@ -1,3 +1,5 @@
+<img src="docs/icon.png" width="128" height="128" alt="Dealer app icon" align="right">
+
 # Dealer
 
 > **Disclaimer:** Dealer is 100% vibe-coded. I (Jon) don't know Swift, and I won't be able to
