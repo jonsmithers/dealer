@@ -46,7 +46,7 @@ workspaces, type into them, focus, resize, rename, color, list, and notify.
 | `color [--tab \| --workspace] COLOR\|none` | Colors a tab or workspace (#9). COLOR is a swatch name (`red`, `orange`, `yellow`, `green`, `teal`, `blue`, `purple`, `pink`, or numbers 1… with a `[colors] palette`), a swatch number, or `#rrggbb`; `none` clears it. A workspace/window target colors the workspace; a pane/tab target colors its tab. `list --json` shows `color` on workspaces and `tab_color` on tabs. |
 | `notify [--state unread\|done\|waiting\|none] [--title T] [--body B]` | Marks the pane for attention. See the README's Attention section. |
 | `close` | Closes a pane or tab without asking. |
-| `run [--split \| --tab] [--size 12\|30%] [--keep] [--quiet] [--focus] [--title T] [--cwd DIR] [--] CMD...` | Runs CMD as a background job next to the caller (see below) and prints the job's pane ID. A single argument is used verbatim (`dealer run "$*"`); several are shell-quoted. |
+| `run [--here] [--split \| --tab] [--size 12\|30%] [--keep] [--quiet] [--focus] [--title T] [--cwd DIR] [--] CMD...` | Runs CMD as a background job next to the caller (see below) and prints the job's pane ID. Routes to the workspace that best fits `$PWD`. One argument is a shell string; several are an argv, each word shell-quoted. |
 | `job-done STATUS` | Internal: the tail `run` types into the job's shell. Exits 0 when the shell should close. |
 
 ## Recipes
@@ -54,16 +54,37 @@ workspaces, type into them, focus, resize, rename, color, list, and notify.
 ### Background jobs: `dealer run` (replaces `b` / `b_str`)
 
 ```zsh
-b() { dealer run -- "$*"; }               # b make test: notify and close on success
-b_str() { dealer run --quiet -- "$*"; }   # same, without the "done" mark on success
+b() { dealer run -- "$@"; }               # b make test: notify and close on success
+b_str() { dealer run --quiet -- "$@"; }   # same, without the "done" mark on success
 ```
+
+**Quoting rule.** Use `"$@"`, not `"$*"`.
+- **Several arguments are an argv.** Each word is shell-quoted, so what your shell already parsed
+  arrives intact: `b open ~/Desktop/Screenshot\ 2024-12-10\ at\ 3.52.12\ PM.png`, or
+  `b grep -r '$HOME' '*.md'`.
+- **One argument is a shell string,** used as is, so pipelines, `&&` and redirections work:
+  `b 'make && make test'`, `b 'git log | head'`.
+- **The catch:** a single word that should stay one word despite containing spaces (`b "my script.sh"`)
+  is treated as a shell string and splits. Give it a second argument, or quote it inside the string:
+  `b "'my script.sh'"`.
 
 `dealer run` does the whole job in one synchronous call:
 
-- **Placement:** by default a split below the calling pane, 12 rows tall. With
-  `[jobs] placement = "tab"` (or `--tab`) it's a background tab right after the caller's. The split
-  height comes from `[jobs] size` or `--size`. Focus never moves, unless you pass `--focus`.
-- **Where:** next to `$DEALER_PANE_ID` (outside Dealer: the focused pane, or `-t`), in your `$PWD`.
+- **Where (route by cwd):** in the workspace that best fits `$PWD`. That's the one with a pane
+  whose current directory is the deepest one containing `$PWD`.
+  - On ties it prefers your own workspace, then your own pane.
+  - The job goes beside that best-fit pane, even in a background workspace.
+  - If no pane's directory contains `$PWD`, Dealer creates a workspace named after the directory,
+    with the job as its only pane. On success it closes, workspace and all.
+  - Which of the three happened is logged on stderr, for example
+    `dealer run: re-using workspace 3 "api", whose pane in ~/git/api owns ~/git/api/src more deeply than this one`.
+  - `--here` (or `-t TARGET`) skips routing and runs next to your own pane (or the target).
+  - The match uses each pane's directory as its shell reports it (OSC 7, which needs shell
+    integration), falling back to the foreground process's cwd. Workspaces have no root directory
+    of their own.
+- **Placement:** by default a split below the chosen pane, 12 rows tall. With
+  `[jobs] placement = "tab"` (or `--tab`) it's a background tab right after that pane's tab. The
+  split height comes from `[jobs] size` or `--size`. Focus never moves, unless you pass `--focus`.
 - **Title:** `RUN <cmd>`, which changes to `FAILED (status) <cmd>` (or `DONE <cmd>` with `--keep`).
 - **Running:** the command is typed into a normal interactive shell, so aliases, functions and
   your rc environment work, followed by a tail that reports the exit status:
@@ -74,7 +95,8 @@ b_str() { dealer run --quiet -- "$*"; }   # same, without the "done" mark on suc
 
   The leading space keeps the line out of history if you `setopt HIST_IGNORE_SPACE` (zsh) or
   set `HISTCONTROL=ignorespace` (bash).
-- **Success:** the shell exits and the pane closes. With `[jobs] close_on_success = false` or
+- **Success:** the pane closes. Dealer closes it itself, because ghostty keeps a shell that exits
+  within 250 ms of starting open as "abnormal". With `[jobs] close_on_success = false` or
   `--keep` it stays. The pane you ran it from gets the *done* mark (a muted dot), plus a macOS
   notification when Dealer isn't in front; `--quiet` skips both.
 - **Failure:** the pane stays open at a prompt, so you can inspect and rerun. It's marked
@@ -83,9 +105,6 @@ b_str() { dealer run --quiet -- "$*"; }   # same, without the "done" mark on suc
 
 Shells: zsh, bash and other POSIX shells. fish doesn't have `$?`; use
 `dealer create --no-focus` + `send-text` with your own tail there.
-
-**Not built in (see #21):** routing to the workspace that "owns" `$PWD`. Workspaces have no root
-directory yet; use `-t workspace:N` to pick one explicitly.
 
 ### `focus-nvim`: cycle through every pane running nvim
 
@@ -101,20 +120,10 @@ focus-nvim() {
 just after the focused pane, so repeated calls cycle through the matches. `focus` switches
 workspace and tab and raises the window in the same call.
 
-### Route by cwd: open in the workspace that owns `$PWD`
+### Route by cwd
 
-Workspaces don't have a directory of their own yet, so this treats a workspace as owning the
-cwds of its panes. It picks the workspace with the deepest pane cwd containing `$PWD`, and
-creates a workspace rooted at `$PWD` if none matches.
-
-```sh
-ws=$(dealer list --json | jq -r --arg pwd "$PWD" '
-  [.windows[].workspaces[] | {id, cwd: ([.decks[].tabs[].panes[].cwd // empty
-     | select(. as $c | ($pwd + "/") | startswith($c + "/"))] | max_by(length))}
-   | select(.cwd)] | max_by(.cwd | length) | .id // empty')
-if [ -n "$ws" ]; then dealer create tab -t "workspace:$ws" --cwd "$PWD"
-else dealer create workspace --cwd "$PWD" --name "$(basename "$PWD")"; fi
-```
+`dealer run` routes by cwd on its own (see Background jobs above). To place something other than
+a job the same way, use `dealer list --json`: every pane has a `cwd`.
 
 ## Protocol
 

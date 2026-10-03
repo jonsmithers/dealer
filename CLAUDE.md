@@ -147,6 +147,14 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   stay and mark waiting on failure) in Dealer, not in user shell functions. Don't switch it to the
   surface `command` (aliases and the failed-job prompt would be lost), and don't detect the end
   with ghostty's COMMAND_FINISHED (it fires for every command and needs shell integration).
+  - On success Dealer also removes the pane itself: ghostty on macOS keeps a shell that exits
+    within `abnormal-command-exit-runtime` (250 ms) open as "abnormal", so a quick job's `exit`
+    alone never closes it. Any pane-closing feature that relies on a fast shell exit has the same trap.
+  - Quoting (user's call): ONE CLI argument is a raw shell string; SEVERAL are an argv, quoted
+    word by word. The documented one-liner is `b() { dealer run -- "$@"; }`, never `"$*"`.
+  - Routing is by panes' current cwds (deepest containing `$PWD`, caller's workspace on ties,
+    else a new workspace named after the directory). The user rejected workspace root
+    directories in the model; don't add them for this.
 - `DEALER_*` env vars read through `SelfTest.env` fall back to the pre-rename `MYTERM_*` spelling,
   so code that strips an env var for a child process must strip both (see `SelfTestCLI.swift`).
   New variables such as `DEALER_PANE_ID` don't get the fallback.

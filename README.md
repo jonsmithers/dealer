@@ -334,15 +334,25 @@ Environment variables:
 `find --process RE`, and `notify`. Commands are synchronous and IDs are stable. See
 [docs/cli.md](docs/cli.md) for the reference and the `focus-nvim` recipe.
 
-**Background jobs:** `dealer run <cmd>` runs a command in a short pane below yours (or a
-background tab, per `[jobs] placement`), in your current directory, titled `RUN <cmd>`, without
-taking focus. On success the job pane closes and your pane gets the *done* mark (plus a macOS
-notification if Dealer isn't in front). On failure it stays open as a shell, titled
-`FAILED (status) <cmd>` and marked *waiting*, so ⌘⇧U takes you there. A one-line `b`:
+**Background jobs:** `dealer run <cmd>` runs a command without taking focus.
+- **Where:** in the workspace that best fits your directory (the one with the deepest pane
+  directory containing `$PWD`; yours on ties), as a short pane below that pane or a background tab,
+  per `[jobs] placement`. If no workspace fits, it gets a new workspace named after the directory.
+  stderr says which happened.
+- **Title:** `RUN <cmd>`.
+- **Success:** the job pane closes and your pane gets the *done* mark, plus a macOS notification
+  if Dealer isn't in front.
+- **Failure:** it stays open as a shell, titled `FAILED (status) <cmd>` and marked *waiting*, so ⌘⇧U
+  takes you there.
 
 ```zsh
-b() { dealer run -- "$*"; }          # b make test
+b() { dealer run -- "$@"; }               # b open ~/Desktop/Screenshot\ 1.png
+b_str() { dealer run --quiet -- "$@"; }   # same, without the "done" mark
 ```
+
+Several arguments are quoted word by word, so paths with spaces survive. A single argument is a
+shell string, so `b 'make && make test'` and pipelines work. `--here` skips the routing. Details are in
+[docs/cli.md](docs/cli.md#background-jobs-dealer-run-replaces-b--b_str).
 
 ## Session restore
 
