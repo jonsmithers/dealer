@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if SelfTest.enabled {
             let wc = TerminalWindowController()
             open(wc)
+            if let demo = Demo.name { return wc.runDemo(demo) }
             wc.runSelfTest { ok in
                 if SelfTest.quitWhenDone {
                     ControlServer.shared.stop()

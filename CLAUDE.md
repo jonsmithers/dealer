@@ -74,6 +74,15 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   `XDG_CONFIG_HOME` at a temp dir containing `ghostty/config` (e.g. `theme = Catppuccin Latte`).
   Ghostty also reads `~/Library/Application Support/com.mitchellh.ghostty/config`, which XDG
   doesn't redirect and which loads after it; check that it has no color settings.
+- **README recordings (#26):** `scripts/record-demo.sh <out-dir> [panes workspaces attention]` runs
+  `DEALER_SELFTEST=1 DEALER_DEMO=<name>` (Demo.swift: scripted steps with captions, every pane in a
+  neutral zsh with `ZDOTDIR=/tmp/demo`) and records the window region with ffmpeg/avfoundation,
+  without the pointer. Use that rather than `screencapture -v -l`, which records the pointer and
+  makes macOS swap the traffic lights for a capture badge. It needs an unlocked screen and Screen
+  Recording permission. The demo window floats, so nothing else gets into the frame. **GIFs/MP4s live
+  only on the orphan `media` branch** (its own worktree), never on master; the README links them as
+  `https://github.com/jonsmithers/dealer/raw/media/demos/<file>`. Review every frame (contact sheets
+  via ffmpeg `tile`) before pushing `media`.
 - **Locked screen:** `ghostty_surface_new` returns nil for every pane and `screencapture -l` fails.
   Self-test checks that need a live shell or cell metrics print `(skipped …)` and still pass; if
   you see those, say that shell-level behavior (send-text, `--command`, process listing, `--size`

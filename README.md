@@ -23,6 +23,40 @@ owned by a tab. Splitting always makes panes; **promote** turns a pane into a de
 turns it back. Closing the last deck of a workspace closes the workspace, and closing the last
 workspace closes the window.
 
+## Demos
+
+Short recordings, played back by Dealer's scripted demo mode (`scripts/record-demo.sh`). Steps go
+through the same controller commands as the menus and shortcuts; drags are applied as the drop
+they'd make, so no pointer is shown.
+
+<details>
+<summary><b>Panes and decks</b>: split, promote, fold, tabs per deck, moving a pane to another deck</summary>
+
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/panes.gif" alt="Splitting a tab into panes, promoting a pane to its own deck, folding it back, giving each deck its own tabs, and dropping a pane onto another deck's tab strip" width="1000">
+
+[Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/panes.mp4)
+</details>
+
+<details>
+<summary><b>Workspaces</b>: the sidebar, switching with ⌃1–9, moving a tab to another workspace</summary>
+
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/workspaces.gif" alt="Creating workspaces, which brings up the sidebar, switching between them, and moving a tab into another workspace" width="1000">
+
+[Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/workspaces.mp4)
+</details>
+
+<details>
+<summary><b>Agent attention</b>: waiting outline, ⌘⇧U jump, done dot</summary>
+
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/attention.gif" alt="A pane turns waiting with a blue outline on the pane, its tab and its workspace, stays visible from another workspace, Jump to Next Unread goes back to it, then it turns done with a quiet dot" width="1000">
+
+The states here are driven with `dealer notify`, which is exactly what Dealer's automatic
+Claude Code hooks call (see [Attention](#attention-coding-agents)). This is not a live Claude
+session: a real one shows its own permission prompt in the pane.
+
+[Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/attention.mp4)
+</details>
+
 ## Build & run
 
 Prerequisites: macOS 14+, Xcode command-line tools, `brew install zig@0.15` (Homebrew's default
@@ -346,4 +380,5 @@ and asserts the tree after each step.
 - `SelfTest*.swift` – self-test, one file per feature section
 - `AgentStatus.swift` – pane status line (agent state, cwd, git branch)
 - `AgentLaunch.swift` – New Agent Pane presets
+- `Demo.swift` – scripted demo mode for the README recordings (`DEALER_DEMO`, `scripts/record-demo.sh`)
 - `Attention.swift` – per-pane attention (bell/OSC/agent), badges, jump to next unread, macOS notifications

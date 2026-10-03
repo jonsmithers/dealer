@@ -173,6 +173,7 @@ final class Pane {
         // Absolute path to this binary, which also acts as the `dealer` CLI (hooks use it, #12).
         if let exe = Bundle.main.executablePath { env["DEALER_CLI"] = exe }
         env.merge(ClaudeHooks.environment()) { $1 }
+        env.merge(Demo.environment) { $1 }  // README demos (#26): neutral shell
         return env
     }
     let surface: SurfaceView
@@ -193,7 +194,7 @@ final class Pane {
     init(workingDirectory: String?, command: String? = nil) {
         id = Pane.nextID
         Pane.nextID += 1
-        surface = SurfaceView(workingDirectory: workingDirectory, env: Pane.childEnvironment(id), command: command)
+        surface = SurfaceView(workingDirectory: workingDirectory ?? Demo.workingDirectory, env: Pane.childEnvironment(id), command: command)
         view = PaneView()
         surface.pane = self
         view.pane = self
