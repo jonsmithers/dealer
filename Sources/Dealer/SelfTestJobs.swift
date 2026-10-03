@@ -14,6 +14,8 @@ extension TerminalWindowController {
         let tmp = NSTemporaryDirectory() + "dealer-jobs-\(getpid())"
         try? fm.createDirectory(atPath: tmp, withIntermediateDirectories: true)
         var savedSettings: String?
+        var lastRoute: [String: Any]?
+        var jbGone = false
 
         @discardableResult
         func call(_ cmd: String, _ args: [String: Any] = [:], caller: String? = nil) -> [String: Any]? {
@@ -70,6 +72,34 @@ extension TerminalWindowController {
             let got = Int(ghostty_surface_size(s).rows)
             return abs(got - want) <= 2 ? nil : "\(n) should be about \(want) rows, is \(got)"
         }
+        /// Runs the real CLI binary as a client of this instance, from `dir`, as if called in `caller`.
+        func cli(_ args: [String], from dir: String, caller: String = "j0") -> (status: Int32, out: String, err: String) {
+            guard let socket = ControlServer.shared.path else { return (-1, "", "no socket") }
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
+            p.arguments = args
+            p.currentDirectoryURL = URL(fileURLWithPath: dir)
+            var env = ProcessInfo.processInfo.environment
+            env["DEALER_SOCKET"] = socket
+            env["DEALER_PANE_ID"] = "\(ids[caller] ?? 0)"
+            env["PWD"] = dir
+            for k in ["DEALER_SELFTEST", "MYTERM_SELFTEST"] { env.removeValue(forKey: k) }
+            p.environment = env
+            let out = Pipe(), err = Pipe()
+            p.standardOutput = out
+            p.standardError = err
+            do { try p.run() } catch { return (-1, "", "\(error)") }
+            _ = wait(10) { !p.isRunning }
+            if p.isRunning { p.terminate(); return (-1, "", "timed out") }
+            return (p.terminationStatus, String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self),
+                    String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self))
+        }
+        func workspace(_ name: String) -> Workspace? { self.workspaces.first { $0.name == name } }
+        func routed(_ r: [String: Any]?) -> String? { (r?["route"] as? [String: Any])?["outcome"] as? String }
+        func skipped(_ what: String) -> String? {
+            print("      (skipped \(what): ghostty couldn't create terminal surfaces here)")
+            return nil
+        }
         /// Marks only show when the user isn't looking at the pane (Attention.swift).
         func marked(_ n: String, _ a: Attention) -> String? {
             guard let p = pane(n) else { return "\(n) is gone" }
@@ -115,12 +145,12 @@ extension TerminalWindowController {
         var j0Looked = false
         t.step("jobs: ...and its shell exits", nil, {
             guard live, let s = jb?.surface.surface else { return nil }
-            return wait(10, { ghostty_surface_process_exited(s) }) ? nil : "jb's shell should have exited"
+            let ok = wait(10, { ghostty_surface_process_exited(s) })
+            return ok ? nil : "jb's shell should have exited"
         }) { jb = pane("jb") }
         t.step("jobs: --keep --quiet: a successful job stays, retitled, and nothing is marked", nil, {
             jb = nil
-            return all(eq(ids["jb"].flatMap(ControlHandler.pane(id:)) == nil, true, "jb closed by its shell's exit"),
-                j0Looked || j0AfterClose == .done ? nil : "j0's done mark should survive the job pane closing, is \(j0AfterClose?.name ?? "nil")",
+            return all(j0Looked || j0AfterClose == .done ? nil : "j0's done mark should survive the job pane closing, is \(j0AfterClose?.name ?? "nil")",
                 outcome("jc", status: 0) { pane("jc")?.customTitle == "DONE true" },
                 eq(pane("j0")?.attention, Attention.none, "caller attention"))
         }) {
@@ -167,10 +197,94 @@ extension TerminalWindowController {
                        cwd.map { ($0 as NSString).resolvingSymlinksInPath == (tmp as NSString).resolvingSymlinksInPath } == true
                            ? nil : "job cwd \(cwd ?? "nil") should be \(tmp)")
         }) {}
-        t.step("jobs: close the test workspace", nil, {
-            self.workspaces.contains { $0.name == "jobs" } ? "workspace should be gone" : nil
+        // Route by cwd (#21): the deepest pane directory containing $PWD wins; ties go to the
+        // caller's workspace; nothing containing it makes a workspace named after the directory.
+        let solo = NSTemporaryDirectory() + "dealer-jobs-solo-\(getpid())"
+        let sleeper = "sleep 30"
+        t.step("jobs: route: a deeper pane in another workspace wins, focus and workspace stay", nil, {
+            guard let jp = pane("r1"), let l = self.locate(jp) else { return all("no routed job") }
+            return all(eq(routed(lastRoute), "other", "outcome"), eq(l.workspace.name, "deep", "workspace"),
+                       l.node.sibling?.leaf === pane("rb") ? nil : "job should be split beside rb",
+                       eq(self.activeWorkspace.name, "jobs", "active workspace"), focused("j0"))
         }) {
-            if let ws = self.workspaces.first(where: { $0.name == "jobs" }) { self.remove(workspace: ws) }
+            for d in ["/a/b/c", "/x", "/y"] { try? fm.createDirectory(atPath: tmp + d, withIntermediateDirectories: true) }
+            try? fm.createDirectory(atPath: solo, withIntermediateDirectories: true)
+            created(call("create", ["type": "workspace", "target": "focused", "name": "deep", "cwd": tmp + "/a/b", "focus": false]), "rb")
+            let r = call("run", ["command": sleeper, "cwd": tmp + "/a/b/c", "placement": "split"], caller: "j0")
+            lastRoute = r
+            created(r, "r1")
+        }
+        t.step("jobs: route: the caller's own workspace when it owns $PWD most deeply", nil, {
+            all(eq(routed(lastRoute), "caller", "outcome"), eq(pane("r2").flatMap { self.locate($0)?.workspace.name }, "jobs", "workspace"))
+        }) {
+            let r = call("run", ["command": sleeper, "cwd": tmp + "/a", "placement": "split"], caller: "j0")
+            lastRoute = r
+            created(r, "r2")
+        }
+        t.step("jobs: route: ties go to the caller's workspace, whichever it is", nil, {
+            all(eq(pane("r3").flatMap { self.locate($0)?.workspace.name }, "tie", "from the tie workspace's pane"),
+                eq(pane("r4").flatMap { self.locate($0)?.workspace.name }, "jobs", "from j0"), focused("j0"))
+        }) {
+            created(call("create", ["type": "workspace", "target": "focused", "name": "tie", "cwd": tmp, "focus": false]), "rt")
+            created(call("run", ["command": sleeper, "cwd": tmp + "/x", "placement": "split"], caller: "rt"), "r3")
+            // Not /x: r3 now sits there, deeper than either caller.
+            created(call("run", ["command": sleeper, "cwd": tmp + "/y", "placement": "split"], caller: "j0"), "r4")
+        }
+        t.step("jobs: route: -t and --here skip routing", nil, {
+            all(eq(pane("r5").flatMap { self.locate($0)?.workspace.name }, "jobs", "--here"), eq(routed(lastRoute), nil, "no route info"))
+        }) {
+            let r = call("run", ["command": sleeper, "cwd": tmp + "/a/b/c", "placement": "split", "route": false], caller: "j0")
+            lastRoute = r
+            created(r, "r5")
+        }
+        t.step("jobs: route: nothing owns $PWD, so `dealer run` makes a workspace named after it, logged on stderr", nil, {
+            let (st, out, err) = cli(["run", "--", sleeper], from: solo)
+            let name = (solo as NSString).lastPathComponent
+            guard let id = Int(out.trimmingCharacters(in: .whitespacesAndNewlines)), let jp = ControlHandler.pane(id: id),
+                  let l = self.locate(jp) else { return "run printed \(out.debugDescription) (\(st)) \(err)" }
+            return all(eq(l.workspace.name, name, "new workspace name"), eq(l.workspace.panes.count, 1, "panes in it"),
+                       err.contains("no workspace owned") && err.contains(name) ? nil : "stderr: \(err.debugDescription)",
+                       eq(self.activeWorkspace.name, "jobs", "active workspace"), focused("j0"))
+        }) {}
+        t.step("jobs: route: the CLI logs re-use of a deeper workspace", nil, {
+            // rb (in "deep") is at a/b; "jobs" only reaches a/b via r2 at a.
+            let (_, _, err) = cli(["run", "--", sleeper], from: tmp + "/a/b")
+            return err.contains("re-using workspace") && err.contains("\"deep\"") ? nil : "stderr: \(err.debugDescription)"
+        }) {}
+
+        // Quoting (#21): `b() { dealer run -- "$@"; }`. Several args are quoted word by word; one
+        // arg is a shell string. Checked in a real shell when there is one.
+        let shot = tmp + "/Screenshot 2024-12-10 at 3.52.12 PM.png"
+        t.step("jobs: quoting: a path with spaces, quotes, $ and globs survive; a single string is a pipeline", nil, {
+            guard live else { return all(skipped("real-shell quoting")) }
+            let ok = wait(20) {
+                fm.fileExists(atPath: tmp + "/copied.png") && fm.fileExists(atPath: tmp + "/words")
+                    && fm.fileExists(atPath: tmp + "/piped")
+            }
+            let words = (try? String(contentsOfFile: tmp + "/words", encoding: .utf8)) ?? ""
+            let piped = (try? String(contentsOfFile: tmp + "/piped", encoding: .utf8)) ?? ""
+            return all(ok ? nil : "jobs didn't all produce their files (copied.png, words, piped)",
+                       eq(words, "it's\n$HOME\n*.png\n\"q\"\n", "words"),
+                       eq(piped, "A B\n", "pipeline"))
+        }) {
+            fm.createFile(atPath: shot, contents: Data("png".utf8))
+            for args in [["run", "--", "cp", shot, "copied.png"],
+                         ["run", "--", "sh", "-c", "printf '%s\\n' \"$@\" > words", "sh", "it's", "$HOME", "*.png", "\"q\""],
+                         ["run", "--", "printf 'a b\\n' | tr a-z A-Z > piped"]] {
+                let r = cli(args, from: tmp)
+                if r.status != 0 { lastError = "\(args): \(r.status) \(r.err)"; return }
+            }
+        }
+        t.step("jobs: close the test workspace", nil, {
+            // Checked this late because the close arrives on the main queue, between steps.
+            all(eq(jbGone, true, "jb closed by its shell's exit"),
+                self.workspaces.contains { ["jobs", "deep", "tie"].contains($0.name ?? "") } ? "test workspaces should be gone" : nil)
+        }) {
+            jbGone = ids["jb"].flatMap(ControlHandler.pane(id:)) == nil
+            for n in ["jobs", "deep", "tie", (solo as NSString).lastPathComponent] {
+                if let ws = workspace(n) { self.remove(workspace: ws) }
+            }
+            try? fm.removeItem(atPath: solo)
             if let s = savedSettings { try? s.write(to: Settings.fileURL, atomically: true, encoding: .utf8) }
             else { try? fm.removeItem(at: Settings.fileURL) }
             Settings.reload(force: true)

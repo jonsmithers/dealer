@@ -37,8 +37,10 @@ enum CLI {
       color [-t T] [--tab | --workspace] COLOR|none  swatch name or number, or #rrggbb
       notify [-t T] [--state unread|done|waiting|none] [--title T] [--body B]
       close [-t T]
-      run [-t T] [--split | --tab] [--size 12|30%] [--keep] [--quiet] [--focus] [--title T] [--cwd DIR] CMD...
-                                                 run CMD in a job pane next to you (focus stays);
+      run [-t T | --here] [--split | --tab] [--size 12|30%] [--keep] [--quiet] [--focus] [--title T] [--cwd DIR] CMD...
+                                                 run CMD in a job pane (focus stays) in the workspace
+                                                 that best fits $PWD (one arg: a shell string; several:
+                                                 each word quoted);
                                                  success closes it and marks you done, failure keeps
                                                  it open, marked waiting. Prints the job's pane ID.
 
@@ -78,6 +80,7 @@ enum CLI {
             let result = resp["result"] as? [String: Any] ?? [:]
             // The job's shell runs `job-done $? && exit`: exit 0 means "close this pane".
             if cmd == "job-done" { return result["close"] as? Bool == true ? 0 : 1 }
+            if cmd == "run", let route = result["route"] as? [String: Any] { logRoute(route) }
             print(format(cmd, result, output), terminator: "")
             return 0
         } catch let u as Usage {
@@ -161,6 +164,7 @@ enum CLI {
             case "--tab": a["level"] = "tab"; a["placement"] = "tab"
             case "--split": a["placement"] = "split"
             case "--keep": a["close"] = false
+            case "--here": a["route"] = false
             case "--quiet": a["notify"] = false
             case "--workspace": a["level"] = "workspace"
             case "--pane": a["level"] = "pane"
@@ -192,13 +196,17 @@ enum CLI {
             if let t = positional.first { a["target"] = t }
         case "run":
             guard !positional.isEmpty else { throw Usage(message: "run needs a command, e.g. dealer run make test") }
-            // One argument is used verbatim (`dealer run "$*"`); several are shell-quoted.
+            // The quoting rule (#21): ONE argument is a shell string, used as is, so pipelines and
+            // `&&` work (`dealer run 'make && make test'`). SEVERAL arguments are an argv: each word
+            // is shell-quoted, so `b() { dealer run -- "$@"; }` keeps paths with spaces intact.
             a["command"] = positional.count == 1 ? positional[0] : positional.map(shellQuote).joined(separator: " ")
             a.removeValue(forKey: "level")
             if a["cwd"] == nil {
-                let env = ProcessInfo.processInfo.environment
-                a["cwd"] = env["PWD"].flatMap { FileManager.default.fileExists(atPath: $0) ? $0 : nil }
-                    ?? FileManager.default.currentDirectoryPath
+                // $PWD keeps the logical (symlinked) spelling, but only if it's really where we are:
+                // a program that chdir'd (nvim's :cd) leaves $PWD stale.
+                let actual = FileManager.default.currentDirectoryPath
+                let pwd = ProcessInfo.processInfo.environment["PWD"]
+                a["cwd"] = pwd.flatMap { ControlJobs.canonical($0) == ControlJobs.canonical(actual) ? $0 : nil } ?? actual
             }
         case "job-done":
             guard positional.count == 1, Int(positional[0]) != nil else { throw Usage(message: "job-done takes the exit status") }
@@ -216,6 +224,19 @@ enum CLI {
             throw Usage(message: "unknown command '\(cmd)' (see dealer help)")
         }
         return (cmd, a, out)
+    }
+
+    /// Says where `run` put the job, since landing in the wrong workspace is otherwise invisible.
+    static func logRoute(_ r: [String: Any]) {
+        let ws = "workspace \(r["workspace"] ?? "?") \"\(r["name"] as? String ?? "")\""
+        let cwd = r["cwd"] as? String ?? "$PWD"
+        let line: String
+        switch r["outcome"] as? String {
+        case "caller": line = "re-using this workspace (\(ws)), which owns \(cwd)"
+        case "other": line = "re-using \(ws), whose pane in \(r["owner"] as? String ?? "?") owns \(cwd) more deeply than this one"
+        default: line = "no workspace owned \(cwd); created \(ws) there"
+        }
+        FileHandle.standardError.write(Data("dealer run: \(line)\n".utf8))
     }
 
     /// POSIX single-quoting, only where needed.
