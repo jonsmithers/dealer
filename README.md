@@ -6,6 +6,7 @@ history. It shares no history with `master`; don't merge it.
 - `demos/*.gif`: inline in the README (GitHub renders GIFs from raw URLs).
 - `demos/*.mp4`: higher-quality versions, linked next to each GIF.
 
-Recorded with `scripts/record-demo.sh` on `master` (scripted demo mode, `DEALER_DEMO=<name>`),
-in a neutral `/tmp/demo` project with a neutral prompt. To update: rerun the script, review every
-frame, copy the files here, and commit to this branch only.
+Everything here is generated on `master` by `scripts/record-demo.sh` (scripted mouse demos in
+`Sources/Dealer/Demo.swift`, in a neutral `/tmp/demo` project). To update: run it, read every
+contact sheet it writes to `<out-dir>/review/`, then `scripts/record-demo.sh <out-dir> --publish
+<this worktree>` and push this branch.
