@@ -1,4 +1,5 @@
 import AppKit
+import GhosttyKit
 
 // MARK: - Self-test section: `dealer run` jobs (issue #21)
 
@@ -63,6 +64,12 @@ extension TerminalWindowController {
             if status == 0, r?["close"] as? Bool == true, let p = pane(job) { self.remove(p) }
             return cond() ? nil : "state after job-done \(status) is wrong"
         }
+        /// `[jobs] size` defaults to 12 rows (needs a live surface for cell metrics).
+        func rows(_ n: String, near want: Int) -> String? {
+            guard live, let s = pane(n)?.surface.surface else { return nil }
+            let got = Int(ghostty_surface_size(s).rows)
+            return abs(got - want) <= 2 ? nil : "\(n) should be about \(want) rows, is \(got)"
+        }
         /// Marks only show when the user isn't looking at the pane (Attention.swift).
         func marked(_ n: String, _ a: Attention) -> String? {
             guard let p = pane(n) else { return "\(n) is gone" }
@@ -79,7 +86,8 @@ extension TerminalWindowController {
         t.step("jobs: run (default split) opens a short titled pane below and keeps focus", nil, {
             all(tree("Deck0[*Col(j0, ja)]"), focused("j0"), eq(pane("ja")?.title, "RUN false", "title"),
                 pane("ja").flatMap { ControlJobs.job(for: $0) } != nil ? nil : "ja should be registered as a job",
-                eq(Settings.jobPlacement, "split", "default placement"))
+                eq(Settings.jobPlacement, "split", "default placement"),
+                rows("ja", near: 12))
         }) {
             created(call("run", ["command": "false", "cwd": tmp], caller: "j0"), "ja")
         }
@@ -95,13 +103,29 @@ extension TerminalWindowController {
             Settings.reload(force: true)
             created(call("run", ["command": "true", "cwd": tmp], caller: "j0"), "jb")
         }
-        t.step("jobs: a successful job closes its pane and marks the caller done", nil, {
-            all(outcome("jb", status: 0) { pane("jb") == nil }, tree("Deck0[*Col(j0, ja)]"), marked("j0", .done), focused("j0"))
+        t.step("jobs: a successful job reports success and marks the caller done", nil, {
+            all(outcome("jb", status: 0) { pane("jb").flatMap { ControlJobs.job(for: $0)?.status } == 0 || pane("jb") == nil },
+                marked("j0", .done), focused("j0"))
         }) {}
+        // The shell's `exit` closes the pane through ghostty's close callback, which arrives on the
+        // main queue: not inside a check's run-loop wait, only between steps. So this step waits for
+        // the shell to exit, and the next one checks the pane is gone.
+        var jb: Pane?
+        var j0AfterClose: Attention?
+        var j0Looked = false
+        t.step("jobs: ...and its shell exits", nil, {
+            guard live, let s = jb?.surface.surface else { return nil }
+            return wait(10, { ghostty_surface_process_exited(s) }) ? nil : "jb's shell should have exited"
+        }) { jb = pane("jb") }
         t.step("jobs: --keep --quiet: a successful job stays, retitled, and nothing is marked", nil, {
-            all(outcome("jc", status: 0) { pane("jc")?.customTitle == "DONE true" },
+            jb = nil
+            return all(eq(ids["jb"].flatMap(ControlHandler.pane(id:)) == nil, true, "jb closed by its shell's exit"),
+                j0Looked || j0AfterClose == .done ? nil : "j0's done mark should survive the job pane closing, is \(j0AfterClose?.name ?? "nil")",
+                outcome("jc", status: 0) { pane("jc")?.customTitle == "DONE true" },
                 eq(pane("j0")?.attention, Attention.none, "caller attention"))
         }) {
+            j0AfterClose = pane("j0")?.attention
+            j0Looked = pane("j0").map { self.isLookingAt($0) } ?? false
             pane("j0").map { self.clearAttention($0) }
             created(call("run", ["command": "true", "cwd": tmp, "close": false, "notify": false, "placement": "split", "size": "20%"],
                          caller: "j0"), "jc")
