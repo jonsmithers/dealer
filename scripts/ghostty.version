@@ -1,0 +1,4 @@
+# Ghostty commit that vendor/GhosttyKit.xcframework is built from (read by build-ghosttykit.sh).
+# The Swift code targets this commit's include/ghostty.h, which is an unstable internal API. Bump it
+# deliberately: rebuild, fix the C API drift, run the self-test, and commit the new hash.
+243f7df7c131f9cc69bed4bc4586f5bf17b9d4fa

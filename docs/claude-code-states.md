@@ -325,4 +325,4 @@ Claude Code 2.1.285 (2.1.287 for the #12 real-session check). cmux: the user's c
 - Terminal configuration: https://code.claude.com/docs/en/terminal-config
 - Environment variables: https://code.claude.com/docs/en/env-vars
 
-libghostty sets `TERM_PROGRAM`/`TERM_PROGRAM_VERSION`: `~/git/ghostty/src/termio/Exec.zig`.
+libghostty sets `TERM_PROGRAM`/`TERM_PROGRAM_VERSION`: `src/termio/Exec.zig` in ghostty-org/ghostty.

@@ -8,12 +8,21 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
 ## Building
 
 - `vendor/GhosttyKit.xcframework` is git-ignored and required. Produce it with
-  `scripts/build-ghosttykit.sh`, which builds from `~/git/ghostty`. A new git worktree doesn't have
-  it; symlink `vendor/GhosttyKit.xcframework` from the main checkout instead of rebuilding.
-- Ghostty needs **zig 0.15**. Homebrew's default `zig` is 0.16 and fails; the script uses
-  `/opt/homebrew/opt/zig@0.15/bin/zig`.
-- The Swift code is written against the `ghostty.h` shipped in the xcframework. If you
-  update the ghostty checkout, rebuild the framework and expect C API drift (struct fields, enum names).
+  `scripts/build-ghosttykit.sh`, which finds the Ghostty checkout via `--ghostty`/`$GHOSTTY_SRC`,
+  then a sibling `../ghostty` (of the main checkout too, so it works from worktrees), then a prompt.
+  A new git worktree doesn't have the framework; symlink `vendor/GhosttyKit.xcframework` from the
+  main checkout instead of rebuilding. The script's `rm` of a symlinked framework only removes the
+  link, but pass `--out <tmp>` when testing it, and use `--dry-run` to avoid a slow zig build.
+- **Ghostty is pinned** in `scripts/ghostty.version`, and the script refuses other commits unless
+  you pass `--any-version`. `ghostty.h` is Ghostty's internal API and breaks without notice. For
+  example, after the pin the clipboard callbacks and `ghostty_surface_complete_clipboard_request`
+  changed signature, and `main` moved to zig 0.16. Never move the user's Ghostty checkout yourself;
+  for a different commit, use a `git clone --shared` into a temp dir. To bump the pin, rebuild, fix
+  the drift, run the self-test, and update the hash.
+- The pinned commit needs **zig 0.15**. The script reads `minimum_zig_version` from the checkout's
+  `build.zig.zon` and prefers `/opt/homebrew/opt/zig@<ver>/bin/zig`; Homebrew's default `zig` is 0.16.
+- The binary records its source commit: `strings vendor/GhosttyKit.xcframework/*/libghostty-internal-fat.a
+  | grep -- '-main-+'` prints e.g. `1.3.2-main-+243f7df7c`.
 - `swift build` compiles the code; `scripts/bundle.sh [debug|release]` produces `build/Dealer.app`.
 
 ## Running
@@ -91,7 +100,8 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
 - Ghostty keybind actions (`new_split`, `goto_tab`, …) are mapped onto our own commands in
   `GhosttyRuntime.handle`, so user configs still work.
 - Keyboard/IME handling is a trimmed port of Ghostty's own
-  `~/git/ghostty/macos/Sources/Ghostty/Surface View/SurfaceView_AppKit.swift`. Check that file
+  `macos/Sources/Ghostty/Surface View/SurfaceView_AppKit.swift` in ghostty-org/ghostty (read it at the
+  pinned commit, `git show <pin>:<path>`, since upstream moves on). Check that file
   before changing key handling.
 - `[window] tabs_in_titlebar` (#16, off by default) moves only top-edge decks' strips into the
   titlebar row; lower decks keep theirs. In top-bar workspace mode the pills keep a fixed left

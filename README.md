@@ -23,12 +23,22 @@ workspace closes the window.
 
 ## Build & run
 
-Prerequisites: macOS 14+, Xcode command-line tools, a Ghostty checkout at `~/git/ghostty`,
-`brew install zig@0.15` (Homebrew's default zig 0.16 can't build Ghostty), and ideally
-`/Applications/Ghostty.app` for shell integration and terminfo.
+Prerequisites: macOS 14+, Xcode command-line tools, `brew install zig@0.15` (Homebrew's default
+zig 0.16 can't build the pinned Ghostty), ideally `/Applications/Ghostty.app` for shell integration
+and terminfo, and a Ghostty checkout at the commit pinned in `scripts/ghostty.version`. The easiest
+place for it is next to this repo:
 
 ```sh
-scripts/build-ghosttykit.sh      # once: builds GhosttyKit.xcframework from ~/git/ghostty into vendor/
+git clone https://github.com/ghostty-org/ghostty.git ../ghostty
+git -C ../ghostty checkout --detach "$(tail -1 scripts/ghostty.version)"
+```
+
+`build-ghosttykit.sh` looks for the checkout in `--ghostty PATH` / `$GHOSTTY_SRC`, then `../ghostty`,
+then asks. It refuses to build a different commit unless you pass `--any-version`, because
+libghostty's embedding API changes often. `--dry-run` shows what it would do.
+
+```sh
+scripts/build-ghosttykit.sh      # once: builds GhosttyKit.xcframework from the Ghostty checkout into vendor/
 scripts/bundle.sh                # swift build + wraps build/Dealer.app (release by default; `debug` for a debug build)
 open build/Dealer.app            # run it
 ```
