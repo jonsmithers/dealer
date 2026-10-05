@@ -35,4 +35,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 codesign --force --sign - "$APP" >/dev/null 2>&1 || true
+# Re-register this bundle with Launch Services now, so its icon is on record before the app first
+# asks for notification permission (#30). Notification Center caches the icon per bundle ID; a
+# bundle first seen without an icon showed a white square. Scoped to this one bundle.
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+[ -x "$LSREGISTER" ] && "$LSREGISTER" -f "$APP" >/dev/null 2>&1 || true
 echo "$APP"
