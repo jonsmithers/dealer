@@ -237,6 +237,7 @@ extension TerminalWindowController {
         paneCloseSelfTestSteps(kit)
         themeSelfTestSteps(kit)
         dragSettleSelfTestSteps(kit)
+        edgeSplitSelfTestSteps(kit)
 
         var failures = 0
         func run(_ i: Int) {

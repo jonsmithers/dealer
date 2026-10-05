@@ -452,9 +452,14 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     // MARK: - Commands: decks
 
     /// Pane → deck. With no side, the pane hoists to the window edge its outermost split puts it on.
+    ///
+    /// Sizing (#31): a pane or group split out of a tab keeps its size (menu Promote, #2). A whole
+    /// tab, or anything with `evenly` (window-edge drops), shares the space evenly with the decks
+    /// along that edge's axis instead: a tab fills its deck, so "keep its size" would mean the
+    /// whole window. `fraction` overrides both.
     /// - Parameter allowWholeDeck: moving a deck's only tab just relocates the deck; commands disallow it.
     @discardableResult
-    func promote(_ node: Node<Pane>, side: Side? = nil, fraction: CGFloat? = nil, allowWholeDeck: Bool = false) -> Bool {
+    func promote(_ node: Node<Pane>, side: Side? = nil, fraction: CGFloat? = nil, allowWholeDeck: Bool = false, evenly: Bool = false) -> Bool {
         guard let src = node.leaves.first.flatMap({ locate($0) }), let root = src.workspace.root else { return false }
         let ws = src.workspace
         let focus = focusedPane.flatMap { node.node(for: $0) != nil ? $0 : nil } ?? node.leaves.first
@@ -463,6 +468,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         let edge: Side
         // Measure before detaching: a promoted pane keeps its width (or height, for a stacked split).
         let before = frame(of: node)
+        let even = evenly || node === src.tab.root
 
         if node === src.tab.root {
             // Only pane in its tab: the whole tab moves out into a new deck.
@@ -484,13 +490,17 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         }
 
         var f = fraction ?? 0.5
-        if fraction == nil, let r = before {
-            // Include the deck's own chrome so the terminal ends up the same size.
+        if fraction == nil, even {
+            // After detaching: a deck emptied by the move is already gone from the count.
+            f = evenEdgeFraction(side: edge, in: ws.root)
+        } else if fraction == nil, let r = before {
+            // Include the deck's own chrome so the terminal ends up the same size. The new deck gets
+            // `f` of the area minus the gap in front of it (see `Node.layout`).
             f = edge.axis == .row
-                ? (r.width + DeckView.chromeSize.width + Self.deckGap) / area.width
-                : (r.height + DeckView.chromeSize.height + Self.deckGap) / area.height
+                ? (r.width + DeckView.chromeSize.width) / max(area.width - Self.deckGap, 1)
+                : (r.height + DeckView.chromeSize.height) / max(area.height - Self.deckGap, 1)
+            f = min(max(f, 0.1), 0.6)
         }
-        f = min(max(f, 0.1), 0.6)
 
         guard let current = ws.root else {
             ws.root = Node(deck)
@@ -501,6 +511,24 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         zoom = nil
         finishChange(focus: focus)
         return true
+    }
+
+    /// The share a new deck at the window's `side` edge needs for it and every deck along that
+    /// edge's axis in `root` to come out the same size (#31). `excluding` leaves out a deck that the
+    /// move will empty (for the drop preview, measured before the move).
+    func evenEdgeFraction(side: Side, in root: Node<Deck>?, excluding: Deck? = nil) -> CGFloat {
+        func span(_ n: Node<Deck>) -> Int {
+            if let d = n.leaf { return d === excluding ? 0 : 1 }
+            guard let a = n.a, let b = n.b else { return 0 }
+            return n.axis == side.axis ? span(a) + span(b) : max(span(a), span(b))
+        }
+        let k = CGFloat(root.map(span) ?? 0)
+        guard k > 0 else { return 0.5 }
+        // k + 1 decks of size x with k gaps fill the area; the new deck gets f of (area - one gap).
+        let a = side.axis == .row ? deckArea.width : deckArea.height
+        let g = Self.deckGap
+        let x = (a - k * g) / (k + 1)
+        return min(max(x / max(a - g, 1), 0.1), 0.5)
     }
 
     /// Deck → pane. The reverse of promote.

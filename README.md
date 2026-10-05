@@ -113,7 +113,7 @@ colors from your Ghostty theme (background/foreground, `unfocused-split-*`, `spl
 | ⌘W / ⌥⌘W | Close pane / tab |
 | ⌘1…⌘8, ⌘9 | Go to tab / last tab in the focused deck |
 | ⌘⇧] / ⌘⇧[ | Next / previous tab |
-| ⌘⇧P | **Promote**: pane → deck, hoisted to the window edge on its side, keeping its width |
+| ⌘⇧P | **Promote**: pane → deck, hoisted to the window edge on its side, keeping its width (a whole tab gets an even share instead) |
 | ⌘⇧F | **Fold**: deck → pane, back where it came from |
 | ⌘⇧↑ | Select parent split (then ⌘⇧P promotes the whole group) |
 | ⌘⌥←→↑↓ | Move focus by geometry, across decks |
@@ -180,7 +180,7 @@ or drag a tab:
 | Edge of another pane | re-split beside it | rejoins as a split |
 | Centre of another pane | swap the two | — |
 | A tab strip | becomes its own tab (works across decks) | reorder / move to that deck |
-| Window edge (past the decks) | promote to a new deck | becomes a new deck |
+| Window edge (past the decks) | promote to a new deck, sized evenly with the decks along that edge | same |
 | A workspace in the sidebar (or its pill) | moves to that workspace as a tab | same |
 | "New Workspace" in the sidebar (or the "+" pill) | moves to a new workspace, which you follow | same |
 | Hover a tab | switches to it after a short delay | same |

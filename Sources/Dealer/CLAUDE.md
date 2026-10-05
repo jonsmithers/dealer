@@ -235,6 +235,11 @@
   newer preview. Self-test: `SelfTestDragSettle.swift`.
 - Height math that includes deck chrome (promote keeping a pane's size) uses
   `DeckView.chromeSize`. Update it if the strip/card insets change.
+- New-deck sizing has two rules (#31). Menu Promote of a pane or group split out of a tab keeps
+  its size. A whole tab (menu or drag) and every window-edge drop (`promote(evenly:)`) take an
+  even share with the decks along that axis (`evenEdgeFraction`, counted after the source deck is
+  detached), and the drag preview uses the same function. "Keep its size" for a tab meant the
+  whole deck, clamped to 60/40. Self-test: `SelfTestEdgeSplit.swift`.
 
 ## Attention and agent status (`Attention.swift`, `AgentStatus.swift`, `AgentLaunch.swift`)
 
