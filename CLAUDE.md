@@ -114,7 +114,8 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   back to `dealer-<pid>.sock`), but it still restores and overwrites session.json.
 - The self-test mostly calls controller methods directly. `DragController`'s tracking loop can be
   driven by queuing events with `window.postEvent` before `drag.begin` (see `SelfTestSidebar.swift`),
-  but only drops onto the workspace sidebar do that so far. Real mouse movement, hover-to-switch,
+  drops onto the workspace sidebar, pane centres (`SelfTestDragSettle.swift`) and the window edges
+  (`SelfTestEdgeSplit.swift`, which also has a drag-to-a-window-point helper) do that. Real mouse movement, hover-to-switch,
   drag highlights and divider dragging are not covered; neither are macOS notifications (bundle
   only), modal dialogs, or real key presses. Say so when reporting.
 
