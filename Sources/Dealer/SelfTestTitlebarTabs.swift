@@ -144,6 +144,82 @@ extension TerminalWindowController {
                        s.mouseDownCanMoveWindow ? nil : "the strip should let the window be dragged",
                        tab is TabButton ? nil : "a tab in the titlebar should still be hit (got \(tab.map { "\(type(of: $0))" } ?? "nothing"))")
         }) {}
+        // #27: a click must go through the window's real event routing (NSWindow.sendEvent), which
+        // starts a window drag instead of delivering mouseDown when the clicked view says
+        // mouseDownCanMoveWindow. Hit-testing alone said yes here while real clicks did nothing.
+        var clickTab: Tab?
+        func sendClick(_ view: NSView, at p: CGPoint? = nil) {
+            guard let window = self.window else { return }
+            let at = view.convert(p ?? CGPoint(x: view.bounds.midX, y: view.bounds.midY), to: nil)
+            func ev(_ type: NSEvent.EventType) -> NSEvent? {
+                NSEvent.mouseEvent(with: type, location: at, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                   windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
+            }
+            // Queue the release first: whatever tracking loop the press starts (tab drag or window
+            // drag) dequeues it, so neither can wait forever.
+            if let up = ev(.leftMouseUp) { window.postEvent(up, atStart: false) }
+            if let down = ev(.leftMouseDown) { window.sendEvent(down) }
+        }
+        t.step("titlebar tabs: a real click (window.sendEvent) on a titlebar tab selects it (#27)", nil, {
+            let d = deck("srv")
+            return all(d.view.stripInTitlebar ? nil : "srv's strip should be in the titlebar",
+                       d.activeTab === clickTab ? nil : "clicking the titlebar tab should select it")
+        }) {
+            let d = deck("srv")
+            self.newTab(in: d); t.named(self.focusedPane, "tt5")
+            clickTab = d.activeTab
+            if let first = d.tabs.first { self.select(tab: first, in: d) }
+            self.layoutNow()
+            if let i = d.index(of: clickTab!), d.view.strip.buttons.indices.contains(i) { sendClick(d.view.strip.buttons[i]) }
+        }
+        t.step("titlebar tabs: no view under a titlebar tab or the + lets a press move the window (#27)", nil, {
+            // The real pointer's press never reaches the app when the window server treats it as a
+            // window drag, which it decides from `mouseDownCanMoveWindow` of the view under the
+            // pointer. An in-process sendEvent can't reproduce that, so assert the input it uses.
+            let s = deck("srv").view.strip
+            guard let frameView = self.window?.contentView?.superview else { return "no frame view" }
+            var problems: [String] = []
+            for v in s.subviews where !v.isHidden {
+                for fx in [0.2, 0.5, 0.8] {
+                    let p = v.convert(CGPoint(x: v.bounds.width * fx, y: v.bounds.midY), to: nil)
+                    guard let hit = frameView.hitTest(frameView.convert(p, from: nil)) else { continue }
+                    if hit.mouseDownCanMoveWindow { problems.append("\(type(of: hit)) at \(Int(fx * 100))% of \(type(of: v)) would move the window") }
+                }
+            }
+            return problems.isEmpty ? nil : problems.joined(separator: "; ")
+        }) {}
+        t.step("titlebar tabs: empty titlebar strip space still lets a press move the window", nil, {
+            // The other half of the same rule: the window server drags the window (and handles the
+            // double-click) where the view under the pointer says mouseDownCanMoveWindow.
+            let s = deck("srv").view.strip
+            guard let frameView = self.window?.contentView?.superview else { return "no frame view" }
+            let lastControl = s.subviews.map(\.frame.maxX).max() ?? 0
+            guard s.bounds.maxX - lastControl > 8 else { return "no empty strip space to test" }
+            let p = s.convert(CGPoint(x: (lastControl + s.bounds.maxX) / 2, y: s.bounds.midY), to: nil)
+            let hit = frameView.hitTest(frameView.convert(p, from: nil))
+            return hit === s && s.mouseDownCanMoveWindow ? nil : "empty strip space should be a window-drag area (hit \(hit.map { "\(type(of: $0))" } ?? "nil"))"
+        }) {}
+        t.step("titlebar tabs: a tab dragged out of the titlebar still moves (to the window's bottom edge: new deck)", nil, {
+            guard let tab = clickTab, let d = self.deck(of: tab) else { return "tt5's tab is gone" }
+            return d !== deck("srv") ? nil : "tt5 should have left srv's deck"
+        }) {
+            guard let tab = clickTab, let d = self.deck(of: tab), let i = d.index(of: tab), let window = self.window else { return }
+            let b = d.view.strip.buttons[i]
+            let from = b.convert(CGPoint(x: b.bounds.midX, y: b.bounds.midY), to: nil)
+            let a = self.deckArea
+            let to = self.contentView.convert(CGPoint(x: a.midX, y: a.maxY - 6), to: nil)
+            for (type, p) in [(NSEvent.EventType.leftMouseDragged, CGPoint(x: (from.x + to.x) / 2, y: (from.y + to.y) / 2)),
+                              (.leftMouseDragged, to), (.leftMouseUp, to)] {
+                if let e = NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                              windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1) {
+                    window.postEvent(e, atStart: false)
+                }
+            }
+            if let down = NSEvent.mouseEvent(with: .leftMouseDown, location: from, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                             windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1) {
+                window.sendEvent(down)
+            }
+        }
         t.step("titlebar tabs: with the sidebar shown, strips stay clear of it", nil, {
             all(!self.workspaceSidebar.isHidden ? nil : "sidebar should show", up("srv") ? nil : "srv's strip in the titlebar",
                 aligned("srv"), overlaps())
@@ -180,7 +256,7 @@ extension TerminalWindowController {
                 self.activate(home)
                 self.workspaces.filter { $0 !== home }.forEach { self.remove(workspace: $0) }
             }
-            for p in ["tt2", "tt3"] where self.locate(t.pane(p)) != nil { self.remove(t.pane(p)) }
+            for p in ["tt2", "tt3", "tt5"] where self.locate(t.pane(p)) != nil { self.remove(t.pane(p)) }
         }
     }
 }

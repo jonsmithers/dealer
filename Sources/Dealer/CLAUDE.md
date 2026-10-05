@@ -72,6 +72,11 @@
 - The clear line (`titlebarClearX`) is the zoom button, the sidebar toggle, or in top-bar mode the
   pill segment (`WorkspaceBarView.contentWidth`); the bar shrinks to its pills in this mode so it
   doesn't cover strips. New titlebar chrome must push `titlebarClearX` right.
+- Titlebar clicks are decided by the window server *before* the app sees them: wherever the view
+  under the pointer answers `mouseDownCanMoveWindow == true` (NSView's default for non-opaque views),
+  a press drags the window and never reaches the view. Every interactive view that can sit in the
+  titlebar row (tabs, buttons, pills, rows) must return `false`; `TabButton` didn't (#27). An
+  in-process `window.sendEvent` can't reproduce this, so the self-test asserts the property.
 - Empty strip space in the titlebar drags the window (`performDrag`) and runs the system
   double-click action (`AppleActionOnDoubleClick` from the global domain: a macOS setting, not a
   Dealer one). DragController checks titlebar strips before the top-edge promote band they sit in.

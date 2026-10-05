@@ -412,6 +412,10 @@ final class TabButton: FlippedView {
 
     required init?(coder: NSCoder) { fatalError() }
 
+    /// A press on a tab must reach the tab, also when its strip sits in the titlebar (#27). The
+    /// window server drags the window instead wherever the view under the pointer says yes, and
+    /// NSView says yes by default for any non-opaque view (Ghostty's NonDraggableHostingView pattern).
+    override var mouseDownCanMoveWindow: Bool { false }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseEntered(with event: NSEvent) { hovering = true }
     override func mouseExited(with event: NSEvent) { hovering = false; hoveringClose = false }
