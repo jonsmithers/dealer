@@ -119,6 +119,12 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   drag highlights and divider dragging are not covered; neither are macOS notifications (bundle
   only), modal dialogs, or real key presses. Say so when reporting.
 
+- **Worktree hygiene:** to squash a branch, use `git reset --soft $(git merge-base HEAD master)`,
+  never `git reset --soft master` (master moves under you, and the squash silently reverts other
+  branches' work). `scripts/bundle.sh` registers each bundle with Launch Services (#30), so before
+  deleting a worktree that you bundled in, run `lsregister -u <worktree>/build/Dealer.app`. Otherwise
+  stale records for `dev.smithers.dealer` pile up and can confuse Notification Center's icon.
+
 ## Behavior decisions to preserve
 
 - Menu shortcuts beat ghostty keybinds: `SurfaceView.performKeyEquivalent` asks the main menu
