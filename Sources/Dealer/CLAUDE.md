@@ -230,11 +230,6 @@
   newer preview. Self-test: `SelfTestDragSettle.swift`.
 - Height math that includes deck chrome (promote keeping a pane's size) uses
   `DeckView.chromeSize`. Update it if the strip/card insets change.
-- New-deck sizing has two rules (#31). Menu Promote of a pane or group split out of a tab keeps
-  its size. A whole tab (menu or drag) and every window-edge drop (`promote(evenly:)`) take an
-  even share with the decks along that axis (`evenEdgeFraction`, counted after the source deck is
-  detached), and the drag preview uses the same function. "Keep its size" for a tab meant the
-  whole deck, clamped to 60/40. Self-test: `SelfTestEdgeSplit.swift`.
 
 ## Attention and agent status (`Attention.swift`, `AgentStatus.swift`, `AgentLaunch.swift`)
 
@@ -251,7 +246,16 @@
 - Tab/deck/workspace attention is computed (max over children), never stored; badges pick it up
   from `refreshChrome()`. The ring is a sublayer named `dealer.attentionRing`, and the self-test
   finds it by that name.
-- Look (#7): only `waiting` is outlined (`Attention.outlined`). That means the pane ring plus an outline on the tab and
+- `failed` (#29) is the top state: failed > waiting > done > unread, for roll-up and ⌘⇧U. It's
+  drawn like waiting in `Theme.attentionFailed` (red, light/dark), and its dot carries a `!`
+  (`AttentionStyle.drawBang`). `PixelProbe.isFailedOutlined` checks it. Sources: `dealer run`
+  failures (ControlJobs), `dealer notify --state failed`, the plugin's StopFailure hook (unless
+  `[agent] errors_as_failed = false`, exported as `DEALER_CLAUDE_ERROR_STATE`), and COMMAND_FINISHED
+  with a non-zero exit (`commandFinishedAttention`, `[attention] failed_commands`).
+- Shell-driven events (ghostty actions, socket requests from a shell) reach `setAttention` through
+  `DispatchQueue.main.async`, which the self-test's nested run-loop waits don't drain. Check their
+  effect in a *later* step, not by spinning inside the same step.
+- Look (#7): `waiting` and `failed` are outlined (`Attention.outlined`). That means the pane ring plus an outline on the tab and
   workspace entry, in `Theme.attentionWaiting` (adaptive blue). `done`/`unread` are a muted dot
   only (`Theme.attentionDone` = `textMuted`). Chrome elements draw attention only through
   `AttentionStyle.draw(_:in:cornerRadius:dotRect:)`, called last in `draw(_:)` so the outline

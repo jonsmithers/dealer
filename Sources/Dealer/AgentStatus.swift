@@ -3,13 +3,14 @@ import AppKit
 /// Per-pane status (#4): what an agent in the pane is doing, plus the cwd and git branch.
 /// Shown right-aligned in the pane bar and as the tab's tooltip.
 enum AgentState: String {
-    case idle, running, waiting, done
+    case idle, running, waiting, done, failed
 }
 
 extension Pane {
     /// Attention wins over progress: a waiting or finished agent is what you need to know about.
     var agentState: AgentState {
         switch attention {
+        case .failed: return .failed
         case .waiting: return .waiting
         case .done: return .done
         default: return isReportingProgress ? .running : .idle
@@ -96,6 +97,7 @@ extension PaneBarView {
         if state != .idle {
             let color: NSColor
             switch state {
+            case .failed: color = Theme.attentionFailed
             case .waiting: color = Theme.attentionWaiting
             case .done: color = Theme.attentionDone
             default: color = Theme.textMuted

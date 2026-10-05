@@ -9,6 +9,7 @@ import Foundation
 /// rewrites argv. The research and the decision are in docs/claude-code-states.md.
 enum ClaudeHooks {
     static let pluginDirsVariable = "CLAUDE_CODE_PLUGIN_DIRS"
+    static let errorStateVariable = "DEALER_CLAUDE_ERROR_STATE"
 
     /// The bundled plugin: `Contents/Resources/claude-plugin/dealer` in Dealer.app. For a dev build
     /// (`.build/<config>/Dealer`), the repository's `Resources/claude-plugin/dealer`.
@@ -61,8 +62,10 @@ enum ClaudeHooks {
                             plugin: String? = pluginDirectory,
                             blocked: Bool = managedSettingsBlockPlugins) -> [String: String] {
         guard enabled, !blocked, let plugin else { return [:] }
+        // What the plugin's StopFailure hook reports (#29, `[agent] errors_as_failed`).
+        let errorState = [errorStateVariable: Settings.agentErrorsAsFailed ? "failed" : "waiting"]
         let existing = (inherited[pluginDirsVariable] ?? "").split(separator: ":").map(String.init).filter { !$0.isEmpty }
-        if existing.contains(plugin) { return [pluginDirsVariable: existing.joined(separator: ":")] }
-        return [pluginDirsVariable: (existing + [plugin]).joined(separator: ":")]
+        if existing.contains(plugin) { return errorState.merging([pluginDirsVariable: existing.joined(separator: ":")]) { $1 } }
+        return errorState.merging([pluginDirsVariable: (existing + [plugin]).joined(separator: ":")]) { $1 }
     }
 }

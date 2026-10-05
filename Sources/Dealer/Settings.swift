@@ -53,6 +53,8 @@ enum Settings {
     static let schema: [String: Kind] = [
         "agent.command": .string,
         "agent.inject_hooks": .bool,
+        "agent.errors_as_failed": .bool,
+        "attention.failed_commands": .bool,
         "workspaces.switcher": .oneOf(WorkspaceSwitcherStyle.allCases.map(\.rawValue)),
         "colors.auto_assign": .bool,
         "window.tabs_in_titlebar": .bool,
@@ -247,6 +249,15 @@ enum Settings {
     /// `[agent] inject_hooks` (#12, ClaudeHooks.swift): whether `claude` started in a pane loads
     /// Dealer's Claude Code plugin. Read when a pane's shell starts; default true.
     static var agentInjectHooks: Bool { bool("agent.inject_hooks") ?? true }
+
+    /// `[agent] errors_as_failed` (#29): a Claude Code turn that ends in an API error (`StopFailure`)
+    /// marks the pane *failed* (red); false marks it *waiting* (blue) instead. Default true. Read when
+    /// a pane's shell starts (exported as DEALER_CLAUDE_ERROR_STATE for the plugin's hook).
+    static var agentErrorsAsFailed: Bool { bool("agent.errors_as_failed") ?? true }
+
+    /// `[attention] failed_commands` (#29): a shell command that exits non-zero in a pane you aren't
+    /// looking at marks it *failed* (red). Needs shell integration. Default true. Read live.
+    static var attentionFailedCommands: Bool { bool("attention.failed_commands") ?? true }
 
     /// `[window] tabs_in_titlebar` (#16): top-edge decks' tab strips sit in the titlebar row.
     static var tabsInTitlebar: Bool { bool("window.tabs_in_titlebar") ?? false }

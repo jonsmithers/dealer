@@ -227,20 +227,17 @@ final class DragController {
         case let .paneCenter(pane):
             return pane.view.convert(pane.view.bounds, to: view).insetBy(dx: 6, dy: 6)
         case let .windowEdge(side):
-            // The new deck's size: an even share with the decks along that axis (#31), not counting
-            // a deck the move empties.
             let area = controller.deckArea
-            var emptied: Deck?
-            if let n = sourceNode(source), let loc = n.leaves.first.flatMap({ controller.locate($0) }),
-               n === loc.tab.root, loc.deck.tabs.count == 1 { emptied = loc.deck }
-            let f = controller.evenEdgeFraction(side: side, in: controller.root, excluding: emptied)
-            let w = (area.width - TerminalWindowController.deckGap) * f
-            let h = (area.height - TerminalWindowController.deckGap) * f
+            var f: CGFloat = 0.5
+            if let n = sourceNode(source), let r = controller.frame(of: n) {
+                f = side.axis == .row ? r.width / area.width : r.height / area.height
+            }
+            f = min(max(f, 0.2), 0.5)
             switch side {
-            case .left: return CGRect(x: area.minX, y: area.minY, width: w, height: area.height)
-            case .right: return CGRect(x: area.maxX - w, y: area.minY, width: w, height: area.height)
-            case .top: return CGRect(x: area.minX, y: area.minY, width: area.width, height: h)
-            case .bottom: return CGRect(x: area.minX, y: area.maxY - h, width: area.width, height: h)
+            case .left: return CGRect(x: area.minX, y: area.minY, width: area.width * f, height: area.height)
+            case .right: return CGRect(x: area.maxX - area.width * f, y: area.minY, width: area.width * f, height: area.height)
+            case .top: return CGRect(x: area.minX, y: area.minY, width: area.width, height: area.height * f)
+            case .bottom: return CGRect(x: area.minX, y: area.maxY - area.height * f, width: area.width, height: area.height * f)
             }
         case let .workspace(ws):
             for sw in controller.visibleWorkspaceSwitchers {
@@ -288,13 +285,13 @@ final class DragController {
         case let (.tab(tab), .tabStrip(deck, index)):
             c.move(tab: tab, to: deck, index: index)
         case let (.tab(tab), .windowEdge(side)):
-            c.promote(tab.root, side: side, allowWholeDeck: true, evenly: true)
+            c.promote(tab.root, side: side, allowWholeDeck: true)
         case (_, let .paneEdge(t, side)):
             if let n = sourceNode(source) { c.move(n, besidePane: t, side: side) }
         case (_, let .tabStrip(deck, index)):
             if let n = sourceNode(source) { c.moveToNewTab(n, deck: deck, index: index) }
         case (_, .windowEdge(let side)):
-            if let n = sourceNode(source) { c.promote(n, side: side, allowWholeDeck: true, evenly: true) }
+            if let n = sourceNode(source) { c.promote(n, side: side, allowWholeDeck: true) }
         case (_, let .workspace(ws)):
             if let n = sourceNode(source) { c.move(n, toWorkspace: ws, follow: ws == nil) }
         default:

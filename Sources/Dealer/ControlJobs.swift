@@ -196,7 +196,7 @@ enum ControlJobs {
             retitle(pane, job: job, "DONE \(job.command)", wc)
         } else {
             retitle(pane, job: job, "FAILED (\(status)) \(job.command)", wc)
-            wc.setAttention(.waiting, on: pane, title: "✗ \(job.command)", body: "Exited with status \(status)")
+            wc.setAttention(.failed, on: pane, title: "✗ \(job.command)", body: "Exited with status \(status)")
         }
         return ["close": false, "status": status]
     }

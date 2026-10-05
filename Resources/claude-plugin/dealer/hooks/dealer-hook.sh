@@ -16,7 +16,9 @@ case "${1:-}" in
     permission)   state=waiting; body="Permission: $(field tool_name)" ;;
     notification) state=waiting; body=$(field message) ;;
     stop)         state=done;    body="Finished" ;;
-    stop-failure) state=waiting; body="Error: $(field error)" ;;
+    # An API error is a failure (red, #29); `[agent] errors_as_failed = false` makes it waiting.
+    stop-failure) state=failed; [ "${DEALER_CLAUDE_ERROR_STATE:-failed}" = waiting ] && state=waiting
+                  body="Error: $(field error)" ;;
     *) exit 0 ;;
 esac
 

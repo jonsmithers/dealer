@@ -14,6 +14,14 @@
 # Whether `claude` started in a pane loads Dealer's Claude Code plugin, which reports
 # waiting/done to Dealer. Applies to panes opened after the change.
 # inject_hooks = true
+# Mark the pane failed (red) when a Claude turn ends in an API error (rate limit, overload,
+# auth); false marks it waiting (blue) instead. Applies to panes opened after the change.
+# errors_as_failed = true
+
+[attention]
+# Mark a pane failed (red) when a shell command exits non-zero while you're not looking at it.
+# Needs shell integration (Ghostty's, which Dealer borrows from /Applications/Ghostty.app).
+# failed_commands = true
 
 [workspaces]
 # Where the workspace switcher lives: "sidebar" (a collapsible left column) or "top"

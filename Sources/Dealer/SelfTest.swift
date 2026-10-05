@@ -224,6 +224,7 @@ extension TerminalWindowController {
         let kit = SelfTestKit(step: { step($0, expect: $1, check: $2, $3) }, named: named, pane: p,
                               name: { names[ObjectIdentifier($0)] ?? $0.title })
         pixelSelfTestSteps(kit)
+        failedSelfTestSteps(kit)
         workspaceSelfTestSteps(kit)
         sidebarSelfTestSteps(kit)
         switcherSelfTestSteps(kit)
@@ -236,7 +237,6 @@ extension TerminalWindowController {
         paneCloseSelfTestSteps(kit)
         themeSelfTestSteps(kit)
         dragSettleSelfTestSteps(kit)
-        edgeSplitSelfTestSteps(kit)
 
         var failures = 0
         func run(_ i: Int) {

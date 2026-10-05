@@ -183,13 +183,13 @@ final class GhosttyRuntime {
             }
 
         case GHOSTTY_ACTION_COMMAND_FINISHED:
-            // Needs shell integration. Only long-running commands are worth a badge.
+            // Needs shell integration. See TerminalWindowController.commandFinished (Attention.swift).
             let f = action.action.command_finished
-            guard f.duration >= 10_000_000_000 else { return false }
-            let body = f.exit_code >= 0 ? "Exited with status \(f.exit_code)" : nil
+            let exit = Int(f.exit_code), duration = f.duration
+            guard TerminalWindowController.commandFinishedAttention(exitCode: exit, durationNs: duration) != nil else { return false }
             return run { wc in
                 guard let pane = view.pane else { return }
-                wc.setAttention(.unread, on: pane, raiseOnly: true, title: "Command finished", body: body)
+                wc.commandFinished(pane, exitCode: exit, durationNs: duration)
             }
 
         case GHOSTTY_ACTION_NEW_TAB:

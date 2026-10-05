@@ -23,7 +23,7 @@ Each fact is tagged with its source:
 | **Asking for MCP input** (elicitation) | An MCP server wants form or URL input | `Elicitation` hook [docs]. `Notification`/`elicitation_dialog` or `elicitation_url_dialog` after about 6 s [docs] | **waiting** |
 | **Finished its turn** | The reply is complete and it's your move | `Stop` hook (immediately) [obs]. Progress cleared with OSC 9;4;0 [obs] | **done** |
 | **Still idle after about 60 s** | You haven't typed since it finished | `Notification`/`idle_prompt`, and OSC 777 "Claude is waiting for your input" [obs] | stays **done** (not waiting) |
-| **Stopped by an API error** | Rate limit, overload, auth, billing, … | `StopFailure` hook, *instead of* `Stop` [docs] | **waiting** (with the recommended hooks) |
+| **Stopped by an API error** | Rate limit, overload, auth, billing, … | `StopFailure` hook, *instead of* `Stop` [docs] | **failed** (red, #29; `[agent] errors_as_failed = false` → waiting) |
 | **Interrupted** (Esc) | You stopped it | No hook: `Stop` does not fire [docs] | none (you're already looking) |
 
 ## What makes Claude wait for you
@@ -108,7 +108,8 @@ Other relevant payload fields:
 | Dealer state | Set by | Cleared by |
 |---|---|---|
 | **running** | OSC 9;4 progress set (automatic, no setup) | progress removed (`9;4;0`); outranked by waiting/done |
-| **waiting** | `dealer notify --state waiting` from hooks: `PermissionRequest`, `Notification` (`permission_prompt`, `elicitation_*`), `StopFailure`. Automatic since #12 (bundled plugin) | focusing the pane |
+| **failed** | `dealer notify --state failed` from the `StopFailure` hook (#29, `[agent] errors_as_failed`); also `dealer run` failures and shell commands exiting non-zero | focusing the pane |
+| **waiting** | `dealer notify --state waiting` from hooks: `PermissionRequest`, `Notification` (`permission_prompt`, `elicitation_*`). Automatic since #12 (bundled plugin) | focusing the pane |
 | **done** | `dealer notify --state done` from the `Stop` hook. Automatic since #12 | focusing the pane |
 | **unread** | OSC 9/99/777 desktop notifications (Claude's own OSC 777 included), the bell, commands running ≥ 10 s | focusing the pane |
 
@@ -131,7 +132,8 @@ Since #12 these hooks load automatically in every Dealer pane; see
    `PermissionRequest` hook, which fires immediately. A hook that prints nothing makes no
    decision, so the normal prompt still shows [docs].
 4. **API errors never marked the pane.** `StopFailure` replaces `Stop`. *Fixed in #7:* the
-   README maps it to *waiting*.
+   README maps it to *waiting*; since #29 it's *failed* (red), configurable with
+   `[agent] errors_as_failed`.
 5. **AskUserQuestion's first seconds.** `PermissionRequest` is not documented to fire for
    AskUserQuestion, so it relies on the ~6 s `permission_prompt`. A `PreToolUse` hook
    matching `AskUserQuestion` would make it immediate; I haven't verified this live.

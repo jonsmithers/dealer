@@ -121,9 +121,9 @@ extension TerminalWindowController {
         }) {
             created(call("run", ["command": "false", "cwd": tmp], caller: "j0"), "ja")
         }
-        t.step("jobs: a failed job stays open, retitled and marked waiting", nil, {
+        t.step("jobs: a failed job stays open, retitled and marked failed (red, #29)", nil, {
             all(outcome("ja", status: 1) { pane("ja")?.customTitle == "FAILED (1) false" },
-                tree("Deck0[*Col(j0, ja)]"), marked("ja", .waiting), focused("j0"))
+                tree("Deck0[*Col(j0, ja)]"), marked("ja", .failed), focused("j0"))
         }) {}
         t.step("jobs: [jobs] placement = \"tab\" puts the next job in a background tab", nil, {
             all(tree("Deck0[*Col(j0, ja), jb]"), focused("j0"),

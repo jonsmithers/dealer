@@ -57,7 +57,8 @@ extension TerminalWindowController {
                        off.isEmpty ? nil : "off switch should add nothing: \(off)",
                        managed.isEmpty ? nil : "disableSideloadFlags should add nothing: \(managed)",
                        pane[v]?.split(separator: ":").last.map(String.init) == ClaudeHooks.pluginDirectory ? nil : "pane env: \(pane[v] ?? "nil")",
-                       pane["DEALER_CLI"] != nil ? nil : "pane env lacks DEALER_CLI")
+                       pane["DEALER_CLI"] != nil ? nil : "pane env lacks DEALER_CLI",
+                       pane[ClaudeHooks.errorStateVariable] == "failed" ? nil : "DEALER_CLAUDE_ERROR_STATE should default to failed (#29)")
         }) {
             try? fm.createDirectory(atPath: tmp, withIntermediateDirectories: true)
             let stub = tmp + "/stub-dealer"
@@ -71,13 +72,16 @@ extension TerminalWindowController {
             let note = runHook("notification", stdin: #"{"message":"Claude needs your permission","notification_type":"permission_prompt"}"#, env: pane)
             let stop = runHook("stop", stdin: "{}", env: pane)
             let fail = runHook("stop-failure", stdin: #"{"error":"rate_limit"}"#, env: pane)
+            let failAsWaiting = runHook("stop-failure", stdin: #"{"error":"rate_limit"}"#,
+                                        env: pane.merging(["DEALER_CLAUDE_ERROR_STATE": "waiting"]) { $1 })
             let outside = runHook("stop", stdin: "{}", env: ["CLAUDE_CODE_ENTRYPOINT": "cli"])
             let nested = runHook("stop", stdin: "{}", env: ["DEALER_PANE_ID": "7", "CLAUDE_CODE_ENTRYPOINT": "sdk-cli"])
             let optedOut = runHook("stop", stdin: "{}", env: pane.merging(["DEALER_CLAUDE_HOOKS": "0"]) { $1 })
             return all(perm == "notify --state waiting --title Claude Code --body Permission: Bash" ? nil : "permission: \(perm)",
                        note == "notify --state waiting --title Claude Code --body Claude needs your permission" ? nil : "notification: \(note)",
                        stop == "notify --state done --title Claude Code --body Finished" ? nil : "stop: \(stop)",
-                       fail == "notify --state waiting --title Claude Code --body Error: rate_limit" ? nil : "stop-failure: \(fail)",
+                       fail == "notify --state failed --title Claude Code --body Error: rate_limit" ? nil : "stop-failure: \(fail)",
+                       failAsWaiting == "notify --state waiting --title Claude Code --body Error: rate_limit" ? nil : "stop-failure with errors_as_failed off: \(failAsWaiting)",
                        outside.isEmpty ? nil : "outside Dealer it must do nothing: \(outside)",
                        nested.isEmpty ? nil : "a nested `claude -p` (sdk-cli) must not notify: \(nested)",
                        optedOut.isEmpty ? nil : "DEALER_CLAUDE_HOOKS=0 must do nothing: \(optedOut)")

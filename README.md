@@ -113,7 +113,7 @@ colors from your Ghostty theme (background/foreground, `unfocused-split-*`, `spl
 | ⌘W / ⌥⌘W | Close pane / tab |
 | ⌘1…⌘8, ⌘9 | Go to tab / last tab in the focused deck |
 | ⌘⇧] / ⌘⇧[ | Next / previous tab |
-| ⌘⇧P | **Promote**: pane → deck, hoisted to the window edge on its side, keeping its width (a whole tab gets an even share instead) |
+| ⌘⇧P | **Promote**: pane → deck, hoisted to the window edge on its side, keeping its width |
 | ⌘⇧F | **Fold**: deck → pane, back where it came from |
 | ⌘⇧↑ | Select parent split (then ⌘⇧P promotes the whole group) |
 | ⌘⌥←→↑↓ | Move focus by geometry, across decks |
@@ -180,7 +180,7 @@ or drag a tab:
 | Edge of another pane | re-split beside it | rejoins as a split |
 | Centre of another pane | swap the two | — |
 | A tab strip | becomes its own tab (works across decks) | reorder / move to that deck |
-| Window edge (past the decks) | promote to a new deck, sized evenly with the decks along that edge | same |
+| Window edge (past the decks) | promote to a new deck | becomes a new deck |
 | A workspace in the sidebar (or its pill) | moves to that workspace as a tab | same |
 | "New Workspace" in the sidebar (or the "+" pill) | moves to a new workspace, which you follow | same |
 | Hover a tab | switches to it after a short delay | same |
@@ -189,16 +189,23 @@ or drag a tab:
 
 When an agent is **waiting** for input, its pane gets an accent-blue ring. The tab and the
 workspace containing it get a blue outline and a blue dot, so you can see where you're needed
-from anywhere. **Done** and **unread** (something finished or rang) are deliberately quieter:
+from anywhere. When something **failed**, the same ring, outline and dot appear in **red**,
+and the dot carries a `!` so it doesn't rely on color alone. That covers a `dealer run` job
+exiting non-zero, a Claude turn ending in an API error, and a shell command exiting non-zero
+while you're not looking. **Done** and **unread** (something finished or rang) are deliberately quieter:
 a muted grey dot on the tab and workspace, with no ring or outline. The blue is a lighter shade
-on dark ghostty themes and a deeper one on light themes. Focusing the pane clears all of it. **⌘⇧U** (Window > Jump to Next
-Unread) goes to the most urgent pane in any window. When Dealer isn't the key window, it
+on dark ghostty themes and a deeper one on light themes, and so is the red. Focusing the pane
+clears all of it. A tab or workspace shows its most urgent pane: failed, then waiting, then done,
+then unread. **⌘⇧U** (Window > Jump to Next Unread) goes to the most urgent pane in any window,
+in the same order. When Dealer isn't the key window, it
 also posts a macOS notification (bundled app only), and clicking it focuses the pane.
 
 Sources:
 - the bell (BEL);
 - desktop notifications from OSC 9, OSC 99 and OSC 777;
-- a shell command that ran for 10s or more finishing (needs Ghostty shell integration);
+- a shell command finishing, with Ghostty shell integration: a non-zero exit marks *failed*
+  (`[attention] failed_commands`, default on), and a success that ran for 10 s or more marks
+  *unread*;
 - `dealer notify` from inside the pane (the control socket/CLI, #5). Each shell gets
   `DEALER_PANE_ID`, so `dealer notify` targets its own pane by default.
 
@@ -216,7 +223,8 @@ Nothing is written to your `~/.claude` settings. The plugin's hooks:
   *waiting*. It leaves out `idle_prompt`, which would turn a *done* pane into *waiting*
   about 60 s after every turn.
 - `Stop`: *done*.
-- `StopFailure` (API errors such as rate limits or auth): *waiting*.
+- `StopFailure` (API errors such as rate limits or auth): *failed* (red). Set
+  `[agent] errors_as_failed = false` to get *waiting* instead.
 
 The hooks do nothing outside Dealer (no `DEALER_PANE_ID`). They also do nothing for
 non-interactive runs (`claude -p`, the SDK), so an agent that runs `claude -p` from its Bash
@@ -256,13 +264,13 @@ If the plugin also loads, both fire, which is harmless: the same state twice is 
     ],
     "StopFailure": [
       { "hooks": [{ "type": "command",
-        "command": "[ -n \"$DEALER_PANE_ID\" ] && dealer notify --state waiting --title 'Claude Code error' --body \"$(jq -r '.error // empty')\" || true" }] }
+        "command": "[ -n \"$DEALER_PANE_ID\" ] && dealer notify --state failed --title 'Claude Code error' --body \"$(jq -r '.error // empty')\" || true" }] }
     ]
   }
 }
 ```
 
-States are `waiting`, `done`, `unread` and `none` (clears the pane). Without any hooks, Claude
+States are `failed`, `waiting`, `done`, `unread` and `none` (clears the pane). Without any hooks, Claude
 Code still sends its own OSC 777 notification (shown as *unread*) and OSC 9;4 progress
 (*running*). [docs/claude-code-states.md](docs/claude-code-states.md) covers every state,
 signal and timing, plus the research behind the automatic hooks.

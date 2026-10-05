@@ -35,7 +35,7 @@ enum CLI {
       resize [-t T] [--axis width|height] (--to 0.3|30% | --by +5|-3|+10%)
       rename [-t T] [--tab | --workspace] [TITLE]  empty title follows the terminal again
       color [-t T] [--tab | --workspace] COLOR|none  swatch name or number, or #rrggbb
-      notify [-t T] [--state unread|done|waiting|none] [--title T] [--body B]
+      notify [-t T] [--state unread|done|waiting|failed|none] [--title T] [--body B]
       close [-t T]
       run [-t T | --here] [--split | --tab] [--size 12|30%] [--keep] [--quiet] [--focus] [--title T] [--cwd DIR] CMD...
                                                  run CMD in a job pane (focus stays) in the workspace

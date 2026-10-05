@@ -73,6 +73,12 @@ enum PixelProbe {
     /// Where the #7 waiting outline is sampled: the middle of the top edge, inside the 1.5pt stroke.
     static func outlinePoint(in v: NSView) -> CGPoint { CGPoint(x: v.bounds.midX, y: AttentionStyle.outlineWidth / 2) }
 
+    /// Whether `v` shows the failed outline (#29) in exactly `Theme.attentionFailed`.
+    static func isFailedOutlined(_ v: NSView?) -> Bool {
+        guard let v else { return false }
+        return matches(sample(v, at: outlinePoint(in: v)), Theme.attentionFailed)
+    }
+
     /// Whether `v` shows the waiting outline in exactly `Theme.attentionWaiting`.
     static func isWaitingOutlined(_ v: NSView?) -> Bool {
         guard let v else { return false }

@@ -186,6 +186,11 @@ extension TerminalWindowController {
         }) {
             call("notify", ["target": "\(ids["c2"]!)", "state": "done", "title": "t", "body": "b"])
         }
+        t.step("cli: notify --state failed marks the pane failed (#29)", nil, {
+            all(t.pane("c2").attention == .failed ? nil : "attention should be failed, is \(t.pane("c2").attention)")
+        }) {
+            call("notify", ["target": "\(ids["c2"]!)", "state": "failed", "title": "t", "body": "b"])
+        }
         t.step("cli: bad targets fail", nil, {
             let bad = ControlHandler.handle(["cmd": "focus", "args": ["target": "pane:999999"]])
             let gone = ControlHandler.handle(["cmd": "create", "caller": 999999])

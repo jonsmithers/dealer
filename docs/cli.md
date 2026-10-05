@@ -44,7 +44,7 @@ workspaces, type into them, focus, resize, rename, color, list, and notify.
 | `resize [--axis width\|height] (--to 0.3\|30% \| --by +5\|-3\|+10%)` | Moves the divider of the nearest enclosing split (of that axis) of a pane, or of a deck (`-t deck:N`). `--to` sets the target's share. `--by` changes it by cells or percent. |
 | `rename [--tab \| --workspace] [TITLE]` | Names a pane (or its tab or workspace, or `-t tab:N`). An empty title goes back to following the terminal. |
 | `color [--tab \| --workspace] COLOR\|none` | Colors a tab or workspace (#9). COLOR is a swatch name (`red`, `orange`, `yellow`, `green`, `teal`, `blue`, `purple`, `pink`, or numbers 1… with a `[colors] palette`), a swatch number, or `#rrggbb`; `none` clears it. A workspace/window target colors the workspace; a pane/tab target colors its tab. `list --json` shows `color` on workspaces and `tab_color` on tabs. |
-| `notify [--state unread\|done\|waiting\|none] [--title T] [--body B]` | Marks the pane for attention. See the README's Attention section. |
+| `notify [--state unread\|done\|waiting\|failed\|none] [--title T] [--body B]` | Marks the pane for attention. See the README's Attention section. |
 | `close` | Closes a pane or tab without asking. |
 | `run [--here] [--split \| --tab] [--size 12\|30%] [--keep] [--quiet] [--focus] [--title T] [--cwd DIR] [--] CMD...` | Runs CMD as a background job next to the caller (see below) and prints the job's pane ID. Routes to the workspace that best fits `$PWD`. One argument is a shell string; several are an argv, each word shell-quoted. |
 | `job-done STATUS` | Internal: the tail `run` types into the job's shell. Exits 0 when the shell should close. |
@@ -100,7 +100,8 @@ b_str() { dealer run --quiet -- "$@"; }   # same, without the "done" mark on suc
   `--keep` it stays. The pane you ran it from gets the *done* mark (a muted dot), plus a macOS
   notification when Dealer isn't in front; `--quiet` skips both.
 - **Failure:** the pane stays open at a prompt, so you can inspect and rerun. It's marked
-  *waiting* (the accent outline), so ⌘⇧U (Jump to Next Unread) goes straight to it.
+  *failed* (a red ring and outline, #29), so ⌘⇧U (Jump to Next Unread) goes straight to it, ahead
+  of anything merely waiting.
 - If Dealer can't be reached when the job ends (it was restarted, say), the pane just stays open.
 
 Shells: zsh, bash and other POSIX shells. fish doesn't have `$?`; use

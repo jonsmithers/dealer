@@ -11,6 +11,9 @@ enum Attention: Int, Comparable, CaseIterable {
     case done
     /// An agent is blocked on the user (permission prompt, question).
     case waiting
+    /// Something failed (#29): `dealer run` exited non-zero, a Claude API error, a shell command
+    /// failed. Outranks everything, for roll-up and for Jump to Next Unread.
+    case failed
 
     static func < (a: Attention, b: Attention) -> Bool { a.rawValue < b.rawValue }
 
@@ -20,6 +23,7 @@ enum Attention: Int, Comparable, CaseIterable {
         case "unread", "info": self = .unread
         case "done", "stop", "finished": self = .done
         case "waiting", "wait", "input": self = .waiting
+        case "failed", "fail", "error": self = .failed
         default: return nil
         }
     }
@@ -30,11 +34,12 @@ enum Attention: Int, Comparable, CaseIterable {
         case .unread: return "unread"
         case .done: return "done"
         case .waiting: return "waiting"
+        case .failed: return "failed"
         }
     }
 
-    /// Only `waiting` gets outlines (pane ring, tab and workspace outline); the rest get a dot.
-    var outlined: Bool { self == .waiting }
+    /// `waiting` and `failed` get outlines (pane ring, tab and workspace outline); the rest a dot.
+    var outlined: Bool { self == .waiting || self == .failed }
 
     /// Badge/ring colour, or nil for none.
     var color: NSColor? {
@@ -42,6 +47,7 @@ enum Attention: Int, Comparable, CaseIterable {
         case .none: return nil
         case .unread, .done: return Theme.attentionDone
         case .waiting: return Theme.attentionWaiting
+        case .failed: return Theme.attentionFailed
         }
     }
 }
@@ -107,6 +113,21 @@ extension TerminalWindowController {
             ?? rotated.first { $0.1.attention == top }
     }
 
+    /// What a finished shell command (COMMAND_FINISHED, via shell integration) marks, if anything:
+    /// a non-zero exit is *failed* (#29, `[attention] failed_commands`, any duration); a success
+    /// that ran ≥ 10 s is *unread*. Exit code -1 means unknown and counts as success.
+    static func commandFinishedAttention(exitCode: Int, durationNs: UInt64,
+                                         failedCommands: Bool = Settings.attentionFailedCommands) -> Attention? {
+        if exitCode > 0 && failedCommands { return .failed }
+        return durationNs >= 10_000_000_000 ? .unread : nil
+    }
+
+    func commandFinished(_ pane: Pane, exitCode: Int, durationNs: UInt64) {
+        guard let a = Self.commandFinishedAttention(exitCode: exitCode, durationNs: durationNs) else { return }
+        let body = exitCode >= 0 ? "Exited with status \(exitCode)" : nil
+        setAttention(a, on: pane, raiseOnly: true, title: a == .failed ? "Command failed" : "Command finished", body: body)
+    }
+
     @objc func jumpToNextUnread(_ sender: Any?) {
         guard let (wc, pane) = Self.nextUnread(after: focusedPane) else { return NSSound.beep() }
         wc.reveal(pane)
@@ -151,7 +172,7 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
         NSApp.requestUserAttention(.informationalRequest)
         guard let center, authorized else { return }
         let content = UNMutableNotificationContent()
-        content.title = title ?? (state == .waiting ? "Waiting for input" : state == .done ? "Finished" : "Terminal")
+        content.title = title ?? (state == .failed ? "Failed" : state == .waiting ? "Waiting for input" : state == .done ? "Finished" : "Terminal")
         content.subtitle = pane.title
         content.body = body ?? ""
         content.userInfo = ["pane": pane.id]
@@ -217,6 +238,7 @@ extension TabButton {
 
 /// The one look for attention on chrome (tabs, workspace pills and sidebar rows), #7.
 /// - waiting: a 1.5pt accent-blue outline on the element's outer edge, a faint blue tint and a blue dot;
+/// - failed (#29): the same in red, and the dot carries a `!` so the state isn't color-only;
 /// - done / unread: a muted dot only;
 /// - none: nothing.
 /// Call it last in `draw(_:)`, so the outline sits on top of the element's own fill.
@@ -238,6 +260,18 @@ enum AttentionStyle {
         if let dotRect {
             color.setFill()
             NSBezierPath(ovalIn: dotRect).fill()
+            if attention == .failed { drawBang(in: dotRect) }
         }
+    }
+
+    /// A `!` knocked out of the failed dot: a bar and a point, as vector shapes so it stays crisp
+    /// at 6–8pt. Drawn in the chrome color, so it reads as a hole in the red dot.
+    static func drawBang(in r: CGRect) {
+        let w = max(r.width * 0.18, 1)
+        Theme.chrome.setFill()
+        // Flipped views: y grows downward. Bar from 18% to 58% of the height, point at 70–84%.
+        NSBezierPath(roundedRect: CGRect(x: r.midX - w / 2, y: r.minY + r.height * 0.18, width: w, height: r.height * 0.40),
+                     xRadius: w / 2, yRadius: w / 2).fill()
+        NSBezierPath(ovalIn: CGRect(x: r.midX - w / 2, y: r.minY + r.height * 0.68, width: w, height: w)).fill()
     }
 }

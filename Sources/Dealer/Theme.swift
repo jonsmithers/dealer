@@ -64,6 +64,15 @@ enum Theme {
     /// Agent attention (#4, #7): finished / unread output. Deliberately quiet: a neutral dot only,
     /// so it never competes with the waiting blue.
     static var attentionDone: NSColor { textMuted }
+    /// Attention (#29): something failed (`dealer run` exited non-zero, a Claude API error, a shell
+    /// command failed). Same treatment as waiting, in red: #FF453A on dark (4.8:1 on the default
+    /// dark chrome), #C9190B on light (5.1:1). Kept well away from the red workspace/tab swatch
+    /// (#e06c75 / #c8414c, ≥ 59/255 on a channel). Colors are tints and chips, never outlines,
+    /// and the failed dot also carries a `!` (AttentionStyle), so it isn't color-only.
+    static var attentionFailed: NSColor {
+        isDark ? NSColor(srgbRed: 0xff / 255, green: 0x45 / 255, blue: 0x3a / 255, alpha: 1)
+               : NSColor(srgbRed: 0xc9 / 255, green: 0x19 / 255, blue: 0x0b / 255, alpha: 1)
+    }
 
     /// Deck identity colors, used for accents when a window has more than one deck.
     static let deckColors: [NSColor] = [
