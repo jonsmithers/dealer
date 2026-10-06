@@ -170,6 +170,20 @@ final class PaneBarView: FlippedView, ThemeApplying {
         (title as NSString).draw(in: CGRect(x: 26, y: (bounds.height - h) / 2, width: bounds.width - 34 - max(statusWidth, hovering ? Self.closeSlot : 0), height: h), withAttributes: attrs)
     }
 
+    /// Middle-click closes the pane (#37), like tabs, pills and rows, through `close(pane:)` (⌘W's
+    /// path, busy confirmation included). The press is consumed so nothing starts a drag.
+    private var middlePressed = false
+    override func otherMouseDown(with event: NSEvent) {
+        if event.buttonNumber == 2 { middlePressed = true } else { super.otherMouseDown(with: event) }
+    }
+    override func otherMouseUp(with event: NSEvent) {
+        guard event.buttonNumber == 2 else { return super.otherMouseUp(with: event) }
+        defer { middlePressed = false }
+        guard middlePressed, bounds.contains(convert(event.locationInWindow, from: nil)),
+              let pane = (superview as? PaneView)?.pane, let c = controller else { return }
+        c.close(pane: pane)
+    }
+
     override func mouseDown(with event: NSEvent) {
         guard let pane = (superview as? PaneView)?.pane, let c = controller else { return }
         c.focus(pane)

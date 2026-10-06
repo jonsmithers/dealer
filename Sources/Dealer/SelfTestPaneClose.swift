@@ -61,6 +61,34 @@ extension TerminalWindowController {
             bar("pcB").setHoveringForTest(true)
             self.clickForTest(bar("pcB").closeButton)
         }
+        t.step("pane close: split again for the middle-click (its shell gets a moment to start)", nil, {
+            tabShape() == "Row(pcA, pcC)" ? nil : "expected Row(pcA, pcC), got \(tabShape())"
+        }) {
+            self.split(t.pane("pcA"), side: .right)
+            t.named(self.focusedPane, "pcC")
+            self.layoutNow()
+        }
+        t.step("pane close: middle-clicking a pane bar closes that pane, without starting a drag (#37)", nil, {
+            all(self.locate(t.pane("pcC")) == nil ? nil : "pcC should be gone",
+                tabShape() == "pcA" ? nil : "tab should be back to just pcA, is \(tabShape())",
+                self.contentView.ghost.isHidden ? nil : "a middle-click must not start a pane drag")
+        }) {
+            guard let window = self.window else { return }
+            let bar = t.pane("pcC").view.bar
+            let p = bar.convert(CGPoint(x: bar.bounds.midX, y: bar.bounds.midY), to: nil)
+            // NSEvent.mouseEvent can't set a button number (it comes out 0), so build the middle-button
+            // events with CGEvent. A window-less NSEvent reports its (flipped) CG location as
+            // locationInWindow, so place it where that equals the bar's window point, then route it
+            // through the window like any click.
+            let mainHeight = NSScreen.screens.first?.frame.height ?? 0
+            let global = CGPoint(x: p.x, y: mainHeight - p.y)
+            for type in [CGEventType.otherMouseDown, .otherMouseUp] {
+                guard let cg = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: global, mouseButton: .center) else { continue }
+                if let e = NSEvent(cgEvent: cg), e.buttonNumber == 2, abs(e.locationInWindow.x - p.x) < 1, abs(e.locationInWindow.y - p.y) < 1 {
+                    window.sendEvent(e)
+                }
+            }
+        }
         t.step("pane close: clean up the test tab", nil, {
             tab.flatMap { self.deck(of: $0) } == nil ? nil : "test tab should be closed"
         }) {
