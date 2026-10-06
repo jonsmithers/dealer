@@ -305,7 +305,8 @@ enum AttentionFade {
     static let revealWindow: TimeInterval = 0.3
 
     /// Off in self-test mode so existing checks see clears immediately; SelfTestFade turns it on.
-    static var enabled = !SelfTest.enabled
+    /// On for README demos (`DEALER_DEMO`), which run in self-test mode but should look like the app.
+    static var enabled = !SelfTest.enabled || Demo.name != nil
     /// Self-test override for the system's Reduce Motion setting.
     static var reduceMotionOverride: Bool?
     static var reduceMotion: Bool {
