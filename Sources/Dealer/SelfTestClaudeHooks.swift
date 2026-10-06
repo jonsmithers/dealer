@@ -92,7 +92,11 @@ extension TerminalWindowController {
         // which calls the real `dealer` CLI over the real socket.
         var target: Pane?
         t.step("claude hooks: a plain `claude` typed in a pane marks it waiting (stub claude, real shell + socket)", nil, {
-            guard let target else { return "no unfocused pane with a live shell to type into" }
+            guard let target else {
+                // Locked screen: ghostty can't create surfaces, so there's no shell to type into.
+                print("      (skipped the typed-claude round trip: ghostty couldn't create terminal surfaces here)")
+                return nil
+            }
             let end = Date().addingTimeInterval(10)
             while target.attention != .waiting && Date() < end { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
             return target.attention == .waiting ? nil : "pane attention is \(target.attention.name), expected waiting"
@@ -123,7 +127,10 @@ extension TerminalWindowController {
             let leftInApp = ClaudeHooks.inheritedSessionVariables.filter { getenv($0) != nil } + env.keys.filter { $0.hasPrefix("CMUX_") }.sorted()
             if !leftInApp.isEmpty { return "still in the app's environment: \(leftInApp)" }
             if (env["PATH"] ?? "").contains("cmux-cli-shims") { return "a cmux shim directory is still on PATH" }
-            guard target != nil else { return "no scratch pane" }
+            guard target != nil else {
+                print("      (skipped the pane-shell half: ghostty couldn't create terminal surfaces here)")
+                return nil
+            }
             let out = tmp + "/pane-env.txt"
             let end = Date().addingTimeInterval(10)
             func text() -> String { (try? String(contentsOfFile: out, encoding: .utf8)) ?? "" }
