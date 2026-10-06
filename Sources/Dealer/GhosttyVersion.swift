@@ -60,18 +60,16 @@ enum GhosttyVersion {
 }
 
 /// A loud banner at the top of the deck area while `GhosttyVersion.problem` is set.
-final class GhosttyVersionBannerView: FlippedView {
+final class GhosttyVersionBannerView: FlippedView, ThemeApplying {
     private let label = NSTextField(wrappingLabelWithString: "")
     private let closeButton = NSButton(title: "Dismiss", target: nil, action: nil)
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        layer?.backgroundColor = Theme.surface.cgColor
         layer?.cornerRadius = Theme.Metrics.overlayRadius
         layer?.borderWidth = 2
-        layer?.borderColor = Theme.attentionFailed.cgColor
         label.font = Theme.Fonts.paneBar
-        label.textColor = Theme.text
+        applyTheme()
         label.maximumNumberOfLines = 3
         closeButton.bezelStyle = .rounded
         closeButton.controlSize = .small
@@ -81,6 +79,12 @@ final class GhosttyVersionBannerView: FlippedView {
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    func applyTheme() {
+        layer?.backgroundColor = Theme.surface.cgColor
+        layer?.borderColor = Theme.attentionFailed.cgColor
+        label.textColor = Theme.text
+    }
 
     var message: String { label.stringValue }
 
