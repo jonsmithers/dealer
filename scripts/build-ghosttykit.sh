@@ -107,3 +107,4 @@ mkdir -p "$OUT"
 rm -rf "$OUT/GhosttyKit.xcframework"
 cp -R "$GHOSTTY/macos/GhosttyKit.xcframework" "$OUT/"
 echo "$OUT/GhosttyKit.xcframework updated"
+"$REPO/scripts/check-ghostty.sh" "$OUT/GhosttyKit.xcframework" || true

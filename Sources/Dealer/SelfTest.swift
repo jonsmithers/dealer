@@ -241,6 +241,7 @@ extension TerminalWindowController {
         dragSettleSelfTestSteps(kit)
         edgeSplitSelfTestSteps(kit)
         reloadSelfTestSteps(kit)
+        ghosttyVersionSelfTestSteps(kit)
 
         var failures = 0
         func run(_ i: Int) {

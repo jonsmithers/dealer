@@ -81,6 +81,12 @@ git -C ../ghostty checkout --detach "$(tail -1 scripts/ghostty.version)"
 then asks. It refuses to build a different commit unless you pass `--any-version`, because
 libghostty's embedding API changes often. `--dry-run` shows what it would do.
 
+The pin is enforced against the framework you actually have in `vendor/` (#35):
+`scripts/check-ghostty.sh` compares the commit recorded in the library with the pin, and
+`scripts/bundle.sh` refuses to bundle on a mismatch (`GHOSTTY_ANY_VERSION=1` overrides).
+The self-test fails on a mismatch, and at launch the app shows a red banner if the linked
+Ghostty isn't the pinned one.
+
 ```sh
 scripts/build-ghosttykit.sh      # once: builds GhosttyKit.xcframework from the Ghostty checkout into vendor/
 scripts/bundle.sh                # swift build + wraps build/Dealer.app (release by default; `debug` for a debug build)
@@ -411,6 +417,7 @@ and asserts the tree after each step.
 ## Layout
 
 - `GhosttyRuntime.swift` – `ghostty_app_t`, config, runtime callbacks (clipboard, actions, close)
+- `GhosttyVersion.swift` – the pinned Ghostty commit, the launch-time check against `ghostty_info()`, and its banner
 - `SurfaceView.swift` – NSView hosting a `ghostty_surface_t`: keys + IME, mouse, sizing, focus
 - `Model.swift` – generic binary split `Node`, `Pane`, `Tab`, `Deck`
 - `TerminalWindowController.swift` – all structural operations and layout

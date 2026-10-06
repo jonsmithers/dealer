@@ -18,11 +18,21 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   example, after the pin the clipboard callbacks and `ghostty_surface_complete_clipboard_request`
   changed signature, and `main` moved to zig 0.16. Never move the user's Ghostty checkout yourself;
   for a different commit, use a `git clone --shared` into a temp dir. To bump the pin, rebuild, fix
-  the drift, run the self-test, and update the hash.
+  the drift, update the hash in **both** `scripts/ghostty.version` and
+  `GhosttyVersion.pinnedCommit`, and run the self-test.
+- **The pin is enforced on the vendored framework (#35)**, read from the version string Ghostty's
+  build embeds (`ghostty_info()` at runtime, `grep -a` in `scripts/check-ghostty.sh`), not a stamp.
+  Three layers: `bundle.sh` runs `check-ghostty.sh` and refuses to bundle a mismatch
+  (`GHOSTTY_ANY_VERSION=1` overrides); the self-test fails on a mismatch, so merges do too, and it
+  checks that `GhosttyVersion.pinnedCommit` equals `scripts/ghostty.version` (reading the file from the
+  source tree via `#filePath`); and at launch the app logs the mismatch and shows a dismissible red
+  banner (`GhosttyVersionBannerView`) in all build configs. A library built without git metadata
+  records no commit and only gets a warning.
+  - To check by hand without touching `vendor/`, run `scripts/check-ghostty.sh <path/to/GhosttyKit.xcframework>`.
+    The script only greps the `.a`, so a temp dir holding a small fake `*/libghostty*.a` with a
+    `1.3.2-main-+<hash>` string is enough to fake a mismatch.
 - The pinned commit needs **zig 0.15**. The script reads `minimum_zig_version` from the checkout's
   `build.zig.zon` and prefers `/opt/homebrew/opt/zig@<ver>/bin/zig`; Homebrew's default `zig` is 0.16.
-- The binary records its source commit: `strings vendor/GhosttyKit.xcframework/*/libghostty-internal-fat.a
-  | grep -- '-main-+'` prints e.g. `1.3.2-main-+243f7df7c`.
 - `swift build` compiles the code; `scripts/bundle.sh [debug|release]` produces `build/Dealer.app`.
 
 ## Running

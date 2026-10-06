@@ -3,6 +3,8 @@
 # Usage: scripts/bundle.sh [debug|release]
 set -eu
 CONFIG=${1:-release}
+# Refuse to bundle against a GhosttyKit that isn't the pinned Ghostty commit (#35).
+"$(dirname "$0")/check-ghostty.sh" || [ $? = 2 ]  # 2 = no commit recorded: warned, not fatal
 swift build -c "$CONFIG"
 APP=build/Dealer.app
 rm -rf "$APP"

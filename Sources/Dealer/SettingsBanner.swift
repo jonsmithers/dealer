@@ -86,6 +86,7 @@ extension TerminalWindowController {
     /// Keeps the settings banner at the bottom of the deck area, above the terminals.
     /// Called from `layoutWorkspaceSidebar` (every layout pass).
     func layoutSettingsBanner() {
+        layoutGhosttyBanner()  // GhosttyVersion.swift (#35)
         let banner = settingsBanner
         banner.update()
         guard !banner.isHidden else { return }

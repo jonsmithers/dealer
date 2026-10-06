@@ -33,6 +33,7 @@ final class GhosttyRuntime {
         if ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) != GHOSTTY_SUCCESS {
             fatalError("ghostty_init failed")
         }
+        GhosttyVersion.check()  // #35: is the linked libghostty the pinned commit?
 
         // At launch there is no previous config to keep, so a config with errors is used anyway
         // (ghostty skips the bad lines); its problems still go to the banner.
