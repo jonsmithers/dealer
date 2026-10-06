@@ -277,6 +277,17 @@
 - Shell-driven events (ghostty actions, socket requests from a shell) reach `setAttention` through
   `DispatchQueue.main.async`, which the self-test's nested run-loop waits don't drain. Check their
   effect in a *later* step, not by spinning inside the same step.
+- Fade-out (#34): elements never draw `pane.attention`/`attention` directly. They draw
+  `attentionFade.shown` at `attentionFade.alpha` (`AttentionFadeState`, one per PaneView ring,
+  TabButton, WorkspaceRow and WorkspaceButton), fed the model value on every refresh with the
+  element's subject (pane, tab or workspace). The subject must be set before `attention` in a
+  reload (`b.tab = tab` then `b.attention = …`), so a recycled view showing a different subject
+  jumps instead of fading. A clear to `none` fades over `AttentionFade.duration`, plus
+  `revealHold` when it follows `reveal(_:)`. A raise cancels it, Reduce Motion drops it, and one
+  common-mode timer (`AttentionFader`) ticks only while something fades. Colors are read from
+  `Attention.color` (Theme) on every draw and tick, never cached. Fades are off in self-test
+  mode (`AttentionFade.enabled`) so checks see clears at once; SelfTestFade.swift turns them on
+  and checks timing in a single step, because the runner pauses ~0.6 s between steps.
 - Look (#7): `waiting` and `failed` are outlined (`Attention.outlined`). That means the pane ring plus an outline on the tab and
   workspace entry, in `Theme.attentionWaiting` (adaptive blue). `done`/`unread` are a muted dot
   only (`Theme.attentionDone` = `textMuted`). Chrome elements draw attention only through

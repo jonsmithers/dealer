@@ -16,6 +16,8 @@ class FlippedView: NSView {
 // MARK: - Pane
 
 final class PaneView: FlippedView {
+    /// The ring's state, including a cleared one fading out (#34, Attention.swift).
+    let attentionFade = AttentionFadeState()
     weak var pane: Pane?
     let bar = PaneBarView()
     static var barHeight: CGFloat { Theme.Metrics.paneBarHeight }
@@ -399,7 +401,14 @@ final class TabButton: FlippedView {
     /// The tab's own color (#9): its underline (instead of the deck accent) and a faint tint.
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true } } }
     /// Badge for the most urgent pane in this tab (#4); drawn by `drawAttentionDot` in Attention.swift.
-    var attention: Attention = .none { didSet { if attention != oldValue { needsDisplay = true } } }
+    var attention: Attention = .none {
+        didSet {
+            if attentionFade.onChange == nil { attentionFade.onChange = { [weak self] in self?.needsDisplay = true } }
+            attentionFade.set(attention, subject: tab)  // #34: a cleared tab fades out
+            if attention != oldValue { needsDisplay = true }
+        }
+    }
+    let attentionFade = AttentionFadeState()
     private var hovering = false { didSet { needsDisplay = true } }
     private var hoveringClose = false { didSet { if hoveringClose != oldValue { needsDisplay = true } } }
     var closeRect: CGRect { CGRect(x: bounds.width - 21, y: (bounds.height - 16) / 2, width: 16, height: 16) }

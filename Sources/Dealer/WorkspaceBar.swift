@@ -105,7 +105,14 @@ final class WorkspaceButton: FlippedView {
     var number = "" { didSet { if number != oldValue { needsDisplay = true } } }
     var title = "" { didSet { if title != oldValue { needsDisplay = true } } }
     var isActive = false { didSet { if isActive != oldValue { needsDisplay = true } } }
-    var attention: Attention = .none { didSet { if attention != oldValue { needsDisplay = true } } }
+    var attention: Attention = .none {
+        didSet {
+            if attentionFade.onChange == nil { attentionFade.onChange = { [weak self] in self?.needsDisplay = true } }
+            attentionFade.set(attention, subject: workspace)  // #34: a cleared workspace fades out
+            if attention != oldValue { needsDisplay = true }
+        }
+    }
+    let attentionFade = AttentionFadeState()
     /// The workspace's color (#9): a dot before the number plus a faint tint.
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true; superview?.needsLayout = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
@@ -133,7 +140,7 @@ final class WorkspaceButton: FlippedView {
     }
 
     private var numberWidth: CGFloat { number.isEmpty ? 0 : ceil((number as NSString).size(withAttributes: numberAttrs).width) + 6 }
-    private var dotWidth: CGFloat { attention > .none ? Self.dotSize + 6 : 0 }
+    private var dotWidth: CGFloat { attentionFade.shown > .none ? Self.dotSize + 6 : 0 }
 
     private var chipWidth: CGFloat { color == nil || isAddButton ? 0 : 10 }
     /// Where the color dot sits (also sampled by the self-test).
@@ -193,11 +200,11 @@ final class WorkspaceButton: FlippedView {
         let w = bounds.width - x - Self.padding - dotWidth
         (title as NSString).draw(in: CGRect(x: x, y: (bounds.height - h) / 2, width: max(w, 0), height: h), withAttributes: attrs)
 
-        if attention > .none {
+        if attentionFade.shown > .none {
             // #7 owns the look: waiting outlines the pill, done/unread get a muted dot (Attention.swift).
             let d = Self.dotSize
-            AttentionStyle.draw(attention, in: bounds, cornerRadius: Theme.Metrics.tabRadius,
-                                dotRect: CGRect(x: bounds.width - Self.padding - d, y: (bounds.height - d) / 2, width: d, height: d))
+            AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: Theme.Metrics.tabRadius,
+                                dotRect: CGRect(x: bounds.width - Self.padding - d, y: (bounds.height - d) / 2, width: d, height: d), alpha: attentionFade.alpha)
         }
     }
 

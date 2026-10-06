@@ -207,6 +207,11 @@ then unread. **⌘⇧U** (Window > Jump to Next Unread) goes to the most urgent 
 in the same order. When Dealer isn't the key window, it
 also posts a macOS notification (bundled app only), and clicking it focuses the pane.
 
+When attention clears, its ring, outline and dot **fade out** over about a second instead of
+vanishing, so you can see which pane called you. Arriving via ⌘⇧U or a notification holds the
+color for half a second first. The state itself clears at once: ⌘⇧U and `dealer` see it gone
+immediately. With macOS **Reduce Motion** on, there's no fade (the hold stays).
+
 Sources:
 - the bell (BEL);
 - desktop notifications from OSC 9, OSC 99 and OSC 777;

@@ -135,6 +135,7 @@ extension TerminalWindowController {
 
     /// Brings the pane's window forward and focuses it; focusing clears its attention.
     func reveal(_ pane: Pane) {
+        AttentionFade.noteReveal()  // the clear below fades after a short hold (#34)
         window?.makeKeyAndOrderFront(nil)
         focus(pane)
         clearAttention(pane)
@@ -203,9 +204,17 @@ extension PaneView {
     /// An accent ring over the whole pane while an agent in it is waiting (#7; done/unread get no ring). Its own layer, above the
     /// Metal surface, so it doesn't fight the pane's focus styling.
     func updateAttentionRing() {
+        if attentionFade.onChange == nil { attentionFade.onChange = { [weak self] in self?.applyAttentionRing() } }
+        attentionFade.set(pane?.attention ?? .none, subject: pane)
+        applyAttentionRing()
+    }
+
+    /// Renders the ring from `attentionFade` (#34): the current state, or a cleared one fading out.
+    func applyAttentionRing() {
         guard let layer else { return }
         let existing = layer.sublayers?.first { $0.name == Self.ringName }
-        guard let a = pane?.attention, a.outlined, let color = a.color else {
+        let a = attentionFade.shown
+        guard a.outlined, let color = a.color else {
             existing?.removeFromSuperlayer()
             return
         }
@@ -222,6 +231,7 @@ extension PaneView {
         CATransaction.setDisableActions(true)
         ring.frame = layer.bounds
         ring.borderColor = color.cgColor
+        ring.opacity = Float(attentionFade.alpha)
         CATransaction.commit()
     }
 }
@@ -232,7 +242,8 @@ extension TabButton {
 
     /// The outline stays while hovering; only the dot gives way to the close button.
     func drawAttentionDot(hidden: Bool) {
-        AttentionStyle.draw(attention, in: bounds, cornerRadius: Theme.Metrics.tabRadius, dotRect: hidden ? nil : attentionDotRect)
+        AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: Theme.Metrics.tabRadius,
+                            dotRect: hidden ? nil : attentionDotRect, alpha: attentionFade.alpha)
     }
 }
 
@@ -245,13 +256,15 @@ extension TabButton {
 enum AttentionStyle {
     static let outlineWidth: CGFloat = 1.5
 
-    static func draw(_ attention: Attention, in rect: CGRect, cornerRadius: CGFloat, dotRect: CGRect?) {
-        guard let color = attention.color else { return }
+    /// `alpha` < 1 while a cleared state fades out (#34).
+    static func draw(_ attention: Attention, in rect: CGRect, cornerRadius: CGFloat, dotRect: CGRect?, alpha: CGFloat = 1) {
+        guard alpha > 0, let base = attention.color else { return }
+        let color = base.withAlphaComponent(base.alphaComponent * alpha)
         if attention.outlined {
             let inset = rect.insetBy(dx: outlineWidth / 2, dy: outlineWidth / 2)
             let r = max(cornerRadius - outlineWidth / 2, 0)
             let path = NSBezierPath(roundedRect: inset, xRadius: r, yRadius: r)
-            color.withAlphaComponent(0.10).setFill()
+            color.withAlphaComponent(0.10 * alpha).setFill()
             path.fill()
             color.setStroke()
             path.lineWidth = outlineWidth
@@ -260,18 +273,143 @@ enum AttentionStyle {
         if let dotRect {
             color.setFill()
             NSBezierPath(ovalIn: dotRect).fill()
-            if attention == .failed { drawBang(in: dotRect) }
+            if attention == .failed { drawBang(in: dotRect, alpha: alpha) }
         }
     }
 
     /// A `!` knocked out of the failed dot: a bar and a point, as vector shapes so it stays crisp
     /// at 6–8pt. Drawn in the chrome color, so it reads as a hole in the red dot.
-    static func drawBang(in r: CGRect) {
+    static func drawBang(in r: CGRect, alpha: CGFloat = 1) {
         let w = max(r.width * 0.18, 1)
-        Theme.chrome.setFill()
+        Theme.chrome.withAlphaComponent(alpha).setFill()
         // Flipped views: y grows downward. Bar from 18% to 58% of the height, point at 70–84%.
         NSBezierPath(roundedRect: CGRect(x: r.midX - w / 2, y: r.minY + r.height * 0.18, width: w, height: r.height * 0.40),
                      xRadius: w / 2, yRadius: w / 2).fill()
         NSBezierPath(ovalIn: CGRect(x: r.midX - w / 2, y: r.minY + r.height * 0.68, width: w, height: w)).fill()
+    }
+}
+
+// MARK: - Fading out (#34)
+
+/// Timing and switches for the attention fade-out (#34). When a pane's attention clears, the model
+/// changes at once (roll-up, ⌘⇧U and `dealer` see `none` immediately); only the drawing lingers:
+/// the pane ring, the tab outline and dot, and the workspace row/pill keep showing the old state
+/// at a decreasing alpha, so you can see which pane called you.
+enum AttentionFade {
+    /// Seconds from solid to gone.
+    static let duration: TimeInterval = 0.8
+    /// Extra solid time before fading when the clear came from `reveal` (⌘⇧U, a notification click),
+    /// so the color registers before it goes.
+    static let revealHold: TimeInterval = 0.5
+    /// A fade that starts within this long after `noteReveal()` gets the hold.
+    static let revealWindow: TimeInterval = 0.3
+
+    /// Off in self-test mode so existing checks see clears immediately; SelfTestFade turns it on.
+    static var enabled = !SelfTest.enabled
+    /// Self-test override for the system's Reduce Motion setting.
+    static var reduceMotionOverride: Bool?
+    static var reduceMotion: Bool {
+        reduceMotionOverride ?? NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    private(set) static var lastReveal: Date?
+    /// Called by `reveal(_:)` just before it focuses the pane.
+    static func noteReveal() { lastReveal = Date() }
+
+    /// Hold and fade lengths for a fade starting now. Reduce Motion keeps the hold (no motion) but
+    /// drops the fade: the state disappears at once.
+    static func timing(now: Date = Date()) -> (hold: TimeInterval, fade: TimeInterval) {
+        let hold = lastReveal.map { now.timeIntervalSince($0) <= revealWindow } == true ? revealHold : 0
+        return (hold, reduceMotion ? 0 : duration)
+    }
+}
+
+/// What one chrome element (pane ring, tab button, workspace row or pill) should draw. Feed it the
+/// model's value with `set(_:subject:)` on every refresh; draw `shown` at `alpha`.
+/// Colors are never cached here: elements read `shown.color` (Theme) at draw time.
+final class AttentionFadeState {
+    /// The state to draw. During a fade this is the state that cleared.
+    private(set) var shown: Attention = .none
+    /// 1 when solid, falling to 0 during a fade.
+    private(set) var alpha: CGFloat = 1
+    var isFading: Bool { start != nil }
+    /// Called on every fade tick and when the fade ends; the element redraws.
+    var onChange: (() -> Void)?
+
+    private var model: Attention = .none
+    private weak var subject: AnyObject?
+    private var hasSubject = false
+    private var start: Date?
+    private var hold: TimeInterval = 0
+    private var length: TimeInterval = 0
+
+    /// `subject` is what the element currently represents (its pane, tab or workspace). A recycled
+    /// view that now shows a different subject jumps to the new state instead of fading.
+    func set(_ a: Attention, subject: AnyObject?) {
+        let sameSubject = hasSubject && subject === self.subject
+        self.subject = subject
+        hasSubject = true
+        defer { model = a }
+        if a == .none, model != .none, sameSubject, AttentionFade.enabled {
+            let t = AttentionFade.timing()
+            guard t.hold + t.fade > 0 else { return finish(.none) }
+            shown = model
+            alpha = 1
+            start = Date()
+            hold = t.hold
+            length = t.fade
+            AttentionFader.shared.add(self)
+            return
+        }
+        if a == .none && isFading && sameSubject { return }  // already fading out; keep going
+        finish(a)  // a raise (cancels any fade) or a non-fading change
+    }
+
+    /// Advances the fade; returns false once it's over.
+    func tick(now: Date = Date()) -> Bool {
+        guard let start else { return false }
+        let t = now.timeIntervalSince(start)
+        if t < hold { alpha = 1; onChange?(); return true }
+        let p = length > 0 ? (t - hold) / length : 1
+        if p >= 1 { finish(.none); return false }
+        alpha = CGFloat(1 - p)
+        onChange?()
+        return true
+    }
+
+    private func finish(_ a: Attention) {
+        let changed = shown != a || alpha != 1 || start != nil
+        start = nil
+        shown = a
+        alpha = 1
+        AttentionFader.shared.remove(self)
+        if changed { onChange?() }
+    }
+}
+
+/// One 60 Hz timer for every fading element, running only while something fades. Scheduled in the
+/// common run-loop modes, so fades keep going during tracking loops and the self-test's waits.
+final class AttentionFader {
+    static let shared = AttentionFader()
+    private var states: [AttentionFadeState] = []
+    private var timer: Timer?
+
+    func add(_ s: AttentionFadeState) {
+        if !states.contains(where: { $0 === s }) { states.append(s) }
+        s.onChange?()
+        guard timer == nil else { return }
+        let t = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in self?.tickAll() }
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
+    }
+
+    func remove(_ s: AttentionFadeState) {
+        states.removeAll { $0 === s }
+        if states.isEmpty { timer?.invalidate(); timer = nil }
+    }
+
+    private func tickAll() {
+        let now = Date()
+        for s in states { _ = s.tick(now: now) }
     }
 }

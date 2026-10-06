@@ -99,7 +99,14 @@ final class WorkspaceRow: FlippedView {
     var title = "" { didSet { if title != oldValue { needsDisplay = true } } }
     var detail = "" { didSet { if detail != oldValue { needsDisplay = true } } }
     var isActive = false { didSet { if isActive != oldValue { needsDisplay = true } } }
-    var attention: Attention = .none { didSet { if attention != oldValue { needsDisplay = true } } }
+    var attention: Attention = .none {
+        didSet {
+            if attentionFade.onChange == nil { attentionFade.onChange = { [weak self] in self?.needsDisplay = true } }
+            attentionFade.set(attention, subject: workspace)  // #34: a cleared workspace fades out
+            if attention != oldValue { needsDisplay = true }
+        }
+    }
+    let attentionFade = AttentionFadeState()
     /// The workspace's color (#9): a chip at the left edge plus a faint tint.
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
@@ -186,7 +193,7 @@ final class WorkspaceRow: FlippedView {
         }
         x += numberColumn
 
-        let dot = attention > .none && !isAddRow
+        let dot = attentionFade.shown > .none && !isAddRow
         let right = bounds.width - Self.padding - (dot ? Self.dotSize + 6 : 0)
         (title as NSString).draw(in: CGRect(x: x, y: titleY, width: max(right - x, 0), height: titleH), withAttributes: titleAttrs)
         if hasDetail {
@@ -196,8 +203,8 @@ final class WorkspaceRow: FlippedView {
         if dot {
             // #7: waiting outlines the whole row; done/unread get a muted dot only (Attention.swift).
             let d = Self.dotSize
-            AttentionStyle.draw(attention, in: bounds, cornerRadius: Theme.Metrics.tabRadius,
-                                dotRect: CGRect(x: bounds.width - Self.padding - d, y: titleY + (titleH - d) / 2, width: d, height: d))
+            AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: Theme.Metrics.tabRadius,
+                                dotRect: CGRect(x: bounds.width - Self.padding - d, y: titleY + (titleH - d) / 2, width: d, height: d), alpha: attentionFade.alpha)
         }
     }
 

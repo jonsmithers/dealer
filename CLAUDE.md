@@ -154,6 +154,9 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   at all on tabs (tint, underline, fill, or deck-color fallback). Tabs get color only from their own `Tab.color`; the
   per-deck underline stays and a tab color overrides it on that tab. `[colors] auto_assign`
   defaults to off.
+- Attention clears in the model at once, but its ring/outline/dot fade out (~0.8 s, plus a 0.5 s hold
+  after ⌘⇧U or a notification click) so you see which pane called you (#34). Only those layers
+  and drawings animate, never terminal surfaces. Reduce Motion skips the fade.
 - Coding-agent keys: ⌘⇧U Jump to Next Unread, ⌥⌘A New Agent Pane, ⌥⇧⌘A New Agent Pane in
   Worktree. The agent command comes from `DEALER_AGENT_COMMAND`, then `[agent] command` in
   settings.toml, then the legacy `agentCommand` user default, then `claude`. It is *typed* into the new pane's shell (not the
