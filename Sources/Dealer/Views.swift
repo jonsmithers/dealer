@@ -402,7 +402,7 @@ final class TabButton: FlippedView {
     var attention: Attention = .none { didSet { if attention != oldValue { needsDisplay = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
     private var hoveringClose = false { didSet { if hoveringClose != oldValue { needsDisplay = true } } }
-    private var closeRect: CGRect { CGRect(x: bounds.width - 21, y: (bounds.height - 16) / 2, width: 16, height: 16) }
+    var closeRect: CGRect { CGRect(x: bounds.width - 21, y: (bounds.height - 16) / 2, width: 16, height: 16) }
     private var showsClose: Bool { hovering }
 
     override init(frame: NSRect) {
@@ -417,10 +417,11 @@ final class TabButton: FlippedView {
     /// NSView says yes by default for any non-opaque view (Ghostty's NonDraggableHostingView pattern).
     override var mouseDownCanMoveWindow: Bool { false }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-    override func mouseEntered(with event: NSEvent) { hovering = true }
-    override func mouseExited(with event: NSEvent) { hovering = false; hoveringClose = false }
+    override func mouseEntered(with event: NSEvent) { hovering = true; updateTitlebarDragZone(event) }
+    override func mouseExited(with event: NSEvent) { hovering = false; hoveringClose = false; leaveTitlebarDragZone() }
     override func mouseMoved(with event: NSEvent) {
         hoveringClose = closeRect.contains(convert(event.locationInWindow, from: nil))
+        updateTitlebarDragZone(event)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -475,6 +476,8 @@ final class TabButton: FlippedView {
             return
         }
         c.select(tab: tab, in: deck)
+        // Top half of a titlebar tab: a drag moves the window, like Ghostty's native tabs (#27).
+        if titlebarZone(at: event.locationInWindow) == .window { return dragWindowIfDragged(event) }
         c.drag.begin(.tab(tab), event: event)
     }
 

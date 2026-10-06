@@ -172,6 +172,51 @@ extension TerminalWindowController {
             self.layoutNow()
             if let i = d.index(of: clickTab!), d.view.strip.buttons.indices.contains(i) { sendClick(d.view.strip.buttons[i]) }
         }
+        // Drag zones (#27 reopened): top half of a titlebar tab drags the window, bottom half drags the tab.
+        func tabButton(_ tab: Tab?) -> TabButton? {
+            guard let tab, let d = self.deck(of: tab), let i = d.index(of: tab), d.view.strip.buttons.indices.contains(i) else { return nil }
+            return d.view.strip.buttons[i]
+        }
+        func moved(_ b: TabButton, _ fy: CGFloat) -> NSEvent? {
+            guard let window = self.window else { return nil }
+            let p = b.convert(CGPoint(x: b.bounds.width * 0.4, y: b.bounds.height * fy), to: nil)
+            return NSEvent.mouseEvent(with: .mouseMoved, location: p, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                      windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0)
+        }
+        t.step("titlebar tabs: a tab's top half is a window-drag zone, its bottom half and × a tab-drag zone (#27)", nil, {
+            guard let window = self.window else { return "no window" }
+            var problems: [String] = []
+            for b in deck("srv").view.strip.buttons {
+                func zone(_ fx: CGFloat, _ fy: CGFloat) -> TabButton.TitlebarZone? {
+                    b.titlebarZone(at: b.convert(CGPoint(x: b.bounds.width * fx, y: b.bounds.height * fy), to: nil))
+                }
+                if zone(0.4, 0.2) != .window { problems.append("top of \(b.title) should drag the window") }
+                if zone(0.4, 0.8) != .tab { problems.append("bottom of \(b.title) should drag the tab") }
+                if b.titlebarZone(at: b.convert(CGPoint(x: b.closeRect.midX, y: b.closeRect.minY + 1), to: nil)) != .tab {
+                    problems.append("the × of \(b.title) should stay clickable")
+                }
+                if b.mouseDownCanMoveWindow { problems.append("\(b.title) must not answer mouseDownCanMoveWindow") }
+            }
+            // What the window server reads: isMovable follows the pointer's zone, and leaving restores it.
+            if let b = deck("srv").view.strip.buttons.first, let bottom = moved(b, 0.8), let top = moved(b, 0.2) {
+                b.mouseMoved(with: bottom)
+                if window.isMovable { problems.append("over a tab's bottom half the window should not be movable") }
+                b.mouseMoved(with: top)
+                if !window.isMovable { problems.append("over a tab's top half the window should be movable") }
+                b.mouseMoved(with: bottom)
+                b.mouseExited(with: top)
+                if !window.isMovable { problems.append("leaving the tab should make the window movable again") }
+            }
+            return problems.isEmpty ? nil : problems.joined(separator: "; ")
+        }) {}
+        t.step("titlebar tabs: a real click on a tab's top half still selects it", nil, {
+            deck("srv").activeTab === clickTab ? nil : "a top-half click should select the tab"
+        }) {
+            let d = deck("srv")
+            if let first = d.tabs.first { self.select(tab: first, in: d) }
+            self.layoutNow()
+            if let b = tabButton(clickTab) { sendClick(b, at: CGPoint(x: b.bounds.width * 0.4, y: b.bounds.height * 0.2)) }
+        }
         t.step("titlebar tabs: no view under a titlebar tab or the + lets a press move the window (#27)", nil, {
             // The real pointer's press never reaches the app when the window server treats it as a
             // window drag, which it decides from `mouseDownCanMoveWindow` of the view under the
@@ -199,13 +244,14 @@ extension TerminalWindowController {
             let hit = frameView.hitTest(frameView.convert(p, from: nil))
             return hit === s && s.mouseDownCanMoveWindow ? nil : "empty strip space should be a window-drag area (hit \(hit.map { "\(type(of: $0))" } ?? "nil"))"
         }) {}
-        t.step("titlebar tabs: a tab dragged out of the titlebar still moves (to the window's bottom edge: new deck)", nil, {
+        t.step("titlebar tabs: a tab dragged from its bottom half goes through the drag loop (to the window's bottom edge: new deck)", nil, {
             guard let tab = clickTab, let d = self.deck(of: tab) else { return "tt5's tab is gone" }
             return d !== deck("srv") ? nil : "tt5 should have left srv's deck"
         }) {
             guard let tab = clickTab, let d = self.deck(of: tab), let i = d.index(of: tab), let window = self.window else { return }
             let b = d.view.strip.buttons[i]
-            let from = b.convert(CGPoint(x: b.bounds.midX, y: b.bounds.midY), to: nil)
+            // From the tab's bottom half: the tab-drag zone (#27).
+            let from = b.convert(CGPoint(x: b.bounds.width * 0.4, y: b.bounds.height * 0.8), to: nil)
             let a = self.deckArea
             let to = self.contentView.convert(CGPoint(x: a.midX, y: a.maxY - 6), to: nil)
             for (type, p) in [(NSEvent.EventType.leftMouseDragged, CGPoint(x: (from.x + to.x) / 2, y: (from.y + to.y) / 2)),

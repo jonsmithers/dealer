@@ -77,6 +77,13 @@
   a press drags the window and never reaches the view. Every interactive view that can sit in the
   titlebar row (tabs, buttons, pills, rows) must return `false`; `TabButton` didn't (#27). An
   in-process `window.sendEvent` can't reproduce this, so the self-test asserts the property.
+- Titlebar tabs have two drag zones, like macOS's native titlebar tabs (#27): press-and-drag on a
+  tab's top half moves the window, on its bottom half (and the ×) drags the tab; a click anywhere
+  selects it. `mouseDownCanMoveWindow` is one answer per view, so the split is done by the tab's
+  hover tracking turning `window.isMovable` off over the bottom half and back on elsewhere (and
+  `placeTabStrips` restores it when no strip is in the titlebar). Top-half presses that reach the
+  app go to `performDrag` once they move. The window-server side can't be self-tested; the zone
+  split and the isMovable switching are.
 - Empty strip space in the titlebar drags the window (`performDrag`) and runs the system
   double-click action (`AppleActionOnDoubleClick` from the global domain: a macOS setting, not a
   Dealer one). DragController checks titlebar strips before the top-edge promote band they sit in.

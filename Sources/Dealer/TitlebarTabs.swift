@@ -53,6 +53,7 @@ extension TerminalWindowController {
         }
         // Strips left in the titlebar by decks that lost the top edge, were hidden, or were removed
         // (detach takes the deck view away but not a strip living outside it).
+        if up.isEmpty, window?.isMovable == false { window?.isMovable = true }
         for case let s as TabStripView in contentView.subviews where !up.contains(ObjectIdentifier(s.deck)) {
             s.removeFromSuperview()
         }
@@ -101,5 +102,46 @@ extension WorkspaceBarView {
     var contentWidth: CGFloat {
         subviews.compactMap { $0 as? WorkspaceButton }.filter { !$0.isHidden }
             .reduce(0) { $0 + min($1.idealWidth, Self.maxPillWidth) + Self.spacing }
+    }
+}
+
+// MARK: - Drag zones of a titlebar tab (#27)
+//
+// Matches macOS's native titlebar tabs (which Ghostty uses unchanged): a press-and-drag on the top
+// half of a tab moves the window, on the bottom half it drags the tab; a click anywhere selects it.
+//
+// The window server, not the app, decides whether a titlebar press moves the window, and it decides
+// before the app sees the press, so `mouseDownCanMoveWindow` (one answer per view) can't split a tab.
+// Instead the tab turns the window's `isMovable` off while the pointer is over its bottom half and
+// back on everywhere else. Top-half presses that reach the app are passed to `performDrag`.
+
+extension TabButton {
+    enum TitlebarZone { case window, tab }
+
+    /// Which zone a window point falls in, or nil when this tab isn't in the titlebar.
+    func titlebarZone(at windowPoint: CGPoint) -> TitlebarZone? {
+        guard (superview as? TabStripView)?.isInTitlebar == true else { return nil }
+        let p = convert(windowPoint, from: nil)
+        guard bounds.contains(p) else { return nil }
+        if closeRect.contains(p) { return .tab }   // the × must stay clickable
+        return p.y < bounds.midY ? .window : .tab  // flipped: small y is the top
+    }
+
+    func updateTitlebarDragZone(_ event: NSEvent) {
+        guard let window, (superview as? TabStripView)?.isInTitlebar == true else { return }
+        let movable = titlebarZone(at: event.locationInWindow) != .tab
+        if window.isMovable != movable { window.isMovable = movable }
+    }
+
+    func leaveTitlebarDragZone() {
+        if let window, !window.isMovable { window.isMovable = true }
+    }
+
+    /// Waits for the press to become a drag (then moves the window) or a release (a plain click).
+    func dragWindowIfDragged(_ event: NSEvent) {
+        guard let window else { return }
+        let next = window.nextEvent(matching: [.leftMouseDragged, .leftMouseUp], until: .distantFuture,
+                                    inMode: .eventTracking, dequeue: true)
+        if next?.type == .leftMouseDragged { window.performDrag(with: event) }
     }
 }
