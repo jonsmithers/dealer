@@ -111,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item("About Dealer", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
             .separator(),
             item("Open Settings File…", #selector(AppDelegate.openSettingsFile(_:)), ","),
-            item("Reload Settings", #selector(AppDelegate.reloadSettings(_:))),
+            item("Reload Configuration", #selector(AppDelegate.reloadConfiguration(_:)), ",", [.command, .shift]),
             .separator(),
             item("Hide Dealer", #selector(NSApplication.hide(_:)), "h"),
             item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),

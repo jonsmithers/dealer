@@ -103,6 +103,8 @@ Every normal launch restores and overwrites your session (see *Session restore*)
 
 Your normal Ghostty config (`~/.config/ghostty/config`) is loaded, and window chrome takes its
 colors from your Ghostty theme (background/foreground, `unfocused-split-*`, `split-divider-color`).
+After editing it, **⌘⇧,** (Dealer › Reload Configuration) applies the change live, as in Ghostty:
+terminals and chrome re-theme without restarting anything (see [Settings](#settings)).
 
 New splits, tabs, workspaces and windows start in the focused pane's current directory, as its
 shell reports it (Ghostty's shell integration; without it, the directory the pane started in).
@@ -133,6 +135,8 @@ starts in your `working-directory`. Restored sessions keep each pane's saved dir
 | ⌘B | Show / hide the workspace sidebar (sidebar mode only) |
 | ⌘⇧U | Jump to the next pane that needs attention |
 | ⌥⌘A / ⌥⇧⌘A | New agent pane / in a new git worktree |
+| ⌘, | Open Dealer's settings file |
+| ⌘⇧, | **Reload Configuration**: the ghostty config (colors, font, …) and settings.toml, live |
 
 These menu shortcuts win over Ghostty keybinds, so a `keybind` in your Ghostty config on one of
 these keys never fires. Ghostty has no default ⌘B binding, but a `keybind = cmd+b=…` of yours is
@@ -337,7 +341,12 @@ close_on_success = true  # failed jobs always stay open
 ```
 
 - Changes apply live: Dealer watches the file (editors that save by replacing it work too).
-  **Dealer › Reload Settings** forces a re-read.
+  **Dealer › Reload Configuration** (⌘⇧,) forces a re-read.
+- The same command reloads the **ghostty config**: the terminals pick up the new colors and font,
+  and Dealer's chrome (tab strips, decks, pane bars, the sidebar or pills, the unfocused-pane veil)
+  re-themes at once. Shells keep running. Ghostty's own `reload_config` keybind does the same. A
+  ghostty config with errors is not applied: the previous one stays in effect, and the banner
+  lists the problems ("Open Ghostty Config" opens the file).
 - A mistake never blocks launch. A bad value falls back to its default, and a banner in each
   window (plus a log line) lists the problems with line numbers.
 - Menu toggles (like Workspace Switcher) write back to the file, changing only their own value

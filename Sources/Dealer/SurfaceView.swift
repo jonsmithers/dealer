@@ -59,6 +59,8 @@ final class SurfaceView: NSView, NSTextInputClient {
         } else {
             surface = make()
         }
+        // A conditional `theme = light:…,dark:…` follows the macOS appearance (#33).
+        if let surface { ghostty_surface_set_color_scheme(surface, GhosttyRuntime.shared.colorScheme) }
         updateTrackingAreas()
     }
 

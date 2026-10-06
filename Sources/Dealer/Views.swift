@@ -15,7 +15,7 @@ class FlippedView: NSView {
 
 // MARK: - Pane
 
-final class PaneView: FlippedView {
+final class PaneView: FlippedView, ThemeApplying {
     /// The ring's state, including a cleared one fading out (#34, Attention.swift).
     let attentionFade = AttentionFadeState()
     weak var pane: Pane?
@@ -33,15 +33,25 @@ final class PaneView: FlippedView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        layer?.backgroundColor = Theme.background.cgColor
         addSubview(bar)
-        veil.layer?.backgroundColor = Theme.unfocusedFill.cgColor
         veil.alphaValue = 0
         addSubview(veil)
+        applyTheme()
         updateChrome()
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    func applyTheme() {
+        layer?.backgroundColor = Theme.background.cgColor
+        veil.layer?.backgroundColor = Theme.unfocusedFill.cgColor
+        // The veil's strength comes from the config too (`unfocused-split-opacity`).
+        veil.alphaValue = dimsWhenUnfocused && !isFocusedPane ? Theme.unfocusedAlpha : 0
+        applyAttentionRing()  // its border color is a Theme color (Attention.swift)
+    }
+
+    /// Self-test hook (#33): the veil's color and current alpha.
+    var veilForTest: NSView { veil }
 
     private func updateChrome() {
         bar.accent = accent
@@ -89,7 +99,7 @@ class PassthroughView: NSView {
 }
 
 /// The drag handle on top of every pane in a multi-pane tab.
-final class PaneBarView: FlippedView {
+final class PaneBarView: FlippedView, ThemeApplying {
     var title = "" { didSet { if title != oldValue { needsDisplay = true } } }
     var accent: NSColor = Theme.accentNeutral { didSet { needsDisplay = true } }
     var isFocusedPane = false { didSet { if isFocusedPane != oldValue { needsDisplay = true } } }
@@ -111,10 +121,14 @@ final class PaneBarView: FlippedView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        layer?.backgroundColor = Theme.surface.mixed(with: Theme.chrome, 0.4).cgColor
+        applyTheme()
         closeButton.isHidden = true
         addSubview(closeButton)
         addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+
+    func applyTheme() {
+        layer?.backgroundColor = Theme.paneBar.cgColor
     }
 
     override func mouseEntered(with event: NSEvent) { hovering = true }
@@ -208,7 +222,7 @@ final class PaneCloseButton: FlippedView {
 
 /// A deck: a tab strip sitting directly on the window chrome, over a rounded card
 /// holding the active tab's panes. Pane gaps show the card's divider color as hairlines.
-final class DeckView: FlippedView {
+final class DeckView: FlippedView, ThemeApplying {
     unowned let deck: Deck
     let strip: TabStripView
     let content = FlippedView()
@@ -220,16 +234,20 @@ final class DeckView: FlippedView {
         self.deck = deck
         strip = TabStripView(deck: deck)
         super.init(frame: .zero)
-        content.layer?.backgroundColor = Theme.divider.cgColor
         content.layer?.cornerRadius = Theme.Metrics.deckRadius
         content.layer?.masksToBounds = true
         content.layer?.borderWidth = 1
-        content.layer?.borderColor = Theme.hairline.cgColor
+        applyTheme()
         addSubview(strip)
         addSubview(content)
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    func applyTheme() {
+        content.layer?.backgroundColor = Theme.divider.cgColor
+        content.layer?.borderColor = Theme.hairline.cgColor
+    }
 
     /// A deck that appears (new tab strip, promote, fold back) fades in rather than popping.
     override func viewDidMoveToSuperview() {
@@ -367,7 +385,7 @@ final class TabStripView: FlippedView {
 }
 
 /// Borderless icon button with a soft hover fill, matching the tab buttons.
-final class HoverButton: NSButton {
+final class HoverButton: NSButton, ThemeApplying {
     private var hovering = false { didSet { updateLook() } }
 
     override init(frame: NSRect) {
@@ -384,6 +402,8 @@ final class HoverButton: NSButton {
 
     override func mouseEntered(with event: NSEvent) { hovering = true }
     override func mouseExited(with event: NSEvent) { hovering = false }
+
+    func applyTheme() { updateLook() }
 
     private func updateLook() {
         contentTintColor = hovering ? Theme.text : Theme.textFaint
@@ -617,28 +637,32 @@ final class HighlightView: NSView {
 }
 
 /// The little label that follows the cursor while dragging a pane or tab.
-final class GhostView: NSView {
+final class GhostView: NSView, ThemeApplying {
     private let label = NSTextField(labelWithString: "")
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.backgroundColor = Theme.surface.cgColor
         layer?.cornerRadius = Theme.Metrics.overlayRadius
         layer?.borderWidth = 1
-        layer?.borderColor = Theme.foreground.withAlphaComponent(0.16).cgColor
         layer?.shadowColor = NSColor.black.cgColor
         layer?.shadowOpacity = 0.35
         layer?.shadowRadius = 8
         layer?.shadowOffset = CGSize(width: 0, height: -3)
         label.font = Theme.Fonts.overlay
-        label.textColor = Theme.text
         label.lineBreakMode = .byTruncatingTail
+        applyTheme()
         addSubview(label)
         isHidden = true
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    func applyTheme() {
+        layer?.backgroundColor = Theme.surface.cgColor
+        layer?.borderColor = Theme.foreground.withAlphaComponent(0.16).cgColor
+        label.textColor = Theme.text
+    }
 
     override var isFlipped: Bool { true }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -654,13 +678,17 @@ final class GhostView: NSView {
 }
 
 /// Root view of a terminal window. Lays decks out according to the window's deck tree.
-final class WindowContentView: FlippedView {
+final class WindowContentView: FlippedView, ThemeApplying {
     let dropHighlight = HighlightView()
     let selectionHighlight = HighlightView()
     let ghost = GhostView()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
+        applyTheme()
+    }
+
+    func applyTheme() {
         layer?.backgroundColor = Theme.chrome.cgColor
     }
 

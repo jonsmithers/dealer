@@ -220,10 +220,21 @@
 
 - `Theme` is the single source for chrome colors, metrics, fonts and animation timings. Don't
   hard-code colors or sizes in views. `Palette` is only a set of legacy forwards to `Theme`.
-- The theme is read **once**, in `GhosttyRuntime.start()` via `Theme.load`, before any window
-  exists. Config reloads and conditional `theme = light:…,dark:…` are not followed live. Several
-  views copy `Theme` colors into `layer.backgroundColor` at init, so supporting a live change means
-  re-applying those too, not just redrawing.
+- **The theme changes live (#33).** `Theme.load` runs at launch, then `Theme.reload` runs from
+  every CONFIG_CHANGE that ghostty sends (after ⌘⇧, / `reload_config`, or a color-scheme switch),
+  and posts `Theme.didChange`. Each window's `applyTheme()` (ThemeReload.swift) walks its views,
+  including parked decks and detached switchers, calls `applyTheme()` on every `ThemeApplying`
+  view, and redraws everything. **Any view that copies a Theme color into a layer, a label or a
+  tint must conform to `ThemeApplying` and set that color in `applyTheme()`**, called from its
+  init. Colors read in `draw(_:)` need nothing. Transient colors set by `show(…)` calls (drop
+  highlight, strip marker) are fine.
+  - `SelfTestReload.swift` scans every visible layer and control for a color of the previous theme,
+    so a new stale copy fails there.
+  - `GhosttyRuntime.config` is the raw loaded config (used for soft reloads and `ghostty_config_get`
+    lookups). Theme colors come from the *resolved* config in CONFIG_CHANGE. A config with
+    diagnostics is refused on reload (the old one stays) and listed in the settings banner.
+  - Reload work hops to main with `CFRunLoopPerformBlock` in default mode, not the main queue,
+    for the same reason as `ControlServer.onMain`.
 - Pane gaps are 1pt (`Theme.Metrics.paneGap`); the visible line is the deck card's background
   (`Theme.divider`) showing through. `DividerView.hitFrame` widens the grab area past the gap onto
   the neighbouring panes, so `syncDividers` keeps dividers above every Pane/Deck view. Adding a pane
@@ -235,8 +246,9 @@
   `split-divider-color`) and `palette` (`ghostty_config_palette_s`, 256 entries; `Theme.ansi` keeps
   0–15). `TerminalColor` keys (`cursor-color`, `cursor-text`, `selection-background`/`-foreground`)
   have no C conversion, so `ghostty_config_get` returns false for them even when a theme sets them.
-  Dealer never calls `ghostty_app_set_color_scheme`, so a conditional `theme = light:…,dark:…`
-  always resolves to its light side.
+  `GhosttyRuntime.followSystemAppearance` tells ghostty the macOS appearance (app and every
+  surface, and new surfaces at creation), so a conditional `theme = light:…,dark:…` follows it
+  (#33). Chrome light/dark still follows the resolved background's luminance.
 - The pane bar's × (#24) is a `PaneCloseButton` subview, so its click never reaches the bar's
   `mouseDown` (which starts a drag). It closes on mouse-up through `close(pane:)`. Hover state lives
   on the bar (`setHoveringForTest` in the self-test); the status line ends at `statusTrailing`.

@@ -4,9 +4,15 @@ import GhosttyKit
 /// Central look-and-feel: colors derived from the user's ghostty config, plus shared metrics,
 /// fonts and animation timings. Chrome should read its colors from here, never hard-code them.
 ///
-/// Everything is static. `Theme.load(_:)` runs once from `GhosttyRuntime.start()`, before any
-/// window exists; until then the defaults below apply.
+/// Everything is static. `Theme.load(_:)` runs from `GhosttyRuntime.start()`, before any window
+/// exists (until then the defaults below apply), and again on every config reload (#33), which
+/// posts `Theme.didChange`. Views that copy a color into a layer or control conform to
+/// `ThemeApplying`; draw-time reads only need a redraw.
 enum Theme {
+    /// Posted on the main thread after a config reload changed the theme (#33). Each window
+    /// re-applies its chrome (`TerminalWindowController.applyTheme`).
+    static let didChange = Notification.Name("DealerThemeDidChange")
+
     // MARK: Colors from the ghostty config
 
     /// Terminal background (`background`).
@@ -43,6 +49,8 @@ enum Theme {
     static var chrome: NSColor { background.mixed(with: .black, isDark ? 0.28 : 0.06) }
     /// Raised surfaces that should match the terminal: active tab, pane bars.
     static var surface: NSColor { background }
+    /// Pane bar background: between the surface and the chrome.
+    static var paneBar: NSColor { surface.mixed(with: chrome, 0.4) }
     /// Hover fill on chrome.
     static var hover: NSColor { chrome.mixed(with: foreground, 0.07) }
     /// Separator lines on chrome (strip bottom edge, card edges).
@@ -128,6 +136,12 @@ enum Theme {
 
     // MARK: Loading
 
+    /// Re-reads the colors from a reloaded config and tells every window (#33).
+    static func reload(_ config: ghostty_config_t) {
+        load(config)
+        NotificationCenter.default.post(name: didChange, object: nil)
+    }
+
     static func load(_ config: ghostty_config_t) {
         if let c = color(config, "background") { background = c }
         if let c = color(config, "foreground") { foreground = c }
@@ -199,5 +213,21 @@ extension Theme {
         path.lineCapStyle = .round
         color.setStroke()
         path.stroke()
+    }
+}
+
+/// Chrome that copies `Theme` colors into layers or controls instead of reading them at draw time
+/// (#33). Conformers call `applyTheme()` from `init` and must set every such color there, so a
+/// config reload re-themes them; `applyThemeRecursively` walks a view tree and redraws it.
+protocol ThemeApplying: NSView {
+    func applyTheme()
+}
+
+extension NSView {
+    /// Re-applies theme colors to this view and everything under it, and redraws them.
+    func applyThemeRecursively() {
+        (self as? ThemeApplying)?.applyTheme()
+        needsDisplay = true
+        subviews.forEach { $0.applyThemeRecursively() }
     }
 }

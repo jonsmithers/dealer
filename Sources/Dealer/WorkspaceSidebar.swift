@@ -6,7 +6,7 @@ import AppKit
 ///
 /// Click a row to switch, double-click to rename, right-click for a menu, middle-click to close,
 /// drag to reorder. Panes and tabs dragged onto a row move to that workspace (DragController).
-final class WorkspaceSidebarView: FlippedView {
+final class WorkspaceSidebarView: FlippedView, ThemeApplying {
     private var rows: [WorkspaceRow] = []
     let addRow = WorkspaceRow()
     /// Insertion marker shown while a row is dragged.
@@ -19,13 +19,17 @@ final class WorkspaceSidebarView: FlippedView {
         addRow.isAddRow = true
         addRow.title = "New Workspace"
         addSubview(addRow)
-        marker.layer?.backgroundColor = Theme.accentNeutral.cgColor
         marker.layer?.cornerRadius = 1
         marker.isHidden = true
         addSubview(marker)
+        applyTheme()
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    func applyTheme() {
+        marker.layer?.backgroundColor = Theme.accentNeutral.cgColor
+    }
 
     /// The row for workspace `i`, for tests (clicked through `window.sendEvent`) and drop targets.
     func row(at i: Int) -> NSView? { rows.indices.contains(i) ? rows[i] : nil }

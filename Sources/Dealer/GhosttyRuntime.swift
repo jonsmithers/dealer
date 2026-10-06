@@ -6,10 +6,18 @@ final class GhosttyRuntime {
     static let shared = GhosttyRuntime()
 
     private(set) var app: ghostty_app_t?
+    /// The config in effect as loaded from disk: the launch config, replaced by every successful
+    /// reload (#33). Conditional parts (`theme = light:…,dark:…`) are unresolved here; ghostty
+    /// resolves them and reports the result through CONFIG_CHANGE, which is what `Theme` reads.
     private(set) var config: ghostty_config_t?
-
-    /// Terminal background from the user's ghostty config, used to paint chrome behind surfaces.
-    private(set) var backgroundColor = NSColor(srgbRed: 0.05, green: 0.055, blue: 0.07, alpha: 1)
+    /// Problems (ghostty's diagnostics) from the last load or refused reload, shown in the settings
+    /// banner. Empty when the config in effect loaded cleanly.
+    private(set) var configProblems: [String] = []
+    /// Posted on main when `configProblems` changes.
+    static let problemsDidChange = Notification.Name("DealerGhosttyConfigProblemsDidChange")
+    /// The macOS appearance as last told to ghostty (#23, #33). New surfaces start with it.
+    private(set) var colorScheme = GHOSTTY_COLOR_SCHEME_LIGHT
+    private var appearanceObservation: NSKeyValueObservation?
 
     private init() {}
 
@@ -26,18 +34,12 @@ final class GhosttyRuntime {
             fatalError("ghostty_init failed")
         }
 
-        let cfg = ghostty_config_new()
-        ghostty_config_load_default_files(cfg)
-        ghostty_config_load_recursive_files(cfg)
-        ghostty_config_finalize(cfg)
+        // At launch there is no previous config to keep, so a config with errors is used anyway
+        // (ghostty skips the bad lines); its problems still go to the banner.
+        let (cfg, problems) = Self.loadConfig()
         config = cfg
+        setProblems(problems)
         if let cfg { Theme.load(cfg) }
-
-        var bg = ghostty_config_color_s()
-        let key = "background"
-        if ghostty_config_get(cfg, &bg, key, UInt(key.utf8.count)) {
-            backgroundColor = NSColor(srgbRed: CGFloat(bg.r) / 255, green: CGFloat(bg.g) / 255, blue: CGFloat(bg.b) / 255, alpha: 1)
-        }
 
         var rt = ghostty_runtime_config_s(
             userdata: Unmanaged.passUnretained(self).toOpaque(),
@@ -88,9 +90,89 @@ final class GhosttyRuntime {
         nc.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { _ in
             ghostty_app_set_focus(app, false)
         }
+        followSystemAppearance()
         nc.addObserver(forName: NSTextInputContext.keyboardSelectionDidChangeNotification, object: nil, queue: .main) { _ in
             ghostty_app_keyboard_changed(app)
         }
+    }
+
+    // MARK: Config reload (#33)
+
+    /// A fresh config from ghostty's default files (XDG and Application Support), finalized, with
+    /// its diagnostics. Mirrors `Ghostty.Config.loadConfig` in Ghostty's macOS app.
+    private static func loadConfig() -> (ghostty_config_t?, [String]) {
+        guard let cfg = ghostty_config_new() else { return (nil, ["ghostty_config_new failed"]) }
+        ghostty_config_load_default_files(cfg)
+        ghostty_config_load_recursive_files(cfg)
+        ghostty_config_finalize(cfg)
+        let problems = (0..<ghostty_config_diagnostics_count(cfg)).map { i -> String in
+            ghostty_config_get_diagnostic(cfg, i).message.map { String(cString: $0) } ?? "unknown problem"
+        }
+        problems.forEach { NSLog("Dealer: ghostty config: \($0)") }
+        return (cfg, problems)
+    }
+
+    /// Opens the ghostty config file in the default editor (the banner's button for its problems).
+    static func openConfigFile() {
+        let s = ghostty_config_open_path()
+        defer { ghostty_string_free(s) }
+        guard let ptr = s.ptr else { return }
+        let path = String(decoding: UnsafeRawBufferPointer(start: ptr, count: Int(s.len)), as: UTF8.self)
+        NSWorkspace.shared.open(URL(fileURLWithPath: path))
+    }
+
+    private func setProblems(_ problems: [String]) {
+        guard problems != configProblems else { return }
+        configProblems = problems
+        NotificationCenter.default.post(name: Self.problemsDidChange, object: nil)
+    }
+
+    /// Reloads the ghostty config from disk (⌘⇧, and ghostty's `reload_config` action). Returns
+    /// false, keeping the config in effect, when the new one has errors; the banner shows them.
+    /// `soft` re-applies the current config without reading the files (ghostty asks for that).
+    @discardableResult
+    func reloadConfig(soft: Bool = false) -> Bool {
+        guard let app, let current = config else { return false }
+        if soft {
+            ghostty_app_update_config(app, current)
+            return true
+        }
+        let (loaded, problems) = Self.loadConfig()
+        guard let cfg = loaded, problems.isEmpty else {
+            if let loaded { ghostty_config_free(loaded) }
+            setProblems(problems)
+            return false
+        }
+        // Updates the app and every surface: the terminals repaint in place, processes untouched.
+        // ghostty answers synchronously with CONFIG_CHANGE (the resolved config), which re-themes
+        // the chrome (`configChanged`). It copies what it keeps, so the old config can go.
+        ghostty_app_update_config(app, cfg)
+        config = cfg
+        ghostty_config_free(current)
+        setProblems([])
+        return true
+    }
+
+    // MARK: Following the macOS appearance (#23)
+
+    /// Tells ghostty the system's light/dark appearance, now and whenever it changes, so a
+    /// conditional `theme = light:X,dark:Y` follows it. Ghostty answers a change with a soft
+    /// `reload_config`, which re-themes the terminals and the chrome.
+    private func followSystemAppearance() {
+        appearanceObservation = NSApp.observe(\.effectiveAppearance, options: [.initial, .new]) { app, _ in
+            let dark = app.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            DispatchQueue.main.async { GhosttyRuntime.shared.setColorScheme(dark: dark) }
+        }
+    }
+
+    /// The app's scheme drives the app config (and so the chrome); each surface resolves its own
+    /// config with its own scheme, so they're all told too.
+    func setColorScheme(dark: Bool) {
+        guard let app else { return }
+        let scheme = dark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT
+        colorScheme = scheme
+        for (_, p) in Pane.all { if let s = p.surface.surface { ghostty_surface_set_color_scheme(s, scheme) } }
+        ghostty_app_set_color_scheme(app, scheme)
     }
 
     func tick() {
@@ -113,6 +195,10 @@ final class GhosttyRuntime {
             case GHOSTTY_ACTION_NEW_WINDOW:
                 DispatchQueue.main.async { AppDelegate.shared.newWindow(nil) }
                 return true
+            case GHOSTTY_ACTION_RELOAD_CONFIG:
+                return reloadAction(soft: action.action.reload_config.soft)
+            case GHOSTTY_ACTION_CONFIG_CHANGE:
+                return configChanged(action.action.config_change.config)
             default:
                 return false
             }
@@ -131,6 +217,15 @@ final class GhosttyRuntime {
         }
 
         switch action.tag {
+        case GHOSTTY_ACTION_RELOAD_CONFIG:
+            // The `reload_config` keybind. Dealer has one config for every surface, so a surface's
+            // reload is the app-wide one (the same command as ⌘⇧,).
+            return reloadAction(soft: action.action.reload_config.soft)
+
+        case GHOSTTY_ACTION_CONFIG_CHANGE:
+            // Per-surface echo of an app config change; the app-level one re-themes the chrome.
+            return true
+
         case GHOSTTY_ACTION_SET_TITLE:
             guard let p = action.action.set_title.title else { return false }
             let title = String(cString: p)
@@ -242,5 +337,31 @@ final class GhosttyRuntime {
         default:
             return false
         }
+    }
+
+    private func reloadAction(soft: Bool) -> Bool {
+        // On the main run loop in default mode (like `ControlServer.onMain`), not the main queue:
+        // the action can arrive inside a main-queue block that spins the run loop (the self-test).
+        Self.onMainRunLoop {
+            if soft { GhosttyRuntime.shared.reloadConfig(soft: true) } else { AppDelegate.shared.reloadConfiguration(nil) }
+        }
+        return true
+    }
+
+    /// The app config changed (any reload, or a color-scheme switch): re-theme the chrome from the
+    /// resolved config. The pointer is only valid during the callback, so off main it's copied.
+    private func configChanged(_ cfg: ghostty_config_t?) -> Bool {
+        guard let cfg else { return true }
+        if Thread.isMainThread {
+            Theme.reload(cfg)
+        } else if let copy = ghostty_config_clone(cfg) {
+            Self.onMainRunLoop { Theme.reload(copy); ghostty_config_free(copy) }
+        }
+        return true
+    }
+
+    private static func onMainRunLoop(_ body: @escaping () -> Void) {
+        CFRunLoopPerformBlock(CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue, body)
+        CFRunLoopWakeUp(CFRunLoopGetMain())
     }
 }

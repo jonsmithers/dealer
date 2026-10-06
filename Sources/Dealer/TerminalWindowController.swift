@@ -64,6 +64,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         super.init(window: window)
         window.delegate = self
         observeSettings()
+        observeTheme()
 
         if let snapshot {
             restore(snapshot)
@@ -831,7 +832,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         if workspaceSidebar.isHidden == isSidebarVisible { contentView.needsLayout = true }
     }
 
-    private func updateSelectionHighlight() {
+    func updateSelectionHighlight() {
         if let sel = selection, let r = frame(of: sel) {
             contentView.selectionHighlight.show(r.insetBy(dx: -2, dy: -2), color: focusedDeck?.color ?? Palette.neutral, fill: 0.08)
         } else {

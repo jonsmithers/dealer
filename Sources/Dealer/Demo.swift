@@ -22,22 +22,26 @@ enum Demo {
 }
 
 /// A short caption centred in the titlebar row, out of the way of every drop target.
-final class DemoCaptionView: PassthroughView {
+final class DemoCaptionView: PassthroughView, ThemeApplying {
     private let label = NSTextField(labelWithString: "")
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        layer?.backgroundColor = Theme.surface.cgColor
         layer?.cornerRadius = 6
         layer?.borderWidth = 1
-        layer?.borderColor = Theme.foreground.withAlphaComponent(0.14).cgColor
         label.font = .systemFont(ofSize: 12, weight: .medium)
-        label.textColor = Theme.text
+        applyTheme()
         addSubview(label)
         isHidden = true
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    func applyTheme() {
+        layer?.backgroundColor = Theme.surface.cgColor
+        layer?.borderColor = Theme.foreground.withAlphaComponent(0.14).cgColor
+        label.textColor = Theme.text
+    }
 
     func show(_ text: String, in parent: NSView, rowHeight: CGFloat) {
         label.stringValue = text

@@ -6,7 +6,7 @@ import AppKit
 ///
 /// Click a pill to switch, double-click to rename, right-click for a menu, middle-click to close,
 /// drag to reorder. Panes and tabs dragged onto a pill move to that workspace (DragController).
-final class WorkspaceBarView: FlippedView, WorkspaceDropTargets {
+final class WorkspaceBarView: FlippedView, WorkspaceDropTargets, ThemeApplying {
     private var buttons: [WorkspaceButton] = []
     let addButton = WorkspaceButton()
     /// Insertion marker shown while a pill is dragged.
@@ -22,13 +22,17 @@ final class WorkspaceBarView: FlippedView, WorkspaceDropTargets {
         addButton.isAddButton = true
         addButton.toolTip = "New Workspace"
         addSubview(addButton)
-        marker.layer?.backgroundColor = Theme.accentNeutral.cgColor
         marker.layer?.cornerRadius = 1
         marker.isHidden = true
         addSubview(marker)
+        applyTheme()
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    func applyTheme() {
+        marker.layer?.backgroundColor = Theme.accentNeutral.cgColor
+    }
 
     override var mouseDownCanMoveWindow: Bool { true }
 

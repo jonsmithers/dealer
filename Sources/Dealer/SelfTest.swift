@@ -240,6 +240,7 @@ extension TerminalWindowController {
         themeSelfTestSteps(kit)
         dragSettleSelfTestSteps(kit)
         edgeSplitSelfTestSteps(kit)
+        reloadSelfTestSteps(kit)
 
         var failures = 0
         func run(_ i: Int) {
