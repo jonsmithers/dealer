@@ -53,7 +53,7 @@ extension TerminalWindowController {
     /// Adds a workspace with one fresh pane after the active one.
     @discardableResult
     func newWorkspace(name: String? = nil, workingDirectory: String? = nil, activate: Bool = true) -> Workspace {
-        let ws = Workspace(root: Node(makeDeck(workingDirectory: workingDirectory ?? focusedPane?.pwd)), name: name)
+        let ws = Workspace(root: Node(makeDeck(workingDirectory: workingDirectory ?? WorkingDirectory.inherited(from: focusedPane, for: .window))), name: name)
         insert(workspace: ws, at: activeWorkspaceIndex + 1)
         if activate { self.activate(ws) } else { refreshChrome() }
         return ws

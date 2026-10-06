@@ -44,7 +44,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     static var deckGap: CGFloat { Theme.Metrics.deckGap }
     static var paneGap: CGFloat { Theme.Metrics.paneGap }
 
-    init(snapshot: WindowSnapshot? = nil) {
+    /// `workingDirectory` is where a fresh window's first pane starts (ignored when restoring).
+    init(snapshot: WindowSnapshot? = nil, workingDirectory: String? = nil) {
         let ws = Workspace(root: nil)
         workspaces = [ws]
         activeWorkspace = ws
@@ -67,7 +68,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         if let snapshot {
             restore(snapshot)
         } else {
-            ws.root = Node(makeDeck(workingDirectory: nil))
+            ws.root = Node(makeDeck(workingDirectory: workingDirectory))
             window.center()
         }
     }
@@ -341,14 +342,14 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     func split(_ pane: Pane, side: Side) {
         guard let loc = locate(pane) else { return }
-        let new = makePane(workingDirectory: pane.pwd)
+        let new = makePane(workingDirectory: WorkingDirectory.inherited(from: pane, for: .split))
         loc.tab.root = Node.insert(Node(new), beside: loc.node, side: side, root: loc.tab.root)
         zoom = nil
         finishChange(focus: new)
     }
 
     func newTab(in deck: Deck) {
-        let tab = Tab(root: Node(makePane(workingDirectory: focusedPane?.pwd)))
+        let tab = Tab(root: Node(makePane(workingDirectory: WorkingDirectory.inherited(from: focusedPane, for: .tab))))
         let i = min(deck.activeIndex + 1, deck.tabs.count)
         deck.tabs.insert(tab, at: i)
         deck.activeIndex = i

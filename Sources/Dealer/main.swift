@@ -82,7 +82,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func newWindow(_ sender: Any?) {
-        open(TerminalWindowController())
+        // Like Ghostty's window-inherit-working-directory: start where the front window's focus is (#32).
+        let front = (NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.orderedWindows.first)?.windowController as? TerminalWindowController
+        open(TerminalWindowController(workingDirectory: WorkingDirectory.inherited(from: front?.focusedPane, for: .window)))
     }
 
     // MARK: Menu

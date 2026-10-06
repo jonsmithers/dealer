@@ -198,6 +198,11 @@
 
 - Feature steps live in their own files (e.g. `SelfTestWorkspaces.swift`) and are added through
   the `SelfTestKit` passed from `runSelfTest`, one call line per section.
+- Waiting on a real shell inside a check: ghostty's actions (OSC 7 pwd, titles, close) arrive via
+  `ghostty_app_tick`, which `wakeup_cb` schedules on the **main queue**, and that queue doesn't drain
+  during a check's nested `RunLoop.run` wait. Call `GhosttyRuntime.shared.tick()` in the wait loop
+  (SelfTestCwd.swift), or check in the next step. Panes in an inactive workspace aren't laid out,
+  and their shells reported no foreground process in testing; activate the workspace before checking one.
 - **Pixel checks go through `PixelProbe` only** (SelfTestPixels.swift): `sample(_:at:)`, `pixels` (raw bytes for "renders identically"),
   `distance`, `matches`, `isWaitingOutlined`. Never call `cacheDisplay`/`colorAt` in a check
   directly. Two traps it handles:

@@ -104,6 +104,13 @@ Every normal launch restores and overwrites your session (see *Session restore*)
 Your normal Ghostty config (`~/.config/ghostty/config`) is loaded, and window chrome takes its
 colors from your Ghostty theme (background/foreground, `unfocused-split-*`, `split-divider-color`).
 
+New splits, tabs, workspaces and windows start in the focused pane's current directory, as its
+shell reports it (Ghostty's shell integration; without it, the directory the pane started in).
+Ghostty's `split-inherit-working-directory`, `tab-inherit-working-directory` and
+`window-inherit-working-directory` (workspaces count as windows) turn that off. A new pane then
+starts in your `working-directory`. Restored sessions keep each pane's saved directory, and
+`dealer create` starts in its target's directory unless you pass `--cwd`.
+
 ## Keys
 
 | Key | Action |

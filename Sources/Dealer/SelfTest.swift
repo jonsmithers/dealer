@@ -233,6 +233,7 @@ extension TerminalWindowController {
         titlebarTabsSelfTestSteps(kit)
         cliSelfTestSteps(kit)
         jobsSelfTestSteps(kit)
+        cwdSelfTestSteps(kit)
         claudeHooksSelfTestSteps(kit)
         paneCloseSelfTestSteps(kit)
         themeSelfTestSteps(kit)

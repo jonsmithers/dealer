@@ -179,6 +179,10 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   - Routing is by panes' current cwds (deepest containing `$PWD`, caller's workspace on ties,
     else a new workspace named after the directory). The user rejected workspace root
     directories in the model; don't add them for this.
+- New panes inherit the source pane's cwd (#32) through `WorkingDirectory.inherited(from:for:)`,
+  which honors ghostty's `split-`/`tab-`/`window-inherit-working-directory` (workspaces map to
+  `window`). Any new creation path should go through it; `dealer create` deliberately uses its
+  target's cwd instead, and session restore its saved cwd.
 - `DEALER_*` env vars read through `SelfTest.env` fall back to the pre-rename `MYTERM_*` spelling,
   so code that strips an env var for a child process must strip both (see `SelfTestCLI.swift`).
   New variables such as `DEALER_PANE_ID` don't get the fallback.
