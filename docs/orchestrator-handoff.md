@@ -15,7 +15,7 @@ explains current decisions. Keep it current.
 | Coordination | `~/git/myterm/.git/coord/`: `BOARD.md`, `merge.sh`, `last-pass-count`. **Not `/tmp`:** macOS cleaned it twice and deleted the board and merge script. |
 | User's to-do list | `~/git/myterm/TODO.md`, excluded via `.git/info/exclude`. The user annotates it inline. |
 | User scratch files | Untracked files in the repo root such as `new-prompts.txt` are the user's drafts. Never commit or delete them without being told. |
-| Demo media | Orphan branch `media` (GIFs/MP4s). Never on master. |
+| Demo media | Orphan branch `media` (GIFs/MP4s), checked out at `~/git/myterm-wt/media-branch`. Never on master. Regenerate with `scripts/record-demo.sh`, then `--publish` (see CLAUDE.md). |
 | Ghostty source | `~/git/ghostty`, the user's checkout. Read-only `git show <pin>:<path>` only; it's ahead of the pin in `scripts/ghostty.version`. |
 | cmux source | `~/git/cmux` (reference for agent integration). Read-only; branch switching allowed only with a clean tree, restored afterwards. |
 
@@ -25,12 +25,21 @@ explains current decisions. Keep it current.
   `DEALER_SELFTEST=quit .build/debug/Dealer` → **step-count guard** (refuses if `SELFTEST PASS N`
   drops below `last-pass-count`) → fast-forward master → log.
 - After each merge, the orchestrator rebuilds, re-runs the self-test on master, compares the count
-  with the last one, then pushes. The user has authorized **pushing master after a verified
-  landing**, and pushing the `media` branch for demos. Ask first for anything else outward:
+  with the last one, then pushes **the exact SHA it tested** (`git push origin $SHA:master`), and
+  only if the test exited 0. Agents keep merging during your test run, and a `| tail` pipe hides a
+  failing exit code. Both mistakes happened once.
+- The user has authorized **pushing master after a verified landing**, and pushing the `media`
+  branch for demos after a full privacy review. Ask whether they're on **metered wifi** before
+  pushing media; they asked to hold video pushes once. Ask first for anything else outward:
   releases, deleting remote branches, repo settings.
 - The self-test drives a real window. **A locked screen** turns shell/drag steps into skips or
-  failures; agents must wait rather than merge around it. Known flake: the pane-close × step once
-  failed at a 0.1 s step delay. One unexplained merge.sh failure passed on rerun during #27.
+  failures; agents must wait rather than merge around it.
+- **Known intermittent failure block:** about 10–11 click/drag/hover steps fail together (sidebar
+  drops, pill clicks/reorder, row clicks, and `colors: … render identically`), then the same build
+  passes on rerun. Seen on several branches and on master. Suspected cause: leftover "A process is
+  still running" confirmation dialogs (#38) or screen lock. The 0.1 s step-delay runs also fail
+  drag steps (timing). Re-run, and list failing step *names* before retrying; never use
+  `ALLOW_FEWER_TESTS` for this.
 - Things the self-test can't prove, which need the user's real hands (put them in `TODO.md`):
   - real pointer drags and titlebar behavior (window server decides);
   - real key presses;
@@ -45,18 +54,23 @@ Route follow-ups to whoever has the context:
 - **workspaces**: built workspaces, sidebar, switcher modes, settings.toml, colors, tabs-in-titlebar
   (#1, #6, #8, #9, #10, #15, #16, #18). *The user stopped this agent once (after #16); don't reuse
   it silently.*
-- **visuals**: Theme, chrome styling, pane close ×, theming research, demo recordings (DemoMouse),
-  titlebar click routing (#2, #23, #24, #26, #27, #28).
-- **attention**: attention model, rings/outlines, red failed state, Claude Code research and the
-  bundled plugin, cmux research, env scrubbing (#4, #7, #12, #29, #34).
+- **visuals**: Theme, chrome styling, pane close × and middle-click, theming research, demo
+  recordings (DemoMouse, record-demo.sh), titlebar click routing and drag zones (#2, #23, #24, #26,
+  #27, #28, #36, #37).
+- **attention**: attention model, rings/outlines, red failed state, fade-out, Claude Code research
+  and the bundled plugin, cmux research, env scrubbing (#4, #7, #12, #29, #34).
 - **cli**: control socket, `dealer` CLI, `dealer run` / `b` (#5, #21, #32).
 - **icon**: app icon, bundle.sh, Launch Services / Notification Center (#22, #30).
-- **edge-split**: controller layout/promote sizing (#31), config reload (#33).
-- **rename**: the MyTerm→Dealer rename and build scripts / Ghostty pin (#3, #20).
+- **edge-split**: controller layout/promote sizing (#31), live ghostty config reload + chrome
+  re-theming via `Theme.didChange` (#33).
+- **rename**: the MyTerm→Dealer rename, build scripts, the Ghostty pin and its enforcement
+  (`check-ghostty.sh`, launch banner) (#3, #20, #35).
 
 ## The user's preferences (learned)
 
 - **Merge early**, small increments. Fan out in parallel; keep the user informed concisely.
+- They sometimes say **"don't pick up new issues"** or **"don't assign an agent yet"**. Then file
+  issues only and leave them unassigned, until told otherwise.
 - **Push back on complexity.** For fiddly platform work (#27), research first and report the
   simplest option before building heavy machinery.
 - **Research then decide:** they like findings posted on the issue (Ghostty/cmux deep-dives).
@@ -94,11 +108,22 @@ Route follow-ups to whoever has the context:
 | `gh issue create` made empty issues twice | Write body files first; `--body-file <file>` |
 | Demo recorder captured the desktop after the window closed | Recorder stops on `DEMO DONE` before exit; review contact sheets |
 | `toggleSidebar(_:)` collided with NSWindow's selector (#13) | Don't name menu actions after AppKit selectors (CLAUDE.md) |
+| Pushed after a red self-test (`| tail` swallowed the exit code) | Capture output, check `$?`, then push |
+| Pushed a commit merged mid-test (untested by the lead) | Push the recorded `$SHA:master` |
+| Agents cut off by rate limits / API overload / network loss (many times) | Inspect the worktree, commit WIP, resume with "you were at X" |
 
-## State at hand-off (2026-10-06)
+## State at hand-off (2026-10-06, end of round 5)
 
-- Open: **#27** (titlebar tab drag zones, reopened), **#30** (notification icon: fix merged, waiting
-  for the user's cache reset), **#32** (inherit cwd), **#33** (live ghostty config reload), **#34**
-  (attention outline fade-out). Agents tab-drag, cwd, reload, fade are on these. Fade lands
-  before reload (shared ring code).
-- Master passes 218 self-test steps (as of `3db5245`).
+- **Master `690870e`, 252 self-test steps, pushed.** `media` is at `d285f8d` (re-recorded demos: even
+  edge split, red failed state, fade), pushed. `.git/coord/last-pass-count` = 252.
+- **Closed this round:** #31, #32, #33, #34, #35, #36, #37.
+- **Open, unassigned** (the user said not to pick up new issues): **#38** (dialogs suspected of
+  causing the intermittent failure block), **#39** (Ghostty resource directory only looked up in
+  `/Applications`), **#40** (no environment passes the whole self-test: shell integration trades
+  3 failures for 8).
+- **Open, waiting on the user:** **#27** (titlebar drag zones: real-pointer checks listed in
+  `TODO.md`), **#30** (notification icon: cache-reset steps in `TODO.md`).
+- No agents running. Worktrees: only `myterm-wt/media-branch` (kept for publishing demos).
+- Generic skill: `~/git/orchestrate-issues` (GitHub `jonsmithers/orchestrate-issues`, private),
+  symlinked as `~/.claude/skills/orchestrate-issues`. Add generic lessons there and Dealer-specific
+  ones here.
