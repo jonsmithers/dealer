@@ -92,11 +92,17 @@ esac
 echo "ghostty: $GHOSTTY @ $HEAD"
 echo "zig:     $ZIG ($HAVE)"
 echo "output:  $OUT/GhosttyKit.xcframework"
-BUILD="\"$ZIG\" build -Demit-xcframework=true -Dxcframework-target=native -Demit-macos-app=false -Doptimize=ReleaseFast"
+# The xcframework build also installs Ghostty's resources (shell integration, themes, terminfo)
+# under the install prefix. A fresh prefix keeps stale files from older builds out of them and
+# leaves the checkout's own zig-out alone; the framework itself always goes to macos/.
+STAGE=$(mktemp -d "${TMPDIR:-/tmp}/ghosttykit-prefix.XXXXXX")
+trap 'rm -rf "$STAGE"' EXIT
+BUILD="\"$ZIG\" build -p \"$STAGE\" -Demit-xcframework=true -Dxcframework-target=native -Demit-macos-app=false -Doptimize=ReleaseFast"
 if [ $DRY = 1 ]; then
   echo "dry run, would run in $GHOSTTY:"
   echo "  $BUILD"
   echo "  then replace $OUT/GhosttyKit.xcframework with $GHOSTTY/macos/GhosttyKit.xcframework"
+  echo "  and $OUT/ghostty-resources/{ghostty,terminfo} with <prefix>/share/{ghostty,terminfo}"
   exit 0
 fi
 
@@ -107,4 +113,16 @@ mkdir -p "$OUT"
 rm -rf "$OUT/GhosttyKit.xcframework"
 cp -R "$GHOSTTY/macos/GhosttyKit.xcframework" "$OUT/"
 echo "$OUT/GhosttyKit.xcframework updated"
+
+# Ghostty's resources from the same build (#41): bundle.sh ships them in Dealer.app, and the
+# self-test reads them from vendor/. ghostty-commit stamps the commit they came from (checked by
+# check-ghostty.sh). Same symlink rule as above for worktrees.
+RES="$OUT/ghostty-resources"
+[ -d "$STAGE/share/ghostty/shell-integration" ] || die "the build installed no share/ghostty/shell-integration under $STAGE"
+rm -rf "$RES"
+mkdir -p "$RES"
+cp -R "$STAGE/share/ghostty" "$RES/ghostty"
+cp -R "$STAGE/share/terminfo" "$RES/terminfo"
+echo "$HEAD" > "$RES/ghostty-commit"
+echo "$RES updated ($(du -sh "$RES" | cut -f1))"
 "$REPO/scripts/check-ghostty.sh" "$OUT/GhosttyKit.xcframework" || true

@@ -1,6 +1,6 @@
 import AppKit
 
-// MARK: - Self-test section: finding Ghostty's resources directory (issue #39)
+// MARK: - Self-test section: finding Ghostty's resources directory (issues #39, #41)
 
 extension TerminalWindowController {
     func ghosttyResourcesSelfTestSteps(_ t: SelfTestKit) {
@@ -18,6 +18,10 @@ extension TerminalWindowController {
             try? fm.createDirectory(at: valid ? url.appendingPathComponent("shell-integration") : url, withIntermediateDirectories: true)
             return url.path
         }
+        func all(_ problems: String?...) -> String? {
+            let p = problems.compactMap { $0 }
+            return p.isEmpty ? nil : p.joined(separator: "; ")
+        }
         typealias R = GhosttyResources
         let sys = root.appendingPathComponent("sys/Applications")
         let user = root.appendingPathComponent("home/Applications")
@@ -30,60 +34,81 @@ extension TerminalWindowController {
             return problems.isEmpty ? nil : problems.joined(separator: "; ")
         }
 
-        t.step("resources: GHOSTTY_RESOURCES_DIR wins, and set-but-empty means none", nil, {
+        t.step("resources: DEALER_GHOSTTY_RESOURCES_DIR wins over everything, and empty means none", nil, {
+            let bundled = dir("bundle/ghostty", valid: true)
             let registered = app("registered/Ghostty.app", valid: true)
-            _ = app("sys/Applications/Ghostty.app", valid: true)
-            let pinned = dir("pinned/ghostty", valid: true)
-            let a = R.resolve(environment: "/custom/ghostty", pinned: pinned, registeredApp: registered, applicationFolders: [sys])
-            let b = R.resolve(environment: "", pinned: pinned, registeredApp: registered, applicationFolders: [sys])
-            return expect(a, "/custom/ghostty", .environment) ?? expect(b, nil, .environment)
+            let a = R.resolve(override: "/custom/ghostty", bundled: bundled, inherited: bundled,
+                              registeredApp: registered, applicationFolders: [sys])
+            let b = R.resolve(override: "", bundled: bundled, registeredApp: registered, applicationFolders: [sys])
+            return expect(a, "/custom/ghostty", .override) ?? expect(b, nil, .override)
         }) {}
 
-        t.step("resources: the pinned checkout (self-test), then the app Launch Services knows", nil, {
+        t.step("resources: the app's own bundle beats an inherited GHOSTTY_RESOURCES_DIR (#41)", nil, {
+            let bundled = dir("bundle/ghostty", valid: true)
+            let inherited = dir("other-ghostty/ghostty", valid: true)
             let registered = app("registered/Ghostty.app", valid: true)
-            let pinned = dir("pinned/ghostty", valid: true)
-            let a = R.resolve(environment: nil, pinned: pinned, registeredApp: registered, applicationFolders: [sys, user])
-            let b = R.resolve(environment: nil, pinned: nil, registeredApp: registered, applicationFolders: [sys, user])
-            return expect(a, pinned, .pinnedCheckout)
+            let a = R.resolve(bundled: bundled, vendored: [dir("vendor/ghostty", valid: true)], inherited: inherited,
+                              registeredApp: registered, applicationFolders: [sys])
+            let b = R.resolve(bundled: nil, inherited: inherited, registeredApp: registered, applicationFolders: [sys])
+            return expect(a, bundled, .appBundle) ?? expect(b, inherited, .inherited)
+        }) {}
+
+        t.step("resources: then vendor/ (self-test), the inherited variable, Launch Services, folders", nil, {
+            let vendored = dir("vendor/ghostty", valid: true)
+            let inherited = dir("other-ghostty/ghostty", valid: true)
+            let registered = app("registered/Ghostty.app", valid: true)
+            _ = app("sys/Applications/Ghostty.app", valid: true)
+            let a = R.resolve(vendored: [root.appendingPathComponent("missing").path, vendored], inherited: inherited,
+                              registeredApp: registered, applicationFolders: [sys])
+            let b = R.resolve(inherited: "", registeredApp: registered, applicationFolders: [sys])
+            let c = R.resolve(registeredApp: nil, applicationFolders: [sys])
+            return expect(a, vendored, .vendored, rejected: 1)
                 ?? expect(b, R.resourcesDirectory(inApp: registered), .registeredApp)
+                ?? expect(c, R.resourcesDirectory(inApp: sys.appendingPathComponent("Ghostty.app")), .applicationsFolder)
         }) {}
 
         t.step("resources: a candidate without shell-integration/ is skipped for /Applications", nil, {
             _ = app("sys/Applications/Ghostty.app", valid: true)
-            let broken = app("broken/Ghostty.app", valid: false)
-            let pinned = dir("pinned-broken/ghostty", valid: false)
-            let r = R.resolve(environment: nil, pinned: pinned, registeredApp: broken, applicationFolders: [sys, user])
-            return expect(r, R.resourcesDirectory(inApp: sys.appendingPathComponent("Ghostty.app")), .applicationsFolder, rejected: 2)
+            let r = R.resolve(bundled: dir("bundle-broken/ghostty", valid: false),
+                              inherited: dir("inherited-broken/ghostty", valid: false),
+                              registeredApp: app("broken/Ghostty.app", valid: false), applicationFolders: [sys, user])
+            return expect(r, R.resourcesDirectory(inApp: sys.appendingPathComponent("Ghostty.app")), .applicationsFolder, rejected: 3)
         }) {}
 
         t.step("resources: ~/Applications is found when /Applications has no Ghostty (#39)", nil, {
             _ = app("home/Applications/Ghostty.app", valid: true)
-            let r = R.resolve(environment: nil, registeredApp: nil, applicationFolders: [empty, user])
+            let r = R.resolve(registeredApp: nil, applicationFolders: [empty, user])
             return expect(r, R.resourcesDirectory(inApp: user.appendingPathComponent("Ghostty.app")), .applicationsFolder, rejected: 1)
         }) {}
 
         t.step("resources: nothing valid anywhere gives none, listing every place tried", nil, {
-            let r = R.resolve(environment: nil, registeredApp: nil, applicationFolders: [empty, root.appendingPathComponent("x")])
+            let r = R.resolve(registeredApp: nil, applicationFolders: [empty, root.appendingPathComponent("x")])
             return expect(r, nil, nil, rejected: 2)
         }) {}
 
-        t.step("resources: this self-test's shells use the pinned commit's shell integration", nil, {
+        t.step("resources: this self-test's shells use the pinned build's resources (vendor/ or the app bundle)", nil, {
             defer { try? fm.removeItem(at: root) }
             guard let r = R.current else { return "GhosttyResources.apply() didn't run" }
-            if SelfTest.env("SELFTEST_RESOURCES") != nil {
-                print("      (DEALER_SELFTEST_RESOURCES is set: \(r.path == nil ? "no shell integration" : "a given directory"))")
+            if ProcessInfo.processInfo.environment[R.overrideVariable] != nil {
+                print("      (DEALER_GHOSTTY_RESOURCES_DIR is set: \(r.path == nil ? "no shell integration" : "a given directory"))")
                 return nil
             }
-            guard r.source == .pinnedCheckout else {
-                print("      (skipped: no Ghostty checkout with the pinned commit; shells use \(r.source?.rawValue ?? "no resources"))")
+            if r.source == .appBundle {
+                // A bundled self-test run (`DEALER_SELFTEST=quit Dealer.app/Contents/MacOS/Dealer`):
+                // bundle.sh copied these from vendor/, and libghostty's TERMINFO is next to them.
+                guard let path = r.path else { return "no path" }
+                return fm.fileExists(atPath: path + "/../terminfo/78/xterm-ghostty") ? nil : "the bundle should hold terminfo"
+            }
+            guard r.source == .vendored, let path = r.path else {
+                print("      (skipped: no vendor/ghostty-resources; shells use \(r.source?.rawValue ?? "no resources"))")
                 return nil
             }
-            let live = ProcessInfo.processInfo.environment[R.variable]
-            guard let path = r.path, live == path, R.isValid(path),
-                  path.contains(String(GhosttyVersion.pinnedCommit.prefix(12))) else {
-                return "GHOSTTY_RESOURCES_DIR should be the pinned cache"
-            }
-            return nil
+            let stamp = (try? String(contentsOfFile: path + "/../ghostty-commit", encoding: .utf8))?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return all(ProcessInfo.processInfo.environment[R.variable] == path ? nil : "GHOSTTY_RESOURCES_DIR should be the vendored directory",
+                       stamp == GhosttyVersion.pinnedCommit ? nil : "vendor/ghostty-resources is from \(stamp ?? "an unknown commit"), not the pin",
+                       fm.fileExists(atPath: path + "/../terminfo/78/xterm-ghostty") ? nil : "terminfo should sit next to it",
+                       fm.fileExists(atPath: path + "/themes") ? nil : "themes should be there")
         }) {}
     }
 }

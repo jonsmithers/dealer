@@ -17,6 +17,18 @@ mkdir -p "$APP/Contents/Resources/bin"
 ln -s ../../MacOS/Dealer "$APP/Contents/Resources/bin/dealer"
 # Claude Code plugin with Dealer's hooks; panes load it through CLAUDE_CODE_PLUGIN_DIRS (#12).
 cp -R Resources/claude-plugin "$APP/Contents/Resources/claude-plugin"
+# Ghostty's resources from the pinned build (#41): shell integration, themes and terminfo, written
+# to vendor/ghostty-resources by scripts/build-ghosttykit.sh. libghostty finds them on its own
+# (it looks for Contents/Resources/terminfo/78/xterm-ghostty), and GhosttyResources puts them first.
+RES=vendor/ghostty-resources
+if [ -d "$RES/ghostty/shell-integration" ] && [ -d "$RES/terminfo" ]; then
+  cp -R "$RES/ghostty" "$APP/Contents/Resources/ghostty"
+  cp -R "$RES/terminfo" "$APP/Contents/Resources/terminfo"
+else
+  echo "warning: no $RES (rebuild with scripts/build-ghosttykit.sh); Dealer.app will borrow" \
+    "shell integration, themes and terminfo from an installed Ghostty.app instead" >&2
+fi
+cp Resources/THIRD-PARTY-NOTICES.txt "$APP/Contents/Resources/THIRD-PARTY-NOTICES.txt"
 # App icon (#22); regenerate with scripts/make-icon.sh.
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cat > "$APP/Contents/Info.plist" <<PLIST

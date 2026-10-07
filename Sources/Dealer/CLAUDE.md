@@ -59,18 +59,21 @@
   never free a surface synchronously inside a ghostty callback.
 - `ghostty_init` and `ghostty_app_new` run once, in `GhosttyRuntime.start()`. Before that,
   `GhosttyResources.apply()` sets `GHOSTTY_RESOURCES_DIR` (shell integration, terminfo, themes;
-  #39). Order: the variable if already set (empty = none), then the app Launch Services knows as
-  `com.mitchellh.ghostty`, then `/Applications` and `~/Applications`. A candidate counts only with
-  a `shell-integration/` directory, and finding none is logged. Keep `resolve` free of process
-  state (the self-test drives it with temp dirs).
-  - Self-test mode ignores an inherited variable (every pane exports one) and uses the pinned
-    commit's `src/shell-integration`, `git archive`d from the Ghostty checkout into
-    `$TMPDIR/dealer-ghostty-<pin>/ghostty`, with themes and terminfo linked from an installed
-    Ghostty.app. `DEALER_SELFTEST_RESOURCES=<dir>` overrides it, and an empty value means no
-    shell integration (to check the suite in both modes, #40). Without a checkout it falls back to
-    the normal lookup.
+  #39, #41). First valid one wins (valid = has `shell-integration/`):
+  1. `DEALER_GHOSTTY_RESOURCES_DIR`, the explicit override, used as given; empty = none.
+  2. The app's own `Contents/Resources/ghostty` (copied by `bundle.sh` from the pinned build).
+  3. Self-test only: `vendor/ghostty-resources/ghostty` of this source tree (`#filePath`), then of
+     the main checkout.
+  4. An inherited `GHOSTTY_RESOURCES_DIR`, outside self-test mode only. Every Ghostty/Dealer pane
+     exports one, possibly from another Ghostty version, so it can't be the override and ranks
+     below the bundle.
+  5. Launch Services' `com.mitchellh.ghostty`, then `/Applications`, then `~/Applications`.
+
+  Finding none is logged, and so is a self-test without `vendor/ghostty-resources`. Keep `resolve`
+  free of process state (the self-test drives it with temp dirs).
   - libghostty treats an empty variable as unset, then searches up from its executable for
-    `Contents/Resources/terminfo/78/xterm-ghostty`, which finds nothing for `.build/debug/Dealer`.
+    `Contents/Resources/terminfo/78/xterm-ghostty`, which finds the bundle's copy on its own and
+    nothing for `.build/debug/Dealer`. TERMINFO is always `<resources dir>/../terminfo`.
 
 ## Tabs in the titlebar (`TitlebarTabs.swift`, #16)
 

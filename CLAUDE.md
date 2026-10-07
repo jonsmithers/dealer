@@ -11,7 +11,13 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   `scripts/build-ghosttykit.sh`, which finds the Ghostty checkout via `--ghostty`/`$GHOSTTY_SRC`,
   then a sibling `../ghostty` (of the main checkout too, so it works from worktrees), then a prompt.
   A new git worktree doesn't have the framework; symlink `vendor/GhosttyKit.xcframework` from the
-  main checkout instead of rebuilding. The script's `rm` of a symlinked framework only removes the
+  main checkout instead of rebuilding.
+- The same run writes `vendor/ghostty-resources/{ghostty,terminfo}` (shell integration, themes,
+  terminfo; ~2.5 MB, git-ignored) plus a `ghostty-commit` stamp, from a fresh install prefix (#41).
+  `bundle.sh` copies them into `Contents/Resources` (it warns and bundles without them if missing),
+  with `Resources/THIRD-PARTY-NOTICES.txt` (Ghostty and iTerm2-Color-Schemes, both MIT).
+  `check-ghostty.sh` checks the stamp against the pin. Worktrees don't need a link: the self-test
+  also looks in the main checkout's `vendor/`. The script's `rm` of a symlinked framework only removes the
   link, but pass `--out <tmp>` when testing it, and use `--dry-run` to avoid a slow zig build.
 - **Ghostty is pinned** in `scripts/ghostty.version`, and the script refuses other commits unless
   you pass `--any-version`. `ghostty.h` is Ghostty's internal API and breaks without notice. For
@@ -126,10 +132,11 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   in rows) was not verified. To check custom drawing, read pixels only through
   `PixelProbe.sample` (SelfTestPixels.swift), which renders offscreen and works while locked;
   Metal surfaces come out blank that way.
-- **Shell integration in the self-test (#39):** test shells get the pinned commit's integration
-  (see `GhosttyResources` in `Sources/Dealer/CLAUDE.md`), not whatever Ghostty.app is installed,
-  and not the `GHOSTTY_RESOURCES_DIR` your own pane exports. To run the suite without integration,
-  set `DEALER_SELFTEST_RESOURCES=` (empty).
+- **Shell integration in the self-test (#39, #41):** test shells use `vendor/ghostty-resources`
+  from the pinned build (see `GhosttyResources` in `Sources/Dealer/CLAUDE.md`), not whatever
+  Ghostty.app is installed, and not the `GHOSTTY_RESOURCES_DIR` your own pane exports. Without the
+  vendored directory the run logs that and falls back to an installed Ghostty.app. To force a
+  directory set `DEALER_GHOSTTY_RESOURCES_DIR=<dir>`; set it empty to run without integration.
   The self-test still loads your real ghostty config (only Dealer's settings use a temp home), so
   a ghostty config problem, such as a theme that can't be resolved, can show up in banner steps.
 - To try the CLI against a dev build: run `DEALER_SELFTEST=1 .build/debug/Dealer` (it listens on

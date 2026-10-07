@@ -68,10 +68,8 @@ Claude session: a real one shows its own permission prompt in the pane.
 ## Build & run
 
 Prerequisites: macOS 14+, Xcode command-line tools, `brew install zig@0.15` (Homebrew's default
-zig 0.16 can't build the pinned Ghostty), ideally Ghostty.app installed (in `/Applications`, `~/Applications`,
-or anywhere Launch Services finds it; or set `GHOSTTY_RESOURCES_DIR`) for shell integration,
-terminfo and themes, and a Ghostty checkout at the commit pinned in `scripts/ghostty.version`. The easiest
-place for it is next to this repo:
+zig 0.16 can't build the pinned Ghostty), and a Ghostty checkout at the commit pinned in
+`scripts/ghostty.version`. The easiest place for it is next to this repo:
 
 ```sh
 git clone https://github.com/ghostty-org/ghostty.git ../ghostty
@@ -79,7 +77,12 @@ git -C ../ghostty checkout --detach "$(tail -1 scripts/ghostty.version)"
 ```
 
 `build-ghosttykit.sh` looks for the checkout in `--ghostty PATH` / `$GHOSTTY_SRC`, then `../ghostty`,
-then asks. It refuses to build a different commit unless you pass `--any-version`, because
+then asks. Besides the framework, it writes Ghostty's shell integration, themes and terminfo from
+the same build to `vendor/ghostty-resources`, and `bundle.sh` ships them inside `Dealer.app`
+(licenses in `Contents/Resources/THIRD-PARTY-NOTICES.txt`), so you don't need Ghostty.app
+installed. With an older `vendor/` that lacks them, Dealer borrows them from an installed Ghostty.app
+(`/Applications`, `~/Applications`, or wherever Launch Services finds it). To use another
+directory, set `DEALER_GHOSTTY_RESOURCES_DIR`. It refuses to build a different commit unless you pass `--any-version`, because
 libghostty's embedding API changes often. `--dry-run` shows what it would do.
 
 The pin is enforced against the framework you actually have in `vendor/` (#35):
@@ -89,7 +92,7 @@ The self-test fails on a mismatch, and at launch the app shows a red banner if t
 Ghostty isn't the pinned one.
 
 ```sh
-scripts/build-ghosttykit.sh      # once: builds GhosttyKit.xcframework from the Ghostty checkout into vendor/
+scripts/build-ghosttykit.sh      # once: builds GhosttyKit.xcframework and ghostty-resources into vendor/
 scripts/bundle.sh                # swift build + wraps build/Dealer.app (release by default; `debug` for a debug build)
 open build/Dealer.app            # run it
 ```
