@@ -15,13 +15,20 @@ enum Demo {
     /// The running demo's pointer driver.
     static var mouse: DemoMouse?
     static var directory: String { SelfTest.env("DEMO_DIR") ?? "/tmp/demo" }
+    /// Demos are recorded with top-edge tab strips in the titlebar row (`[window] tabs_in_titlebar`,
+    /// #16), written to the demo's temp settings file. Flip this one switch to record in-deck strips.
+    static let tabsInTitlebar = true
+    /// A band under the decks that holds the demo's caption (0 outside demos). The titlebar row
+    /// holds tabs, so the caption lives at the bottom, clear of every deck and drop target.
+    static var captionBand: CGFloat { name == nil ? 0 : 34 }
 
     /// Pane hooks: where demo shells start and what they read.
     static var workingDirectory: String? { name == nil ? nil : directory }
     static var environment: [String: String] { name == nil ? [:] : ["ZDOTDIR": directory, "HISTFILE": "/dev/null"] }
 }
 
-/// A short caption centred in the titlebar row, out of the way of every drop target.
+/// A short caption centred in the band under the decks (`Demo.captionBand`), out of the way of
+/// the titlebar tabs and every drop target.
 final class DemoCaptionView: PassthroughView, ThemeApplying {
     private let label = NSTextField(labelWithString: "")
 
@@ -43,11 +50,12 @@ final class DemoCaptionView: PassthroughView, ThemeApplying {
         label.textColor = Theme.text
     }
 
-    func show(_ text: String, in parent: NSView, rowHeight: CGFloat) {
+    /// Shows `text` centred in `band` (content view coordinates).
+    func show(_ text: String, centredIn band: CGRect) {
         label.stringValue = text
         label.sizeToFit()
         let w = label.frame.width + 24, h: CGFloat = 22
-        frame = CGRect(x: ((parent.bounds.width - w) / 2).rounded(), y: ((rowHeight - h) / 2).rounded(), width: w, height: h)
+        frame = CGRect(x: (band.midX - w / 2).rounded(), y: (band.midY - h / 2).rounded(), width: w, height: h)
         label.frame = CGRect(x: 12, y: ((h - label.frame.height) / 2).rounded(), width: label.frame.width, height: label.frame.height)
         isHidden = text.isEmpty
     }
@@ -234,6 +242,8 @@ final class DemoMouse {
 
 extension TerminalWindowController {
     func runDemo(_ name: String) {
+        // Self-test mode points Settings at a temp config home, so this never touches the user's file.
+        if Demo.tabsInTitlebar { Settings.write("window.tabs_in_titlebar", .bool(true)) }
         window?.setContentSize(NSSize(width: 1000, height: 600))
         window?.center()
         // Recorded as a screen region (no real cursor, no capture badge), so nothing may cover it.
@@ -254,7 +264,12 @@ extension TerminalWindowController {
         func say(_ text: String) {
             mouse.run { [weak self] in
                 guard let self else { return }
-                caption.show(text, in: self.contentView, rowHeight: self.deckArea.minY)
+                let b = self.contentView.bounds, top = self.deckArea.maxY
+                caption.show(text, centredIn: CGRect(x: 0, y: top, width: b.width, height: b.height - top))
+                // The tree at each caption (the result of the beat before it), for checking a run in the log.
+                let strips = self.titlebarStripDecks.map { $0.tabs.map(\.title).joined(separator: ",") }
+                print("DEMO BEAT \(self.describeWorkspaces { $0.customTitle ?? "?" }) titlebar=\(strips) movable=\(self.window?.isMovable ?? false) next=\"\(text)\"")
+                fflush(stdout)
             }
         }
         /// A point inside a view, by fraction of its bounds from the top-left, in window coordinates.
@@ -266,6 +281,9 @@ extension TerminalWindowController {
                 return v.convert(CGPoint(x: b.minX + b.width * fx, y: y), to: nil)
             }
         }
+        /// Where to grab a tab to drag it: its bottom half, which in the titlebar is the tab-drag
+        /// zone (#27; the top half drags the window), and away from the ×.
+        func grip(_ tab: @escaping () -> NSView?) -> () -> CGPoint? { at(tab, 0.45, 0.75) }
         func pane(_ n: String) -> () -> Pane? { { [weak self] in self?.allDecks.flatMap(\.tabs).flatMap(\.panes).first { $0.customTitle == n } } }
         func paneView(_ n: String) -> () -> NSView? { { pane(n)()?.view } }
         func bar(_ n: String) -> () -> NSView? { { pane(n)()?.view.bar } }
@@ -341,9 +359,9 @@ extension TerminalWindowController {
             if let d = focusedDeck, let t = d.tabs.first { select(tab: t, in: d) }
 
             say("Drag a tab to the window edge: it becomes a new deck")
-            mouse.drag(from: at(tab("logs")), to: windowEdge(.right), hold: 0.4)
+            mouse.drag(from: grip(tab("logs")), to: windowEdge(.right), hold: 0.4)
             say("Drop a tab on a pane's edge: it joins as a split")
-            mouse.drag(from: at(tab("build")), to: at(paneView("logs"), 0.5, 0.88), hold: 0.4)
+            mouse.drag(from: grip(tab("build")), to: at(paneView("logs"), 0.5, 0.88), hold: 0.4)
             say("Drag a pane by its bar to re-split it somewhere else")
             mouse.drag(from: at(bar("build"), 0.3), to: at(paneView("server"), 0.88, 0.55), hold: 0.4)
             say("Drop on a pane's centre to swap the two")
@@ -351,7 +369,7 @@ extension TerminalWindowController {
             say("Drop a pane on a tab strip: it becomes a tab there")
             mouse.drag(from: at(bar("build"), 0.3), to: stripEnd(of: "logs"), hold: 0.4)
             say("Drop a tab on a pane's edge to split it back in")
-            mouse.drag(from: at(tab("logs")), to: at(paneView("server"), 0.5, 0.9), hold: 0.4)
+            mouse.drag(from: grip(tab("logs")), to: at(paneView("server"), 0.5, 0.9), hold: 0.4)
             say("Hover a pane bar to close it with its ×")
             mouse.move(to: at(bar("logs"), 0.5))
             mouse.wait(0.5)
@@ -373,13 +391,13 @@ extension TerminalWindowController {
             if let d = pane("server")().flatMap({ locate($0)?.deck }), let t = d.tabs.first { select(tab: t, in: d) }
 
             say("Drag tabs to reorder them")
-            mouse.drag(from: at(tab("tests")), to: at(tab("server"), 0.3), hold: 0.3)
+            mouse.drag(from: grip(tab("tests")), to: at(tab("server"), 0.3), hold: 0.3)
             say("Hover a tab mid-drag to switch to it, then drop it in that deck")
-            mouse.drag(from: at(tab("logs")), to: at(tab("notes"), 0.6), hold: 1.1)
+            mouse.drag(from: grip(tab("logs")), to: at(tab("notes"), 0.6), hold: 1.1)
             say("Drag a tab out to the window edge: a new deck")
-            mouse.drag(from: at(tab("server")), to: windowEdge(.bottom), hold: 0.4)
+            mouse.drag(from: grip(tab("server")), to: windowEdge(.bottom), hold: 0.4)
             say("…and into a pane to fold it back in as a split")
-            mouse.drag(from: at(tab("server")), to: at(paneView("tests"), 0.12, 0.5), hold: 0.4)
+            mouse.drag(from: grip(tab("server")), to: at(paneView("tests"), 0.12, 0.5), hold: 0.4)
             mouse.move(to: at(paneView("docs"), 0.5, 0.5))
             say("")
             mouse.wait(0.8)
@@ -404,7 +422,7 @@ extension TerminalWindowController {
             mouse.click(at(row("api")))
             mouse.wait(0.5)
             say("Drag a tab onto a workspace to move it there")
-            mouse.drag(from: at(tab("tests")), to: at(row("web")), hold: 0.5)
+            mouse.drag(from: grip(tab("tests")), to: at(row("web")), hold: 0.5)
             mouse.click(at(row("web")))
             mouse.wait(0.4)
             mouse.move(to: at(tab("tests")))

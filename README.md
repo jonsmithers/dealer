@@ -27,12 +27,14 @@ workspace closes the window.
 
 Recorded from Dealer's scripted demo mode (`scripts/record-demo.sh`): the pointer is drawn by the
 demo, but every press, drag and release is a real mouse event going through the app's own drag
-and click handling.
+and click handling. They're recorded with `[window] tabs_in_titlebar = true`, so the top decks'
+tab strips sit in the titlebar row; tabs are grabbed by their lower half, which drags the tab (the
+upper half drags the window). Captions run along the bottom.
 
 <details open>
 <summary><b>Drag tabs and panes</b>: new deck, split, re-split, swap, move to another deck, close</summary>
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/drag.gif" alt="Dragging a tab to the window edge to make a new deck, dropping a tab on a pane's edge to split, dragging panes by their bars to re-split and swap, dropping a pane on a tab strip, and closing a pane with the hover × on its bar" width="960">
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/drag.gif" alt="Dragging a tab out of the titlebar to the window edge to make a new deck, dropping a tab on a pane's edge to split, dragging panes by their bars to re-split and swap, dropping a pane on a titlebar tab strip, and closing a pane with the hover × on its bar" width="960">
 
 [Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/drag.mp4)
 </details>
@@ -40,7 +42,7 @@ and click handling.
 <details>
 <summary><b>Tabs</b>: reorder, hover to switch mid-drag, out to a new deck and back into a pane</summary>
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/tabs.gif" alt="Reordering tabs by dragging, hovering a tab mid-drag to switch to it and dropping in that deck, dragging a tab to the window edge for a new deck, and dropping it back into a pane as a split" width="960">
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/tabs.gif" alt="Reordering tabs in the titlebar by dragging, hovering another deck's titlebar tab mid-drag to switch to it and dropping in that deck, dragging a tab to the bottom window edge for a new deck (whose strip stays in the deck), and dropping it back into a pane as a split" width="960">
 
 [Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/tabs.mp4)
 </details>
@@ -48,7 +50,7 @@ and click handling.
 <details>
 <summary><b>Workspaces</b>: open the sidebar, add one, click to switch, drag a tab onto a workspace</summary>
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/workspaces.gif" alt="Opening the workspace sidebar, adding a workspace, clicking rows to switch, and dragging a tab onto another workspace's row" width="960">
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/workspaces.gif" alt="Opening the workspace sidebar, adding a workspace, clicking rows to switch, and dragging a tab from the titlebar onto another workspace's row" width="960">
 
 [Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/workspaces.mp4)
 </details>
@@ -56,7 +58,7 @@ and click handling.
 <details>
 <summary><b>Agent attention</b>: blue for waiting, red for failed, visible from anywhere; click to go there and it fades</summary>
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/attention.gif" alt="An agent pane turns waiting (blue) and a build tab fails (red) while you're in another workspace; that workspace's row is outlined red because a failure outranks waiting. Clicking the row goes there, where the waiting pane and the failed tab are outlined; clicking into each clears its outline with a short fade" width="960">
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/attention.gif" alt="An agent pane turns waiting (blue) and a build tab fails (red) while you're in another workspace; that workspace's row is outlined red because a failure outranks waiting. Clicking the row goes there, where the waiting pane and the failed tab (in the titlebar) are outlined; clicking into each clears its outline with a short fade" width="960">
 
 The states here are driven with `dealer notify`, typed into the pane; that's exactly what Dealer's
 automatic Claude Code hooks call (see [Attention](#attention-coding-agents)). This is not a live

@@ -114,6 +114,11 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
     when the demo prints `DEMO DONE`, *before* the app exits: a frame after the window closes would
     show the user's screen. `screencapture -v -l` isn't used because it records the real pointer
     and macOS swaps the traffic lights for a capture badge.
+  - Demos run with `tabs_in_titlebar = true` (one switch, `Demo.tabsInTitlebar`, written to the
+    demo's temp settings). Grab tabs with the `grip(…)` helper (lower half = tab drag; the upper
+    half drags the window, #27). Captions sit in a band under the decks (`Demo.captionBand`, 0
+    outside demos, subtracted in `deckArea`). Each caption logs `DEMO BEAT <tree>`, so a run
+    can be checked from its log without recording.
   - Demo shells use `ZDOTDIR=/tmp/demo` (set up by the script) and source Ghostty's shell integration;
     without it every pane counts as busy and closing one asks for confirmation.
 - **The self-test never shows modals (#38).** Close and quit confirmations go through

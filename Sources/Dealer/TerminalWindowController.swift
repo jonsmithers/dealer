@@ -136,7 +136,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         let g = Self.deckGap
         // The workspace sidebar takes a column on the left; decks shrink rather than sit under it.
         let side = isSidebarVisible ? Theme.Metrics.sidebarWidth + g : 0
-        return CGRect(x: g + side, y: max(titlebar, 28), width: b.width - g * 2 - side, height: b.height - max(titlebar, 28) - g)
+        return CGRect(x: g + side, y: max(titlebar, 28), width: b.width - g * 2 - side,
+                      height: b.height - max(titlebar, 28) - g - Demo.captionBand)
     }
 
     /// Frames of every pane currently on screen, in content view coordinates.
