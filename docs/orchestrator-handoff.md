@@ -34,12 +34,13 @@ explains current decisions. Keep it current.
   releases, deleting remote branches, repo settings.
 - The self-test drives a real window. **A locked screen** turns shell/drag steps into skips or
   failures; agents must wait rather than merge around it.
-- **Known intermittent failure block:** about 10–11 click/drag/hover steps fail together (sidebar
-  drops, pill clicks/reorder, row clicks, and `colors: … render identically`), then the same build
-  passes on rerun. Seen on several branches and on master. Suspected cause: leftover "A process is
-  still running" confirmation dialogs (#38) or screen lock. The 0.1 s step-delay runs also fail
-  drag steps (timing). Re-run, and list failing step *names* before retrying; never use
-  `ALLOW_FEWER_TESTS` for this.
+- **Known intermittent failure block** (sidebar drops, pill clicks/reorder, row clicks,
+  `colors: … render identically`, titlebar tabs, edge split): caused by a **sleeping display**
+  under a locked screen (#38). The runner now prints `SELFTEST NOTE: display asleep…` and
+  `(environment: …)` next to failures; such a run proves nothing about click/drag steps. Wait for
+  the user's screen, or `caffeinate -u -t 600 &` wakes the display (still locked: shell steps
+  skip, clicks pass). Modal confirmations can no longer cause it: self-test mode auto-accepts them
+  and the runner fails any step that leaves a sheet open. Never use `ALLOW_FEWER_TESTS` for this.
 - Things the self-test can't prove, which need the user's real hands (put them in `TODO.md`):
   - real pointer drags and titlebar behavior (window server decides);
   - real key presses;

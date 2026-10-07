@@ -55,9 +55,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !SelfTest.enabled { SessionSnapshot(windows: controllers.compactMap { $0.snapshot() }).save() }
         terminating = true
         guard GhosttyRuntime.shared.needsConfirmQuit else { return .terminateNow }
+        let info = "Processes are still running. Your layout will be restored next time."
+        if Confirmation.skip("Quit Dealer?", info) { return .terminateNow }
         let alert = NSAlert()
         alert.messageText = "Quit Dealer?"
-        alert.informativeText = "Processes are still running. Your layout will be restored next time."
+        alert.informativeText = info
         alert.addButton(withTitle: "Quit")
         alert.addButton(withTitle: "Cancel")
         if alert.runModal() == .alertFirstButtonReturn { return .terminateNow }

@@ -110,6 +110,16 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
     and macOS swaps the traffic lights for a capture badge.
   - Demo shells use `ZDOTDIR=/tmp/demo` (set up by the script) and source Ghostty's shell integration;
     without it every pane counts as busy and closing one asks for confirmation.
+- **The self-test never shows modals (#38).** Close and quit confirmations go through
+  `Confirmation.skip` (one switch, on in self-test and demo mode), which accepts and logs
+  `(auto-accepted confirmation: …)`. After every step the runner fails the step that left a sheet or
+  app-modal window open, naming it, then cancels it. New confirmations must use
+  `TerminalWindowController.confirm` or `Confirmation.skip`, never a bare `NSAlert`.
+- **Display asleep:** with the screen locked *and* the display asleep (no active displays,
+  `displaysleep` is 10 min here), click/drag/menu-key steps fail: sometimes only ⌘B (88), sometimes a
+  block of ~21 (sidebar, switcher, titlebar tabs, edge split) followed by a crash. This explains
+  the "intermittent failure block". The runner prints `SELFTEST NOTE: display asleep, screen locked` at start and
+  `(environment: …)` on each failure; treat such a run as not verified and rerun on an awake screen.
 - **Locked screen:** `ghostty_surface_new` returns nil for every pane and `screencapture -l` fails.
   Self-test checks that need a live shell or cell metrics print `(skipped …)` and still pass; if
   you see those, say that shell-level behavior (send-text, `--command`, process listing, `--size`
@@ -131,7 +141,7 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   drops onto the workspace sidebar, pane centres (`SelfTestDragSettle.swift`) and the window edges
   (`SelfTestEdgeSplit.swift`, which also has a drag-to-a-window-point helper) do that. Real mouse movement, hover-to-switch,
   drag highlights and divider dragging are not covered; neither are macOS notifications (bundle
-  only), modal dialogs, or real key presses. Say so when reporting.
+  only), what a confirmation dialog looks like (self-test mode auto-accepts them), or real key presses. Say so when reporting.
 
 - **Worktree hygiene:** to squash a branch, use `git reset --soft $(git merge-base HEAD master)`,
   never `git reset --soft master` (master moves under you, and the squash silently reverts other

@@ -184,7 +184,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func confirm(_ message: String, info: String, then action: @escaping () -> Void) {
-        guard let window else { return action() }
+        guard let window, !Confirmation.skip(message, info) else { return action() }
         let alert = NSAlert()
         alert.messageText = message
         alert.informativeText = info

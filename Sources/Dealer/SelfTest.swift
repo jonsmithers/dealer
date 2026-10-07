@@ -14,6 +14,40 @@ enum SelfTest {
     static var stepDelay: TimeInterval {
         Double(env("SELFTEST_DELAY") ?? "") ?? 0.6
     }
+
+    /// A sheet or app-modal window that is open now, described for a failure message (#38).
+    /// Self-test mode never shows confirmations (`Confirmation.autoAccept`), so one left open by
+    /// a step is a bug, and it would swallow every later click and drag.
+    static func openModal() -> String? {
+        func text(_ w: NSWindow) -> String {
+            func labels(_ v: NSView) -> [String] {
+                ((v as? NSTextField).map { [$0.stringValue] } ?? []) + v.subviews.flatMap(labels)
+            }
+            let alert = w.contentView.map(labels)?.filter { !$0.isEmpty } ?? []
+            return alert.isEmpty ? "\(type(of: w))" : "\"\(alert.joined(separator: " / "))\""
+        }
+        if let m = NSApp.modalWindow { return "app-modal window \(text(m))" }
+        if let w = NSApp.windows.first(where: { $0.attachedSheet != nil }), let sheet = w.attachedSheet {
+            return "sheet \(text(sheet)) on window \"\(w.title)\""
+        }
+        return nil
+    }
+
+    /// Cancels whatever `openModal()` found, so one bad step doesn't fail the rest.
+    static func dismissModals() {
+        if NSApp.modalWindow != nil { NSApp.abortModal() }
+        for w in NSApp.windows { if let sheet = w.attachedSheet { w.endSheet(sheet, returnCode: .cancel) } }
+    }
+
+    /// Why click/drag steps may fail for reasons outside the code: a sleeping display (no active
+    /// displays) or a locked screen. Printed with failures so a cascade isn't mistaken for a bug.
+    static func environmentNote() -> String? {
+        var count: UInt32 = 0
+        CGGetActiveDisplayList(0, nil, &count)
+        let locked = (CGSessionCopyCurrentDictionary() as? [String: Any])?["CGSSessionScreenIsLocked"] as? Bool ?? false
+        let notes = (count == 0 ? ["display asleep"] : []) + (locked ? ["screen locked"] : [])
+        return notes.isEmpty ? nil : notes.joined(separator: ", ")
+    }
 }
 
 /// Lets a feature's self-test section (in its own file) add steps to the shared run.
@@ -243,6 +277,7 @@ extension TerminalWindowController {
         reloadSelfTestSteps(kit)
         ghosttyVersionSelfTestSteps(kit)
         ghosttyResourcesSelfTestSteps(kit)
+        modalsSelfTestSteps(kit)
 
         var failures = 0
         func run(_ i: Int) {
@@ -259,11 +294,20 @@ extension TerminalWindowController {
             var problems: [String] = []
             if let e = s.expect, e != tree { problems.append("expected \(e)") }
             if let c = s.check?() { problems.append(c) }
+            // #38: a step must not leave a modal behind; name it here, then clear it.
+            if let modal = SelfTest.openModal() {
+                problems.append("this step left a modal open: \(modal)")
+                SelfTest.dismissModals()
+            }
+            if !problems.isEmpty, let note = SelfTest.environmentNote() { problems.append("(environment: \(note))") }
             if !problems.isEmpty { failures += 1 }
             print("[\(problems.isEmpty ? "ok" : "FAIL")] \(i + 1). \(s.title)\n      \(tree)")
             problems.forEach { print("      !! \($0)") }
             fflush(stdout)
             DispatchQueue.main.asyncAfter(deadline: .now() + SelfTest.stepDelay) { run(i + 1) }
+        }
+        if let note = SelfTest.environmentNote() {
+            print("SELFTEST NOTE: \(note) at start; click/drag/shell steps may skip or fail")
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { run(0) }
     }
