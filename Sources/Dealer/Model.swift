@@ -199,7 +199,10 @@ final class Pane {
         surface.pane = self
         view.pane = self
         view.addSubview(surface)
+        LiveObjects.add(.pane)
     }
+
+    deinit { LiveObjects.remove(.pane) }
 
     var pwd: String? { surface.pwd }
 
@@ -220,7 +223,10 @@ final class Tab {
 
     init(root: Node<Pane>) {
         self.root = root
+        LiveObjects.add(.tab)
     }
+
+    deinit { LiveObjects.remove(.tab) }
 
     var panes: [Pane] { root.leaves }
 
@@ -256,7 +262,10 @@ final class Deck {
 
     init(colorIndex: Int) {
         self.colorIndex = colorIndex
+        LiveObjects.add(.deck)
     }
+
+    deinit { LiveObjects.remove(.deck) }
 
     var color: NSColor { Palette.deckColors[colorIndex % Palette.deckColors.count] }
 

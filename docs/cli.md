@@ -47,6 +47,7 @@ workspaces, type into them, focus, resize, rename, color, list, and notify.
 | `notify [--state unread\|done\|waiting\|failed\|none] [--title T] [--body B]` | Marks the pane for attention. See the README's Attention section. |
 | `close` | Closes a pane or tab without asking. |
 | `run [--here] [--split \| --tab] [--size 12\|30%] [--keep] [--quiet] [--focus] [--title T] [--cwd DIR] [--] CMD...` | Runs CMD as a background job next to the caller (see below) and prints the job's pane ID. Routes to the workspace that best fits `$PWD`. One argument is a shell string; several are an argv, each word shell-quoted. |
+| `diagnose [--leaks]` | Writes a memory diagnostics report to `~/Library/Logs/Dealer/` and prints its path (Help › Capture Memory Diagnostics… does the same). It holds counts and sizes only, no titles, cwds or terminal contents. `--leaks` also runs `leaks`, which is slow, pauses Dealer, and can quote leaked memory. See [diagnostics.md](diagnostics.md). |
 | `job-done STATUS` | Internal: the tail `run` types into the job's shell. Exits 0 when the shell should close. |
 
 ## Recipes

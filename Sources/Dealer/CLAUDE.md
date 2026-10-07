@@ -54,6 +54,19 @@
   - Keep a `Pane` strongly referenced only from its tree node.
   - Every closure capturing a pane or the controller must capture it `weak`, or the shell
     process leaks.
+- **Leaks keep shells running (#43).** A Pane that outlives its tree keeps its SurfaceView, the
+  ghostty surface, its shell, four threads and ~50–70 MB of renderer memory. Two retainers were
+  found and fixed:
+  - Divider `onDrag` closures must capture values (`rect = d.splitRect`), never the `Node.Divider`
+    struct, which holds its node strongly. Spare pooled dividers get `onDrag = nil`, and pools of
+    decks that are gone are dropped in `layoutWindow`.
+  - `windowWillClose` calls `releaseViews()`: AppKit keeps a closed NSWindow (and its views) past
+    the controller, and a later layout pass then read freed decks through `TabStripView.deck`
+    (`unowned`) and crashed.
+  - Counted classes call `LiveObjects.add`/`remove` in init/deinit (DiagnosticsCounters.swift).
+    A new heavy class that should die with the model gets a `Kind`. Any new create/close path
+    gets a cycle step in SelfTestMemory.swift, which fails when a count doesn't return to its
+    baseline.
 - The `wakeup_cb` and clipboard callbacks can arrive off the main thread. `wakeup` hops to main
   and calls `ghostty_app_tick`. `close_surface_cb` dispatches the close asynchronously to main;
   never free a surface synchronously inside a ghostty callback.
@@ -351,6 +364,16 @@
   override variables (ghostty `env_vars`), not remove them.
 - The off switch is `Settings.agentInjectHooks` (`[agent] inject_hooks`), read at pane spawn. Running shells keep the
   environment they started with.
+
+## Diagnostics (`Diagnostics.swift`, #43)
+
+- One implementation, `Diagnostics.capture(_:)`, behind Help › Capture Memory Diagnostics… and
+  `dealer diagnose`. docs/diagnostics.md lists what it collects. **Keep the two in sync**, and keep
+  it private: counts and sizes only, panes numbered in tree order, tool output passed through
+  `redact`. The CLI step in SelfTestCLI.swift checks that test titles, cwds and the home path are
+  absent. `leaks` runs only with `--leaks`.
+- libghostty's C API has no per-surface memory figure, and `ghostty_config_get` can't read `usize`
+  keys such as `scrollback-limit`.
 
 ## Control socket (`ControlServer.swift`, `ControlHandler.swift`)
 

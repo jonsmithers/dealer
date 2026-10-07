@@ -160,6 +160,14 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   drag highlights and divider dragging are not covered; neither are macOS notifications (bundle
   only), what a confirmation dialog looks like (self-test mode auto-accepts them), or real key presses. Say so when reporting.
 
+- **Memory (#43):** `DEALER_SELFTEST_ONLY=<title prefix>` runs only matching steps (e.g. `memory:`,
+  whose steps need no earlier state). `DEALER_SELFTEST_LIVE=1` prints `LiveObjects` counts after each
+  step, next to the panes the windows hold. A full run ends near 6 GB on purpose: the runner's
+  name table keeps every named pane (about 120) alive, at about 50 MB each. Measure leaks only on
+  your own self-test instance (`footprint -p`, `vmmap --summary`, `heap`, and
+  `leaks --traceTree=<addr>`, which is noisy because it scans conservatively). Never attach them
+  to the user's Dealer. `dealer diagnose` writes the user-facing report (docs/diagnostics.md).
+
 - **Worktree hygiene:** to squash a branch, use `git reset --soft $(git merge-base HEAD master)`,
   never `git reset --soft master` (master moves under you, and the squash silently reverts other
   branches' work). `scripts/bundle.sh` registers each bundle with Launch Services (#30), so before

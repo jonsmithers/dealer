@@ -278,6 +278,13 @@ extension TerminalWindowController {
         ghosttyVersionSelfTestSteps(kit)
         ghosttyResourcesSelfTestSteps(kit)
         modalsSelfTestSteps(kit)
+        memorySelfTestSteps(kit)
+
+        // `DEALER_SELFTEST_ONLY=<prefix>` keeps only the steps whose title starts with it, for a
+        // quick run of one self-contained section (e.g. `memory:`). Merges always run them all.
+        if let only = SelfTest.env("SELFTEST_ONLY"), !only.isEmpty {
+            steps = steps.filter { $0.title.hasPrefix(only) }
+        }
 
         var failures = 0
         func run(_ i: Int) {
@@ -303,6 +310,8 @@ extension TerminalWindowController {
             if !problems.isEmpty { failures += 1 }
             print("[\(problems.isEmpty ? "ok" : "FAIL")] \(i + 1). \(s.title)\n      \(tree)")
             problems.forEach { print("      !! \($0)") }
+            // #43: `DEALER_SELFTEST_LIVE=1` prints live object counts after each step, to find a leak.
+            if SelfTest.env("SELFTEST_LIVE") != nil { print("      live: \(LiveObjects.summary) windowsOpen=\(AppDelegate.shared.windowControllers.count) panesInTrees=\(AppDelegate.shared.windowControllers.flatMap(\.allDecks).flatMap(\.tabs).flatMap(\.panes).count)") }
             fflush(stdout)
             DispatchQueue.main.asyncAfter(deadline: .now() + SelfTest.stepDelay) { run(i + 1) }
         }

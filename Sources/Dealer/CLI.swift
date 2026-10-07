@@ -6,7 +6,7 @@ import Foundation
 enum CLI {
     static let commands: Set<String> = [
         "identify", "list", "ls", "find", "create", "new", "send-text", "send", "focus", "resize",
-        "rename", "color", "notify", "close", "run", "job-done", "help", "--help", "-h",
+        "rename", "color", "notify", "close", "run", "job-done", "diagnose", "help", "--help", "-h",
     ]
 
     /// True when this process should act as the CLI rather than launch the app.
@@ -43,6 +43,9 @@ enum CLI {
                                                  each word quoted);
                                                  success closes it and marks you done, failure keeps
                                                  it open, marked waiting. Prints the job's pane ID.
+      diagnose [--leaks]                         write a memory diagnostics report (safe to attach to
+                                                 an issue) and print its path; --leaks also runs
+                                                 `leaks` (slow, pauses Dealer)
 
     Environment: DEALER_SOCKET (socket path), DEALER_PANE_ID (default target).
     """
@@ -170,6 +173,7 @@ enum CLI {
             case "--pane": a["level"] = "pane"
             case "--state": a["state"] = try val()
             case "--body": a["body"] = try val()
+            case "--leaks": a["leaks"] = true
             default:
                 // Negative numbers are values (`resize --by -3` is written `--by=-3` or `--by -3`).
                 throw Usage(message: "unknown option \(arg) for '\(cmd)' (see dealer help)")
@@ -218,7 +222,7 @@ enum CLI {
             a["color"] = positional[0]
         case "notify":
             if !positional.isEmpty, a["body"] == nil { a["body"] = positional.joined(separator: " ") }
-        case "identify", "list", "find", "resize":
+        case "identify", "list", "find", "resize", "diagnose":
             if !positional.isEmpty { throw Usage(message: "unexpected argument '\(positional[0])'") }
         default:
             throw Usage(message: "unknown command '\(cmd)' (see dealer help)")
@@ -270,6 +274,8 @@ enum CLI {
             return "caller  \(line(r["caller"]))\nfocused \(line(r["focused"]))\n"
         case "create", "run":
             return "\(r["pane"] ?? "")\n"
+        case "diagnose":
+            return "\(r["path"] ?? "")\n"
         case "find":
             return (r["panes"] as? [Int] ?? []).map { "\($0)\n" }.joined()
         case "list":

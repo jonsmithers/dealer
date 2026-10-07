@@ -63,6 +63,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         super.init(window: window)
         window.delegate = self
+        LiveObjects.add(.window)
         observeSettings()
         observeTheme()
 
@@ -75,6 +76,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    deinit { LiveObjects.remove(.window) }
 
     private func restore(_ snapshot: WindowSnapshot) {
         let restored = restoreWorkspaces(snapshot)
@@ -708,13 +711,19 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             layout(deck: deck, zoomed: zoomed.flatMap { $0.1.deck === deck ? $0.1.node.leaf : nil })
         }
 
+        // Capture the split rect, not `d`: the Divider struct holds its node strongly (#43).
         syncDividers(&windowDividers, in: contentView, specs: dividers.map { d in
-            (d.frame, d.node.axis, { [weak self, weak node = d.node] p in
+            (d.frame, d.node.axis, { [weak self, weak node = d.node, rect = d.splitRect] p in
                 guard let node else { return }
-                node.ratio = Self.ratio(for: p, in: d.splitRect, axis: node.axis, gap: Self.deckGap)
+                node.ratio = Self.ratio(for: p, in: rect, axis: node.axis, gap: Self.deckGap)
                 self?.layoutNow()
             })
         })
+        // Divider pools of decks that are gone (closed, or in another window now).
+        let liveDecks = Set(allDecks.map(ObjectIdentifier.init))
+        for key in paneDividers.keys where !liveDecks.contains(key) {
+            paneDividers.removeValue(forKey: key)?.forEach { $0.onDrag = nil; $0.removeFromSuperview() }
+        }
 
         layoutWorkspaceSidebar()
         contentView.raiseOverlays()
@@ -776,9 +785,9 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
         var pool = paneDividers[ObjectIdentifier(deck)] ?? []
         syncDividers(&pool, in: dv.content, specs: dividers.map { d in
-            (d.frame, d.node.axis, { [weak self, weak node = d.node] p in
+            (d.frame, d.node.axis, { [weak self, weak node = d.node, rect = d.splitRect] p in
                 guard let node else { return }
-                node.ratio = Self.ratio(for: p, in: d.splitRect, axis: node.axis, gap: Self.paneGap)
+                node.ratio = Self.ratio(for: p, in: rect, axis: node.axis, gap: Self.paneGap)
                 self?.layoutNow()
             })
         })
@@ -810,6 +819,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
                 }
                 dv.onDrag = onDrag
             } else {
+                dv.onDrag = nil  // a spare must not keep its last split alive
                 dv.removeFromSuperview()
             }
         }
@@ -955,7 +965,27 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        releaseViews()
         onClose?(self)
+    }
+
+    /// A closed NSWindow can outlive its controller for a while (AppKit holds it past the close),
+    /// and it would keep every deck, pane and SurfaceView in it alive: shells still running, tens
+    /// of MB of renderer memory each, and a later layout pass reading freed decks through the
+    /// strips' `unowned` reference (#43). Take them out of the window now; the model goes with the
+    /// controller.
+    private func releaseViews() {
+        for deck in allDecks {
+            deck.tabs.flatMap(\.panes).forEach { $0.view.removeFromSuperview() }
+            deck.view.strip.removeFromSuperview()  // may sit in the titlebar row (#16)
+            deck.view.removeFromSuperview()
+        }
+        for dv in windowDividers + paneDividers.values.flatMap({ $0 }) {
+            dv.onDrag = nil
+            dv.removeFromSuperview()
+        }
+        windowDividers = []
+        paneDividers = [:]
     }
 
     func windowDidResize(_ notification: Notification) {

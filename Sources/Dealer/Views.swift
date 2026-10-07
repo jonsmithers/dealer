@@ -33,6 +33,7 @@ final class PaneView: FlippedView, ThemeApplying {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
+        LiveObjects.add(.paneView)
         addSubview(bar)
         veil.alphaValue = 0
         addSubview(veil)
@@ -41,6 +42,7 @@ final class PaneView: FlippedView, ThemeApplying {
     }
 
     required init?(coder: NSCoder) { fatalError() }
+    deinit { LiveObjects.remove(.paneView) }
 
     func applyTheme() {
         layer?.backgroundColor = Theme.background.cgColor
@@ -248,6 +250,7 @@ final class DeckView: FlippedView, ThemeApplying {
         self.deck = deck
         strip = TabStripView(deck: deck)
         super.init(frame: .zero)
+        LiveObjects.add(.deckView)
         content.layer?.cornerRadius = Theme.Metrics.deckRadius
         content.layer?.masksToBounds = true
         content.layer?.borderWidth = 1
@@ -257,6 +260,7 @@ final class DeckView: FlippedView, ThemeApplying {
     }
 
     required init?(coder: NSCoder) { fatalError() }
+    deinit { LiveObjects.remove(.deckView) }
 
     func applyTheme() {
         content.layer?.backgroundColor = Theme.divider.cgColor

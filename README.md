@@ -404,6 +404,13 @@ Several arguments are quoted word by word, so paths with spaces survive. A singl
 shell string, so `b 'make && make test'` and pipelines work. `--here` skips the routing. Details are in
 [docs/cli.md](docs/cli.md#background-jobs-dealer-run-replaces-b--b_str).
 
+## Memory diagnostics
+
+Dealer using a lot of memory? While it's high, choose **Help › Capture Memory Diagnostics…** (or run
+`dealer diagnose`) and attach the report it writes to `~/Library/Logs/Dealer/` to an issue. It holds
+counts and sizes only. [docs/diagnostics.md](docs/diagnostics.md) lists what's in it and what's
+normal: each pane's renderer takes tens of MB, even in a background tab.
+
 ## Session restore
 
 Quitting saves the full window → deck → tab → pane tree (sizes, working directories,

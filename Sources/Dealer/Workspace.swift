@@ -25,7 +25,10 @@ final class Workspace {
         Self.nextID += 1
         self.root = root
         self.name = name
+        LiveObjects.add(.workspace)
     }
+
+    deinit { LiveObjects.remove(.workspace) }
 
     var decks: [Deck] { root?.leaves ?? [] }
     var tabs: [Tab] { decks.flatMap(\.tabs) }

@@ -33,6 +33,7 @@ enum ControlHandler {
             case "close": result = try close(args, ctx)
             case "run": result = try ControlJobs.run(args, ctx)
             case "job-done": result = try ControlJobs.done(args, ctx)
+            case "diagnose": result = try Diagnostics.control(args)
             default: throw Failure(message: "unknown command '\(cmd)'")
             }
             return ["ok": true, "result": result]

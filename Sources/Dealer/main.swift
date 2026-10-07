@@ -212,6 +212,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         submenu("Window", tabItems)
         NSApp.windowsMenu = main.items.last?.submenu
 
+        submenu("Help", [item("Capture Memory Diagnostics…", #selector(AppDelegate.captureDiagnostics(_:)))])
+        NSApp.helpMenu = main.items.last?.submenu
+
         return main
     }
 }

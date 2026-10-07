@@ -228,6 +228,23 @@ extension TerminalWindowController {
                        s2 == 0 && newID.flatMap(ControlHandler.pane(id:))?.title == "via socket" ? nil : "create: \(s2) \(o2) \(e2)",
                        s3 == 1 && e3.contains("no pane 999999") ? nil : "bad target should exit 1 with a message: \(s3) \(e3)")
         }) {}
+        var report = "", reportPath = ""
+        t.step("cli: diagnose writes a memory report with counts and nothing private (#43)", nil, {
+            let home = NSHomeDirectory()
+            let leaked = ["RUN make", "via socket", tmp, home, "/Users/" + NSUserName()].filter { report.contains($0) }
+            let paneLines = report.split(separator: "\n").filter { $0.hasPrefix("pane ") }.count
+            let panes = self.workspaces.flatMap(\.panes).count
+            return all(reportPath.hasPrefix(Diagnostics.directory.path) ? nil : "report at \(reportPath), not in \(Diagnostics.directory.path)",
+                       ["## Versions", "## Process memory", "phys_footprint:", "## Objects", "## Panes", "## vmmap --summary", "## heap"]
+                           .filter { !report.contains($0) }.map { "report lacks \($0)" }.first,
+                       report.contains("## leaks") ? "leaks must be opt-in" : nil,
+                       paneLines >= panes ? nil : "report lists \(paneLines) panes, the windows hold \(panes)",
+                       leaked.isEmpty ? nil : "report contains private strings: \(leaked)")
+        }) {
+            reportPath = call("diagnose")?["path"] as? String ?? ""
+            report = (try? String(contentsOfFile: reportPath, encoding: .utf8)) ?? ""
+            try? FileManager.default.removeItem(atPath: reportPath)
+        }
         t.step("cli: close the test workspace", nil, {
             self.workspaces.contains { $0.name == "cli" } ? "workspace should be gone" : nil
         }) {
