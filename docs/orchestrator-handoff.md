@@ -118,16 +118,18 @@ Route follow-ups to whoever has the context:
 | Overnight lock: the display slept and the self-test failed about 21 steps then crashed (#38) | Treat runs while the display is asleep or the screen is locked as not verified; the runner prints a `SELFTEST NOTE` |
 | zsh `"$P:src/…"` applied the `:s` modifier in a `git show` | Write `"${P}:path"` |
 
-## State at hand-off (2026-10-07, end of round 6)
+## State at hand-off (2026-10-07, end of round 7)
 
-- **Master `cc478a8`, 262 self-test steps, pushed.** `.git/coord/last-pass-count` = 262.
-- **Closed this round:** #38 (no modal confirmations in self-test/demo, per-step modal guard), #39
-  (resource lookup, pinned shell integration in the self-test), #40 (didn't reproduce on a correct
-  build; passes with and without shell integration).
-- **Proposed, not filed:** bundle Ghostty's resources (`zig-out/share/ghostty` + `share/terminfo`,
-  about 2.5 MB) from the pinned build into `vendor/` and `Contents/Resources` (details on #39). Needs
-  the user's go-ahead and a check of the themes' license.
-- **Open, waiting on the user:** **#27** (titlebar drag zones: real-pointer checks in `TODO.md`).
+- **Master `9f68fc1`, 264 self-test steps, pushed.** `media` is at `8a3762b`, pushed: demos recorded
+  with `tabs_in_titlebar = true` and captions in a band at the bottom.
+- **Closed:** #38, #39, #40. **Landed, open for the user's check:** #41 (Dealer.app ships Ghostty's
+  resources from the pinned build; the check is in `TODO.md`). The main checkout's
+  `vendor/ghostty-resources` was installed by the lead from the #41 build.
+- **Open, waiting on the user:** **#27** (titlebar drag zones, plus the close-the-last-tab-while-hovered
+  case fixed in 4b5498e; checks in `TODO.md`).
+- **Recording demos:** sessions running inside Dealer.app have no Screen Recording permission (a
+  rebundled ad-hoc build loses it). The user runs `scripts/record-demo.sh` from another terminal,
+  and the lead reviews the sheets and publishes.
 - No agents running. Worktrees: only `myterm-wt/media-branch`.
 - Generic skill: `~/git/orchestrate-issues` (GitHub `jonsmithers/orchestrate-issues`, private),
   symlinked as `~/.claude/skills/orchestrate-issues`. Add generic lessons there and Dealer-specific
