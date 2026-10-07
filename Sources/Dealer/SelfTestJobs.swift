@@ -72,6 +72,15 @@ extension TerminalWindowController {
             let got = Int(ghostty_surface_size(s).rows)
             return abs(got - want) <= 2 ? nil : "\(n) should be about \(want) rows, is \(got)"
         }
+        /// A pane out of view still has its real size (#45): a frame, and with a live surface a real grid.
+        func sized(_ n: String) -> String? {
+            guard let p = pane(n) else { return "\(n) is gone" }
+            let f = p.view.frame
+            guard f.width > 200, f.height > 100 else { return "\(n) (out of view) has frame \(f.size)" }
+            guard let s = p.surface.surface else { return nil }
+            let z = ghostty_surface_size(s)
+            return z.columns > 20 && z.rows > 5 ? nil : "\(n) (out of view) has a \(z.columns)x\(z.rows) grid"
+        }
         /// Runs the real CLI binary as a client of this instance, from `dir`, as if called in `caller`.
         func cli(_ args: [String], from dir: String, caller: String = "j0") -> (status: Int32, out: String, err: String) {
             guard let socket = ControlServer.shared.path else { return (-1, "", "no socket") }
@@ -125,6 +134,28 @@ extension TerminalWindowController {
             all(outcome("ja", status: 1) { pane("ja")?.customTitle == "FAILED (1) false" },
                 tree("Deck0[*Col(j0, ja)]"), marked("ja", .failed), focused("j0"))
         }) {}
+        // #45: a pane created out of view used to have no frame, so its surface was 1×1 cells and a
+        // background job's output was gone once the tab was shown at its real size.
+        t.step("jobs: --tab: the background job's pane is sized while hidden and keeps its output when shown", nil, {
+            guard let p = pane("jt"), let l = self.locate(p) else { return all("no --tab job") }
+            let hidden = all(sized("jt"), p.view.isHidden ? nil : "jt's tab should be in the background")
+            guard live, let s = p.surface.surface else {
+                return all(hidden, skipped("--tab job output"))
+            }
+            let reported = wait(20) { ControlJobs.job(for: p)?.status != nil }
+            _ = wait(3) { p.surface.screenText.contains("hello hello\n") }
+            self.select(tab: l.tab, in: l.deck)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+            let text = p.surface.screenText
+            let shown = all(reported ? nil : "the job's shell never reported back",
+                            text.contains("echo hello hello && false") && text.contains("hello hello\n")
+                                ? nil : "after showing the tab its screen is \(text.debugDescription)")
+            pane("j0").map { self.focus($0) }
+            self.remove(p)
+            return all(hidden, shown)
+        }) {
+            created(call("run", ["command": "echo hello hello && false", "cwd": tmp, "placement": "tab"], caller: "j0"), "jt")
+        }
         t.step("jobs: [jobs] placement = \"tab\" puts the next job in a background tab", nil, {
             all(tree("Deck0[*Col(j0, ja), jb]"), focused("j0"),
                 eq(self.locate(pane("jb")!)?.tab.title, "RUN true", "tab title"))
@@ -205,7 +236,7 @@ extension TerminalWindowController {
             guard let jp = pane("r1"), let l = self.locate(jp) else { return all("no routed job") }
             return all(eq(routed(lastRoute), "other", "outcome"), eq(l.workspace.name, "deep", "workspace"),
                        l.node.sibling?.leaf === pane("rb") ? nil : "job should be split beside rb",
-                       eq(self.activeWorkspace.name, "jobs", "active workspace"), focused("j0"))
+                       eq(self.activeWorkspace.name, "jobs", "active workspace"), focused("j0"), sized("r1"))
         }) {
             for d in ["/a/b/c", "/x", "/y"] { try? fm.createDirectory(atPath: tmp + d, withIntermediateDirectories: true) }
             try? fm.createDirectory(atPath: solo, withIntermediateDirectories: true)
@@ -290,5 +321,20 @@ extension TerminalWindowController {
             Settings.reload(force: true)
             try? fm.removeItem(atPath: tmp)
         }
+    }
+}
+
+extension SurfaceView {
+    /// Everything on the screen and in scrollback, as Ghostty's own app reads it.
+    var screenText: String {
+        guard let surface else { return "" }
+        var text = ghostty_text_s()
+        let sel = ghostty_selection_s(
+            top_left: ghostty_point_s(tag: GHOSTTY_POINT_SCREEN, coord: GHOSTTY_POINT_COORD_TOP_LEFT, x: 0, y: 0),
+            bottom_right: ghostty_point_s(tag: GHOSTTY_POINT_SCREEN, coord: GHOSTTY_POINT_COORD_BOTTOM_RIGHT, x: 0, y: 0),
+            rectangle: false)
+        guard ghostty_surface_read_text(surface, sel, &text) else { return "" }
+        defer { ghostty_surface_free_text(surface, &text) }
+        return String(cString: text.text)
     }
 }

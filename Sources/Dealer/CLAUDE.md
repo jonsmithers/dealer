@@ -41,6 +41,10 @@
 - **Hide surfaces; don't remove them.** Panes in background tabs, and decks hidden by a
   window-level zoom, get `isHidden = true` plus `surface.setVisible(false)`
   (ghostty occlusion). Reparenting a pane between decks is just `addSubview`.
+- **Out-of-view panes still get their real size (#45).** Background tabs are laid out in their
+  deck's bounds (`sizeHidden`), and parked decks (other workspaces, zoom-hidden) at their
+  workspace's unzoomed frame (`sizeParked`). A pane created out of view otherwise has no frame,
+  so its surface is 1×1 cells and its output is lost on the resize when it's first shown.
 - Divider views are pooled (`syncDividers`), so the divider being dragged survives the relayout
   that its own drag triggers. Don't recreate them per pass.
 - All custom views are flipped (top-left origin). `SurfaceView` is flipped too, so mouse and

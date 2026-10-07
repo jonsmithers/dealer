@@ -698,6 +698,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             deck.activeTab?.panes.forEach { $0.surface.setVisible(false) }
         }
         placeTabStrips(frames)  // #16: titlebar or in-deck, before the decks lay out
+        sizeParked(allDecks.filter { !shown.contains(ObjectIdentifier($0)) }, area: area)
         for (deck, r) in frames {
             let dv = deck.view
             if dv.superview !== contentView { contentView.addSubview(dv) }
@@ -737,7 +738,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         let bounds = dv.content.bounds
         guard let active = deck.activeTab else { return }
 
-        // Background tabs stay hidden and keep their old size until next shown.
+        // Background tabs stay hidden (and occluded) but are sized like the active one (#45).
         for tab in deck.tabs where tab !== active {
             for p in tab.panes {
                 if p.view.superview !== dv.content { dv.content.addSubview(p.view) }
@@ -746,6 +747,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
                     p.surface.setVisible(false)
                 }
             }
+            sizeHidden(tab, in: bounds)
         }
 
         var frames: [(Pane, CGRect)] = []
@@ -792,6 +794,53 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             })
         })
         paneDividers[ObjectIdentifier(deck)] = pool
+    }
+
+    /// Gives a tab that isn't on screen the frames it would have in `bounds`, without showing it or
+    /// touching occlusion (#45). A pane created out of view (a background tab, another workspace)
+    /// otherwise has no frame, so its surface is 1×1 cells: the shell's output is written into that
+    /// grid, and resizing it to the real size on first show leaves only the prompt.
+    private func sizeHidden(_ tab: Tab, in bounds: CGRect) {
+        var frames: [(Pane, CGRect)] = []
+        var dividers: [Node<Pane>.Divider] = []
+        tab.root.layout(in: bounds, gap: Self.paneGap, frames: &frames, dividers: &dividers)
+        let multi = tab.panes.count > 1
+        for (p, r) in frames {
+            p.view.showsBar = multi
+            if p.view.frame != r { p.view.frame = r }
+            p.view.layoutSubtreeIfNeeded()
+        }
+    }
+
+    /// Decks that aren't shown (another workspace, or hidden by a window-level zoom) are sized as
+    /// their workspace's unzoomed layout would size them, so their surfaces have a real grid (#45).
+    /// Only frames change: they stay parked and occluded.
+    private func sizeParked(_ decks: [Deck], area: CGRect) {
+        guard !decks.isEmpty else { return }
+        let parked = Set(decks.map { ObjectIdentifier($0) })
+        for ws in workspaces {
+            guard ws.decks.contains(where: { parked.contains(ObjectIdentifier($0)) }) else { continue }
+            var frames: [(Deck, CGRect)] = []
+            var dividers: [Node<Deck>.Divider] = []
+            ws.root?.layout(in: area, gap: Self.deckGap, frames: &frames, dividers: &dividers)
+            for (deck, r) in frames where parked.contains(ObjectIdentifier(deck)) {
+                let dv = deck.view
+                if dv.superview !== contentView {
+                    dv.isHidden = true
+                    contentView.addSubview(dv)
+                }
+                if dv.frame != r { dv.frame = r }
+                dv.layoutSubtreeIfNeeded()
+                for tab in deck.tabs {
+                    for p in tab.panes where p.view.superview !== dv.content {
+                        p.view.isHidden = true
+                        p.surface.setVisible(false)
+                        dv.content.addSubview(p.view)
+                    }
+                    sizeHidden(tab, in: dv.content.bounds)
+                }
+            }
+        }
     }
 
     private static func ratio(for p: CGPoint, in rect: CGRect, axis: Axis, gap: CGFloat) -> CGFloat {
