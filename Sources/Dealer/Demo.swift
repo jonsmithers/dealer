@@ -267,8 +267,10 @@ extension TerminalWindowController {
                 let b = self.contentView.bounds, top = self.deckArea.maxY
                 caption.show(text, centredIn: CGRect(x: 0, y: top, width: b.width, height: b.height - top))
                 // The tree at each caption (the result of the beat before it), for checking a run in the log.
+                // Panes ghostty would confirm closing: idle demo shells need shell integration for 0.
+                let busy = self.allDecks.flatMap(\.tabs).flatMap(\.panes).filter { $0.surface.needsConfirmQuit }.count
                 let strips = self.titlebarStripDecks.map { $0.tabs.map(\.title).joined(separator: ",") }
-                print("DEMO BEAT \(self.describeWorkspaces { $0.customTitle ?? "?" }) titlebar=\(strips) movable=\(self.window?.isMovable ?? false) next=\"\(text)\"")
+                print("DEMO BEAT \(self.describeWorkspaces { $0.customTitle ?? "?" }) titlebar=\(strips) movable=\(self.window?.isMovable ?? false) busy=\(busy) next=\"\(text)\"")
                 fflush(stdout)
             }
         }
