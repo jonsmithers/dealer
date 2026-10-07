@@ -242,6 +242,7 @@ extension TerminalWindowController {
         edgeSplitSelfTestSteps(kit)
         reloadSelfTestSteps(kit)
         ghosttyVersionSelfTestSteps(kit)
+        ghosttyResourcesSelfTestSteps(kit)
 
         var failures = 0
         func run(_ i: Int) {

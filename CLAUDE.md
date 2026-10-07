@@ -116,6 +116,10 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   in rows) was not verified. To check custom drawing, read pixels only through
   `PixelProbe.sample` (SelfTestPixels.swift), which renders offscreen and works while locked;
   Metal surfaces come out blank that way.
+- **Shell integration in the self-test (#39):** test shells get the pinned commit's integration
+  (see `GhosttyResources` in `Sources/Dealer/CLAUDE.md`), not whatever Ghostty.app is installed,
+  and not the `GHOSTTY_RESOURCES_DIR` your own pane exports. To run the suite without integration,
+  set `DEALER_SELFTEST_RESOURCES=` (empty).
 - To try the CLI against a dev build: run `DEALER_SELFTEST=1 .build/debug/Dealer` (it listens on
   `$TMPDIR/dealer-selftest-<pid>.sock`), then
   `DEALER_SOCKET=$TMPDIR/dealer-selftest-<pid>.sock .build/debug/Dealer list`. Inside a Dealer pane,

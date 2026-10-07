@@ -57,9 +57,20 @@
 - The `wakeup_cb` and clipboard callbacks can arrive off the main thread. `wakeup` hops to main
   and calls `ghostty_app_tick`. `close_surface_cb` dispatches the close asynchronously to main;
   never free a surface synchronously inside a ghostty callback.
-- `ghostty_init` and `ghostty_app_new` run once, in `GhosttyRuntime.start()`. That function
-  also sets `GHOSTTY_RESOURCES_DIR` from `/Applications/Ghostty.app` so shell integration and
-  terminfo work.
+- `ghostty_init` and `ghostty_app_new` run once, in `GhosttyRuntime.start()`. Before that,
+  `GhosttyResources.apply()` sets `GHOSTTY_RESOURCES_DIR` (shell integration, terminfo, themes;
+  #39). Order: the variable if already set (empty = none), then the app Launch Services knows as
+  `com.mitchellh.ghostty`, then `/Applications` and `~/Applications`. A candidate counts only with
+  a `shell-integration/` directory, and finding none is logged. Keep `resolve` free of process
+  state (the self-test drives it with temp dirs).
+  - Self-test mode ignores an inherited variable (every pane exports one) and uses the pinned
+    commit's `src/shell-integration`, `git archive`d from the Ghostty checkout into
+    `$TMPDIR/dealer-ghostty-<pin>/ghostty`, with themes and terminfo linked from an installed
+    Ghostty.app. `DEALER_SELFTEST_RESOURCES=<dir>` overrides it, and an empty value means no
+    shell integration (to check the suite in both modes, #40). Without a checkout it falls back to
+    the normal lookup.
+  - libghostty treats an empty variable as unset, then searches up from its executable for
+    `Contents/Resources/terminfo/78/xterm-ghostty`, which finds nothing for `.build/debug/Dealer`.
 
 ## Tabs in the titlebar (`TitlebarTabs.swift`, #16)
 

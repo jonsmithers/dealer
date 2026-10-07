@@ -22,13 +22,8 @@ final class GhosttyRuntime {
     private init() {}
 
     func start() {
-        // Borrow shell integration and terminfo from an installed Ghostty.app when we have one.
-        if getenv("GHOSTTY_RESOURCES_DIR") == nil {
-            let dir = "/Applications/Ghostty.app/Contents/Resources/ghostty"
-            if FileManager.default.fileExists(atPath: dir) {
-                setenv("GHOSTTY_RESOURCES_DIR", dir, 1)
-            }
-        }
+        // Borrow shell integration, terminfo and themes from an installed Ghostty.app (#39).
+        GhosttyResources.apply()
 
         if ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) != GHOSTTY_SUCCESS {
             fatalError("ghostty_init failed")
