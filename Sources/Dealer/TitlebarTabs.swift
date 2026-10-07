@@ -39,6 +39,9 @@ extension TerminalWindowController {
     func placeTabStrips(_ frames: [(Deck, CGRect)]) {
         let area = deckArea
         var up = Set<ObjectIdentifier>()
+        // By strip identity: an orphaned strip's `deck` is unowned and may already be freed (a deck
+        // detached since the last pass), so reading `s.deck` here crashed.
+        var upStrips = Set<ObjectIdentifier>()
         if Settings.tabsInTitlebar {
             let clear = titlebarClearX
             for (deck, r) in frames where abs(r.minY - area.minY) < 0.5 {
@@ -49,12 +52,13 @@ extension TerminalWindowController {
                 strip.frame = CGRect(x: x, y: 0, width: r.maxX - x, height: area.minY)
                 deck.view.stripInTitlebar = true
                 up.insert(ObjectIdentifier(deck))
+                upStrips.insert(ObjectIdentifier(strip))
             }
         }
         // Strips left in the titlebar by decks that lost the top edge, were hidden, or were removed
         // (detach takes the deck view away but not a strip living outside it).
         if up.isEmpty, window?.isMovable == false { window?.isMovable = true }
-        for case let s as TabStripView in contentView.subviews where !up.contains(ObjectIdentifier(s.deck)) {
+        for case let s as TabStripView in contentView.subviews where !upStrips.contains(ObjectIdentifier(s)) {
             s.removeFromSuperview()
         }
         for deck in allDecks where !up.contains(ObjectIdentifier(deck)) {

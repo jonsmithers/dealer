@@ -107,7 +107,10 @@ extension TerminalWindowController {
         }
         t.step("settings: an editor's atomic save (write + rename) is picked up live", nil, {
             all(eq(Settings.workspaceSwitcher, .top, "switcher"), topBarShowing() ? nil : "open window should switch to pills",
-                eq(Settings.problems, [], "problems"), bannerShowing() ? "banner should be gone" : nil)
+                eq(Settings.problems, [], "problems"),
+                // The banner also lists ghostty config problems, which come from the user's real
+                // ghostty config (e.g. a `theme =` that can't load without Ghostty's resources, #40).
+                bannerShowing() && GhosttyRuntime.shared.configProblems.isEmpty ? "banner should be gone" : nil)
         }) {
             let tmp = url().deletingLastPathComponent().appendingPathComponent(".settings.toml.swp")
             try? "[workspaces]\nswitcher = \"top\"\n".write(to: tmp, atomically: false, encoding: .utf8)

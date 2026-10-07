@@ -80,6 +80,8 @@
   and strips in the content view whose deck isn't placed this pass are removed. That covers decks
   that were folded, closed or moved to another workspace: `detach(deck:)` removes the deck view,
   not a strip living outside it. Only strip views move; never recreate decks or surfaces for this.
+  Match leftover strips by the strip's own identity: `TabStripView.deck` is `unowned`, and a
+  leftover strip's deck may already be freed, so reading it there can crash.
 - The clear line (`titlebarClearX`) is the zoom button, the sidebar toggle, or in top-bar mode the
   pill segment (`WorkspaceBarView.contentWidth`); the bar shrinks to its pills in this mode so it
   doesn't cover strips. New titlebar chrome must push `titlebarClearX` right.
