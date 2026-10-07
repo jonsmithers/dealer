@@ -280,6 +280,18 @@ extension TerminalWindowController {
                 return nil
             }
         }
+        /// The tab button of the tab holding pane `n`, however many panes it has.
+        func tabOf(_ n: String) -> () -> NSView? {
+            { [weak self] in
+                guard let self else { return nil }
+                for deck in self.decks {
+                    for (i, t) in deck.tabs.enumerated() where t.panes.contains(where: { $0.customTitle == n }) {
+                        return deck.view.strip.buttons.indices.contains(i) ? deck.view.strip.buttons[i] : nil
+                    }
+                }
+                return nil
+            }
+        }
         func strip(of n: String) -> () -> TabStripView? { { [weak self] in pane(n)().flatMap { self?.locate($0)?.deck.view.strip } } }
         /// Just past the last tab of the strip holding pane `n`.
         func stripEnd(of n: String) -> () -> CGPoint? {
@@ -406,32 +418,34 @@ extension TerminalWindowController {
             split(first!, side: .right)
             let agent = focusedPane
             named(agent, "agent")
+            let build = addTab("build", in: focusedDeck)
+            if let d = focusedDeck, let t = d.tabs.first { select(tab: t, in: d) }
             let docs = newWorkspace(name: "docs", activate: false)
             named(docs.panes.first, "notes")
             if let first { focus(first) }
 
-            say("An agent in the right pane is about to ask for permission")
+            say("An agent (right) and a build (second tab) are running")
             mouse.move(to: at(paneView("agent"), 0.5, 0.6))
-            mouse.run { type(agent, "sleep 3; dealer notify --state waiting --title Agent --body 'Permission needed'\r") }
-            mouse.wait(1.4)
+            mouse.run {
+                type(agent, "sleep 3; dealer notify --state waiting --title Agent --body 'Permission needed'\r")
+                type(build, "sleep 4; make deploy || dealer notify --state failed --title Build --body 'make deploy failed'\r")
+            }
+            mouse.wait(1.2)
             say("Meanwhile, you're in another workspace")
             mouse.click(at(row("docs")))
-            mouse.wait(2.0)
-            say("Waiting: its workspace gets a blue outline")
+            mouse.wait(3.2)
+            say("Its workspace is outlined: red, since a failure outranks waiting")
             mouse.move(to: at(row("app"), 0.5, 0.5), duration: 1.0)
-            mouse.wait(0.6)
-            say("Click it to go there: the pane and tab are outlined too")
+            mouse.wait(0.8)
+            say("Click it: the waiting pane is blue, the failed tab red")
             mouse.click(at(row("app")))
-            mouse.wait(1.4)
-            say("Clicking into the pane clears it")
-            mouse.click(at(paneView("agent"), 0.5, 0.5))
-            mouse.run { type(agent, "sleep 2; dealer notify --state done --title Agent --body Finished\r") }
-            mouse.wait(0.4)
-            mouse.click(at(paneView("editor"), 0.5, 0.5))
             mouse.wait(1.8)
-            say("Done: a quiet dot")
-            mouse.move(to: at(tab("editor"), 0.5, 0.5), duration: 0.9)
-            mouse.wait(1.4)
+            say("Clicking into the pane clears it, with a short fade")
+            mouse.click(at(paneView("agent"), 0.5, 0.5))
+            mouse.wait(1.8)
+            say("Go to the failed tab: it fades out too")
+            mouse.click(at(tabOf("build"), 0.5, 0.5))
+            mouse.wait(2.4)
             say("")
             mouse.wait(0.4)
 
