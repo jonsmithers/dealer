@@ -17,6 +17,7 @@ explains current decisions. Keep it current.
 | User scratch files | Untracked files in the repo root such as `new-prompts.txt` are the user's drafts. Never commit or delete them without being told. |
 | Demo media | Orphan branch `media` (GIFs/MP4s), checked out at `~/git/myterm-wt/media-branch`. Never on master. Regenerate with `scripts/record-demo.sh`, then `--publish` (see CLAUDE.md). |
 | Pinned Ghostty build output | `vendor/GhosttyKit.xcframework` and `vendor/ghostty-resources/` (#41) in the main checkout, both git-ignored and shared by worktrees (the self-test finds the main checkout's resources by itself). Agents build at the pin in a `git clone --shared` with `build-ghosttykit.sh --out <tmp>`; the lead installs the result into the main `vendor/`. |
+| CLT-only Ghostty build (#42) | `scripts/ghostty-build/`: the per-pin Ghostty build patch, precompiled `Ghostty.metallib` + provenance, and a README (why, pin bumps, removal). |
 | Ghostty source | `~/git/ghostty`, the user's checkout. Read-only `git show <pin>:<path>` only; it's ahead of the pin in `scripts/ghostty.version`. |
 | cmux source | `~/git/cmux` (reference for agent integration). Read-only; branch switching allowed only with a clean tree, restored afterwards. |
 

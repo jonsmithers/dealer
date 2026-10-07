@@ -37,6 +37,9 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   - To check by hand without touching `vendor/`, run `scripts/check-ghostty.sh <path/to/GhosttyKit.xcframework>`.
     The script only greps the `.a`, so a temp dir holding a small fake `*/libghostty*.a` with a
     `1.3.2-main-+<hash>` string is enough to fake a mismatch.
+- **No Xcode needed (#42):** building `vendor/` needs zig 0.15 and the Command Line Tools only; full
+  Xcode is needed just to regenerate the shader library when Ghostty's shaders change. How it works,
+  pin bumps and removal: `scripts/ghostty-build/README.md`.
 - The pinned commit needs **zig 0.15**. The script reads `minimum_zig_version` from the checkout's
   `build.zig.zon` and prefers `/opt/homebrew/opt/zig@<ver>/bin/zig`; Homebrew's default `zig` is 0.16.
 - `swift build` compiles the code; `scripts/bundle.sh [debug|release]` produces `build/Dealer.app`.

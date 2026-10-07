@@ -1,0 +1,134 @@
+Dealer's patch to Ghostty's build, for Ghostty 243f7df7c131f9cc69bed4bc4586f5bf17b9d4fa (#42).
+Lets libghostty build with only the Command Line Tools. Applied by scripts/build-ghosttykit.sh to a
+temporary clone, never to your checkout. See scripts/ghostty-build/README.md.
+
+One line per hunk:
+- Config.zig (field): new `metallib` setting, a path to a precompiled Ghostty.metallib.
+- Config.zig (init): exposes it as the build option `-Dmetallib=<path>`.
+- GhosttyXCFramework.zig (macOS graphs): builds the universal or the native macOS library, not both.
+- GhosttyXCFramework.zig (iOS graphs): builds the iOS libraries only for the universal target, so
+  `-Dxcframework-target=native` no longer needs the iPhoneOS SDK (Xcode only). Upstream dropped
+  them in 7a171895d, after the zig 0.16 bump.
+- SharedDeps.zig: with -Dmetallib, embeds that file instead of running `xcrun metal` (Xcode's
+  Metal Toolchain only). Without it, unchanged.
+- XCFrameworkStep.zig: for a single library, writes the xcframework (folder + Info.plist) with sh
+  instead of `xcodebuild -create-xcframework` (Xcode only). Several libraries keep xcodebuild.
+
+diff --git a/src/build/Config.zig b/src/build/Config.zig
+index 0a9947317..dbe0075d3 100644
+--- a/src/build/Config.zig
++++ b/src/build/Config.zig
+@@ -20,6 +20,8 @@ const GitVersion = @import("GitVersion.zig");
+ optimize: std.builtin.OptimizeMode,
+ target: std.Build.ResolvedTarget,
+ xcframework_target: XCFrameworkTarget = .universal,
++/// Dealer: a precompiled Ghostty.metallib to embed instead of running `xcrun metal`.
++metallib: ?[]const u8 = null,
+ wasm_target: WasmTarget,
+ 
+ /// Comptime interfaces
+@@ -144,6 +146,12 @@ pub fn init(b: *std.Build, appVersion: []const u8, libVersion: []const u8) !Conf
+         "The target for the xcframework.",
+     ) orelse .universal;
+ 
++    config.metallib = b.option(
++        []const u8,
++        "metallib",
++        "Embed this precompiled Ghostty.metallib instead of compiling the shaders (needs no Xcode).",
++    );
++
+     //---------------------------------------------------------------
+     // Comptime Interfaces
+     config.font_backend = b.option(
+diff --git a/src/build/GhosttyXCFramework.zig b/src/build/GhosttyXCFramework.zig
+index a19dd18af..7c9c0230a 100644
+--- a/src/build/GhosttyXCFramework.zig
++++ b/src/build/GhosttyXCFramework.zig
+@@ -16,16 +16,17 @@ pub fn init(
+     target: Target,
+ ) !GhosttyXCFramework {
+     // Universal macOS build
+-    const macos_universal = try GhosttyLib.initMacOSUniversal(b, deps);
++    const universal = target == .universal;
++    const macos_universal = if (universal) try GhosttyLib.initMacOSUniversal(b, deps) else undefined;
+ 
+     // Native macOS build
+-    const macos_native = try GhosttyLib.initStatic(b, &try deps.retarget(
++    const macos_native = if (universal) undefined else try GhosttyLib.initStatic(b, &try deps.retarget(
+         b,
+         Config.genericMacOSTarget(b, null),
+     ));
+ 
+     // iOS
+-    const ios = try GhosttyLib.initStatic(b, &try deps.retarget(
++    const ios = if (!universal) undefined else try GhosttyLib.initStatic(b, &try deps.retarget(
+         b,
+         b.resolveTargetQuery(.{
+             .cpu_arch = .aarch64,
+@@ -36,7 +37,7 @@ pub fn init(
+     ));
+ 
+     // iOS Simulator
+-    const ios_sim = try GhosttyLib.initStatic(b, &try deps.retarget(
++    const ios_sim = if (!universal) undefined else try GhosttyLib.initStatic(b, &try deps.retarget(
+         b,
+         b.resolveTargetQuery(.{
+             .cpu_arch = .aarch64,
+diff --git a/src/build/SharedDeps.zig b/src/build/SharedDeps.zig
+index b68be92d0..845e0a59b 100644
+--- a/src/build/SharedDeps.zig
++++ b/src/build/SharedDeps.zig
+@@ -441,11 +441,17 @@ pub fn add(
+     if (step.rootModuleTarget().os.tag.isDarwin()) {
+         try @import("apple_sdk").addPaths(b, step);
+ 
+-        const metallib = self.metallib.?;
+-        metallib.output.addStepDependencies(&step.step);
+-        step.root_module.addAnonymousImport("ghostty_metallib", .{
+-            .root_source_file = metallib.output,
+-        });
++        if (self.config.metallib) |prebuilt| {
++            step.root_module.addAnonymousImport("ghostty_metallib", .{
++                .root_source_file = .{ .cwd_relative = prebuilt },
++            });
++        } else {
++            const metallib = self.metallib.?;
++            metallib.output.addStepDependencies(&step.step);
++            step.root_module.addAnonymousImport("ghostty_metallib", .{
++                .root_source_file = metallib.output,
++            });
++        }
+     }
+ 
+     // Other dependencies, mostly pure Zig
+diff --git a/src/build/XCFrameworkStep.zig b/src/build/XCFrameworkStep.zig
+index 39f0f9bac..6987ef057 100644
+--- a/src/build/XCFrameworkStep.zig
++++ b/src/build/XCFrameworkStep.zig
+@@ -49,7 +49,25 @@ pub fn create(b: *std.Build, opts: Options) *XCFrameworkStep {
+     const run_create = run: {
+         const run = RunStep.create(b, b.fmt("xcframework {s}", .{opts.name}));
+         run.has_side_effects = true;
+-        run.addArgs(&.{ "xcodebuild", "-create-xcframework" });
++        // Dealer: one macOS library needs no `xcodebuild -create-xcframework` (Xcode only);
++        // write the same layout and Info.plist with sh. Several libraries keep xcodebuild.
++        if (opts.libraries.len == 1) run.addArgs(&.{ "/bin/sh", "-c",
++            \\set -e
++            \\while [ $# -gt 0 ]; do case $1 in -library) lib=$2 ;; -headers) hdr=$2 ;; -output) out=$2 ;; esac; shift 2; done
++            \\arch=$(lipo -archs "$lib" | tr ' ' '_'); id=macos-$arch; name=$(basename "$lib")
++            \\mkdir -p "$out/$id"; cp "$lib" "$out/$id/"; cp -R "$hdr" "$out/$id/Headers"
++            \\archs=$(for a in $(lipo -archs "$lib"); do printf '<string>%s</string>' "$a"; done)
++            \\cat > "$out/Info.plist" <<EOF
++            \\<?xml version="1.0" encoding="UTF-8"?>
++            \\<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++            \\<plist version="1.0"><dict><key>AvailableLibraries</key><array><dict>
++            \\<key>BinaryPath</key><string>$name</string><key>HeadersPath</key><string>Headers</string>
++            \\<key>LibraryIdentifier</key><string>$id</string><key>LibraryPath</key><string>$name</string>
++            \\<key>SupportedArchitectures</key><array>$archs</array><key>SupportedPlatform</key><string>macos</string>
++            \\</dict></array><key>CFBundlePackageType</key><string>XFWK</string><key>XCFrameworkFormatVersion</key><string>1.0</string>
++            \\</dict></plist>
++            \\EOF
++            , "sh" }) else run.addArgs(&.{ "xcodebuild", "-create-xcframework" });
+         for (opts.libraries) |lib| {
+             run.addArg("-library");
+             run.addFileArg(lib.library);

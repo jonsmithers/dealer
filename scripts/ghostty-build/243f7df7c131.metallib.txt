@@ -1,0 +1,10 @@
+# Provenance of 243f7df7c131.metallib, Ghostty's compiled Metal shaders (opaque; see README.md).
+pin=243f7df7c131f9cc69bed4bc4586f5bf17b9d4fa
+# sha256 of src/renderer/shaders/shaders.metal at the pin (the only Metal source); checked before use.
+shaders_sha256=8c261d95c1d951cc47aa18bb39343a1cfd9057cc19dce987b4b1c3367f5d8d85
+metallib_sha256=1edf19267ea2425877381c2169b9c63b6f177324d7b94afda86d5d05d9ec02e3
+compiled_with=Xcode 26.6 Build version 17F113 / Apple metal version 32023.883 (metalfe-32023.883)
+# Regenerate with: scripts/build-ghosttykit.sh --compile-metallib, which runs the same commands as
+# Ghostty's own MetallibStep.zig (its output is byte-identical to the stock build's):
+#   xcrun -sdk macosx metal -o Ghostty.ir -c src/renderer/shaders/shaders.metal -mmacos-version-min=13.0.0
+#   xcrun -sdk macosx metallib -o 243f7df7c131.metallib Ghostty.ir
