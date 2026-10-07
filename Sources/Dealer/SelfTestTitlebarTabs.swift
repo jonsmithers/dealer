@@ -209,6 +209,27 @@ extension TerminalWindowController {
             }
             return problems.isEmpty ? nil : problems.joined(separator: "; ")
         }) {}
+        var lockedWhileHovered = false
+        var closedTab: Tab?
+        t.step("titlebar tabs: closing the last tab while hovering its bottom half (or ×) makes the window movable again", nil, {
+            guard let window = self.window else { return "no window" }
+            return all(lockedWhileHovered ? nil : "hovering the last tab's bottom half should have made the window unmovable",
+                       closedTab.map { c in deck("srv").tabs.contains { $0 === c } ? "the tab wasn't closed" : nil } ?? "no tab to close",
+                       window.isMovable ? nil : "the window stayed unmovable after the hovered tab's button left the window")
+        }) {
+            // Like clicking the last titlebar tab's ×: its button is removed, and AppKit sends no
+            // mouseExited to a view that leaves the window.
+            let d = deck("srv")
+            self.newTab(in: d)
+            self.layoutNow()
+            guard let tab = d.tabs.last, let b = d.view.strip.buttons.last, let bottom = moved(b, 0.8) else { return }
+            b.mouseEntered(with: bottom)
+            b.mouseMoved(with: bottom)
+            lockedWhileHovered = self.window?.isMovable == false
+            closedTab = tab
+            self.close(tab: tab)
+            self.layoutNow()
+        }
         t.step("titlebar tabs: a real click on a tab's top half still selects it", nil, {
             deck("srv").activeTab === clickTab ? nil : "a top-half click should select the tab"
         }) {

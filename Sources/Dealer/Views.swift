@@ -462,6 +462,12 @@ final class TabButton: FlippedView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseEntered(with event: NSEvent) { hovering = true; updateTitlebarDragZone(event) }
     override func mouseExited(with event: NSEvent) { hovering = false; hoveringClose = false; leaveTitlebarDragZone() }
+    /// A hovered tab removed from the window (its tab closed or dragged away, its deck closed) gets
+    /// no mouseExited, so it hands back the window drag it may have turned off (#27).
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        if newWindow == nil, hovering { hovering = false; hoveringClose = false; leaveTitlebarDragZone() }
+    }
     override func mouseMoved(with event: NSEvent) {
         hoveringClose = closeRect.contains(convert(event.locationInWindow, from: nil))
         updateTitlebarDragZone(event)
