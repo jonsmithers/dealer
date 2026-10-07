@@ -130,6 +130,8 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   (see `GhosttyResources` in `Sources/Dealer/CLAUDE.md`), not whatever Ghostty.app is installed,
   and not the `GHOSTTY_RESOURCES_DIR` your own pane exports. To run the suite without integration,
   set `DEALER_SELFTEST_RESOURCES=` (empty).
+  The self-test still loads your real ghostty config (only Dealer's settings use a temp home), so
+  a ghostty config problem, such as a theme that can't be resolved, can show up in banner steps.
 - To try the CLI against a dev build: run `DEALER_SELFTEST=1 .build/debug/Dealer` (it listens on
   `$TMPDIR/dealer-selftest-<pid>.sock`), then
   `DEALER_SOCKET=$TMPDIR/dealer-selftest-<pid>.sock .build/debug/Dealer list`. Inside a Dealer pane,

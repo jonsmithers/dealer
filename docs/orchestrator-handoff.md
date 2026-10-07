@@ -69,6 +69,8 @@ Route follow-ups to whoever has the context:
 
 ## The user's preferences (learned)
 
+- **selftest-env**: Ghostty resource lookup and pinned shell integration for the self-test,
+  `Confirmation.skip` plus the per-step modal guard, and the sleeping-display finding (#38, #39, #40).
 - **Merge early**, small increments. Fan out in parallel; keep the user informed concisely.
 - They sometimes say **"don't pick up new issues"** or **"don't assign an agent yet"**. Then file
   issues only and leave them unassigned, until told otherwise.
@@ -112,19 +114,20 @@ Route follow-ups to whoever has the context:
 | Pushed after a red self-test (`| tail` swallowed the exit code) | Capture output, check `$?`, then push |
 | Pushed a commit merged mid-test (untested by the lead) | Push the recorded `$SHA:master` |
 | Agents cut off by rate limits / API overload / network loss (many times) | Inspect the worktree, commit WIP, resume with "you were at X" |
+| Overnight lock: the display slept and the self-test failed about 21 steps then crashed (#38) | Treat runs while the display is asleep or the screen is locked as not verified; the runner prints a `SELFTEST NOTE` |
+| zsh `"$P:src/…"` applied the `:s` modifier in a `git show` | Write `"${P}:path"` |
 
-## State at hand-off (2026-10-06, end of round 5)
+## State at hand-off (2026-10-07, end of round 6)
 
-- **Master `690870e`, 252 self-test steps, pushed.** `media` is at `d285f8d` (re-recorded demos: even
-  edge split, red failed state, fade), pushed. `.git/coord/last-pass-count` = 252.
-- **Closed this round:** #31, #32, #33, #34, #35, #36, #37.
-- **Open, unassigned** (the user said not to pick up new issues): **#38** (dialogs suspected of
-  causing the intermittent failure block), **#39** (Ghostty resource directory only looked up in
-  `/Applications`), **#40** (no environment passes the whole self-test: shell integration trades
-  3 failures for 8).
-- **Open, waiting on the user:** **#27** (titlebar drag zones: real-pointer checks listed in
-  `TODO.md`), **#30** (notification icon: cache-reset steps in `TODO.md`).
-- No agents running. Worktrees: only `myterm-wt/media-branch` (kept for publishing demos).
+- **Master `cc478a8`, 262 self-test steps, pushed.** `.git/coord/last-pass-count` = 262.
+- **Closed this round:** #38 (no modal confirmations in self-test/demo, per-step modal guard), #39
+  (resource lookup, pinned shell integration in the self-test), #40 (didn't reproduce on a correct
+  build; passes with and without shell integration).
+- **Proposed, not filed:** bundle Ghostty's resources (`zig-out/share/ghostty` + `share/terminfo`,
+  about 2.5 MB) from the pinned build into `vendor/` and `Contents/Resources` (details on #39). Needs
+  the user's go-ahead and a check of the themes' license.
+- **Open, waiting on the user:** **#27** (titlebar drag zones: real-pointer checks in `TODO.md`).
+- No agents running. Worktrees: only `myterm-wt/media-branch`.
 - Generic skill: `~/git/orchestrate-issues` (GitHub `jonsmithers/orchestrate-issues`, private),
   symlinked as `~/.claude/skills/orchestrate-issues`. Add generic lessons there and Dealer-specific
   ones here.
