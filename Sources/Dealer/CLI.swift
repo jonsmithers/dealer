@@ -43,7 +43,8 @@ enum CLI {
                                                  each word quoted);
                                                  success closes it and marks you done, failure keeps
                                                  it open, marked failed. Prints the job's pane ID.
-                                                 --keep: stay open on success too (titled DONE)
+                                                 --keep: stay open on success too (titled DONE,
+                                                 the job pane marked done)
                                                  --quiet: no done mark or notification on success
                                                  --here: run next to this pane instead of routing
       diagnose [--leaks]                         write a memory diagnostics report (safe to attach to

@@ -391,8 +391,8 @@ Environment variables:
   stderr says which happened.
 - **Title:** `RUN <cmd>`.
 - **Success:** the job pane closes and your pane gets the *done* mark, plus a macOS notification
-  if Dealer isn't in front.
-- **Failure:** it stays open as a shell, titled `FAILED (status) <cmd>` and marked *waiting*, so ⌘⇧U
+  if Dealer isn't in front. With `--keep` the job pane stays, titled `DONE <cmd>`, and gets the mark.
+- **Failure:** it stays open as a shell, titled `FAILED (status) <cmd>` and marked *failed*, so ⌘⇧U
   takes you there.
 
 ```zsh

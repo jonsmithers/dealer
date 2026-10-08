@@ -16,7 +16,7 @@ import AppKit
 enum ControlJobs {
     struct Job {
         let command: String
-        /// The pane `dealer run` was called from; it gets the "done" mark on success.
+        /// The pane `dealer run` was called from; it gets the "done" mark when a success closes the job pane.
         weak var origin: Pane?
         let notify: Bool
         let closeOnSuccess: Bool
@@ -182,10 +182,13 @@ enum ControlJobs {
         jobs[id]?.status = status
         let wc = loc.wc
         if status == 0 {
-            if job.notify, let origin = job.origin, let o = ControlHandler.locate(origin) {
-                o.wc.setAttention(.done, on: origin, title: "✓ \(job.command)", body: "Finished in \(pane.pwd.map(short) ?? "job")")
-            }
+            let title = "✓ \(job.command)", body = "Finished in \(pane.pwd.map(short) ?? "job")"
             if job.closeOnSuccess {
+                // The job pane is going, so the caller gets the mark. setAttention skips it while
+                // the user is looking at the caller; the closing pane is the signal then.
+                if job.notify, let origin = job.origin, let o = ControlHandler.locate(origin) {
+                    o.wc.setAttention(.done, on: origin, title: title, body: body)
+                }
                 // Close it from here, right after replying. The shell doesn't `exit`: besides
                 // putting a non-zero status on kept jobs (#50), ghostty on macOS treats any exit within
                 // abnormal-command-exit-runtime (250 ms) of the shell starting as abnormal and keeps
@@ -197,6 +200,9 @@ enum ControlJobs {
                 return ["close": true, "status": status]
             }
             retitle(pane, job: job, "DONE \(job.command)", wc)
+            // A kept success marks the job pane itself, like a failure (#50): the caller is usually
+            // the pane the user is looking at, where a mark (and its notification) is skipped.
+            if job.notify { wc.setAttention(.done, on: pane, title: title, body: body) }
         } else {
             retitle(pane, job: job, "FAILED (\(status)) \(job.command)", wc)
             wc.setAttention(.failed, on: pane, title: "✗ \(job.command)", body: "Exited with status \(status)")

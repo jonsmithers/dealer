@@ -194,15 +194,28 @@ extension TerminalWindowController {
         t.step("jobs: ...and Dealer closes its pane", nil, {
             SelfTest.waitUntil(timeout: 10) { pane("jb") == nil } ? nil : "jb's pane should have closed"
         }) {}
-        t.step("jobs: --keep --quiet: a successful job stays, retitled, and nothing is marked", nil, {
+        // #50: a kept success marks the job pane, which stays and is out of focus. It used to mark
+        // the caller, which the user is usually still looking at, so nothing showed and no
+        // notification was posted. The caller stays focused (and, in front, looked at) here.
+        t.step("jobs: --keep: a successful job stays and marks its own pane done, not the caller", nil, {
             all(j0Looked || j0AfterClose == .done ? nil : "j0's done mark should survive the job pane closing, is \(j0AfterClose?.name ?? "nil")",
-                outcome("jc", status: 0) { pane("jc")?.customTitle == "DONE true" },
-                eq(pane("j0")?.attention, Attention.none, "caller attention"),
-                keptLineFinished())
+                outcome("jk", status: 0) { pane("jk")?.customTitle == "DONE true" },
+                eq(pane("jk")?.attention, Attention.done, "kept job's attention"),
+                eq(pane("j0")?.attention, Attention.none, "caller attention"), focused("j0"))
         }) {
             j0AfterClose = pane("j0")?.attention
             j0Looked = pane("j0").map { self.isLookingAt($0) } ?? false
             pane("j0").map { self.clearAttention($0) }
+            created(call("run", ["command": "true", "cwd": tmp, "close": false, "placement": "split", "size": "20%"],
+                         caller: "j0"), "jk")
+        }
+        t.step("jobs: --keep --quiet: a successful job stays, retitled, and nothing is marked", nil, {
+            all(outcome("jc", status: 0) { pane("jc")?.customTitle == "DONE true" },
+                eq(pane("jc")?.attention, Attention.none, "quiet kept job's attention"),
+                eq(pane("j0")?.attention, Attention.none, "caller attention"),
+                keptLineFinished())
+        }) {
+            pane("jk").map { self.remove($0) }
             created(call("run", ["command": "true", "cwd": tmp, "close": false, "notify": false, "placement": "split", "size": "20%"],
                          caller: "j0"), "jc")
         }
