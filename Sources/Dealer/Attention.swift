@@ -238,7 +238,7 @@ extension PaneView {
 
 extension TabButton {
     /// Where the badge sits: the close button's slot, which only shows on hover.
-    var attentionDotRect: CGRect { CGRect(x: bounds.width - 17, y: (bounds.height - 8) / 2, width: 8, height: 8) }
+    var attentionDotRect: CGRect { CGRect(x: closeRect.midX - 4, y: (bounds.height - 8) / 2, width: 8, height: 8) }
 
     /// The outline stays while hovering; only the dot gives way to the close button.
     func drawAttentionDot(hidden: Bool) {

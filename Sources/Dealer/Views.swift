@@ -354,18 +354,61 @@ final class TabStripView: FlippedView {
         needsLayout = true
     }
 
-    private var tabWidth: CGFloat {
-        let n = CGFloat(max(deck.tabs.count, 1))
-        let s = Theme.Metrics.tabSpacing
-        let avail = bounds.width - Self.inset * 2 - Self.addWidth - n * s
-        return max(44, min(Theme.Metrics.tabMaxWidth, avail / n))
+    // MARK: Fitted widths (#46)
+    //
+    // Each tab is as wide as its title plus fixed padding (`TabButton.chromeWidth`), within
+    // tabMinWidth…tabMaxWidth. When the fitted tabs don't fit the strip, the
+    // widest shrink first: every tab wider than a common level L is cut to L, chosen so the row
+    // just fits, so short titles stay whole. Below tabMinWidth the row overflows (clipped), as
+    // the old equal-width strip did. Titles are measured in the active (medium) font, so
+    // selecting a tab doesn't resize it. No animation: titles change often (shells set them per
+    // command), and a width that glides on every prompt would be distracting.
+
+    /// The width a tab wants for `title`, before any shrinking.
+    static func naturalWidth(_ title: String) -> CGFloat {
+        let text = title.isEmpty ? 0 : ceil((title as NSString).size(withAttributes: [.font: Theme.Fonts.tabActive]).width)
+        return min(max(text + TabButton.chromeWidth, Theme.Metrics.tabMinWidth), Theme.Metrics.tabMaxWidth)
+    }
+
+    /// Shrinks the widest of `natural` first until they sum to at most `available`, never below
+    /// tabMinWidth. Whole points, so tabs land on pixel boundaries.
+    static func fit(_ natural: [CGFloat], available: CGFloat) -> [CGFloat] {
+        guard natural.reduce(0, +) > available else { return natural }
+        let minW = Theme.Metrics.tabMinWidth
+        // Water level: walk the widths from widest down until the remaining budget fits.
+        let sorted = natural.sorted(by: >)
+        var level = minW
+        var rest = natural.reduce(0, +)  // sum of the tabs narrower than the candidate level
+        for (k, w) in sorted.enumerated() {
+            rest -= w
+            let candidate = (available - rest) / CGFloat(k + 1)
+            let next = k + 1 < sorted.count ? sorted[k + 1] : 0
+            if candidate >= next { level = candidate; break }
+        }
+        level = max(floor(level), minW)
+        return natural.map { min($0, level) }
+    }
+
+    private var fitCache: (titles: [String], width: CGFloat, widths: [CGFloat])?
+
+    /// Current tab widths, from the model's titles (the buttons may lag a reload behind).
+    var tabWidths: [CGFloat] {
+        let titles = deck.tabs.map(\.title)
+        if let c = fitCache, c.titles == titles, c.width == bounds.width { return c.widths }
+        let n = CGFloat(titles.count)
+        let avail = bounds.width - Self.inset * 2 - Self.addWidth - n * Theme.Metrics.tabSpacing
+        let widths = Self.fit(titles.map(Self.naturalWidth), available: avail)
+        fitCache = (titles, bounds.width, widths)
+        return widths
     }
 
     private var tabY: CGFloat { (bounds.height - Theme.Metrics.tabHeight) / 2 }
 
     func tabFrame(_ i: Int) -> CGRect {
-        CGRect(x: Self.inset + CGFloat(i) * (tabWidth + Theme.Metrics.tabSpacing), y: tabY,
-               width: tabWidth, height: Theme.Metrics.tabHeight)
+        let widths = tabWidths
+        let x = Self.inset + widths.prefix(i).reduce(0) { $0 + $1 + Theme.Metrics.tabSpacing }
+        return CGRect(x: x, y: tabY, width: i < widths.count ? widths[i] : Theme.Metrics.tabMinWidth,
+                      height: Theme.Metrics.tabHeight)
     }
 
     override func layout() {
@@ -449,7 +492,17 @@ final class TabButton: FlippedView {
     let attentionFade = AttentionFadeState()
     private var hovering = false { didSet { needsDisplay = true } }
     private var hoveringClose = false { didSet { if hoveringClose != oldValue { needsDisplay = true } } }
-    var closeRect: CGRect { CGRect(x: bounds.width - 21, y: (bounds.height - 16) / 2, width: 16, height: 16) }
+    /// The × sits in the trailing slot (`Theme.Metrics.tabTrailingSlot`), 3pt from the edge.
+    var closeRect: CGRect { CGRect(x: bounds.width - 19, y: (bounds.height - 16) / 2, width: 16, height: 16) }
+    /// Everything but the title (#46): leading pad plus the trailing ×/dot slot.
+    static var chromeWidth: CGFloat { Theme.Metrics.tabLeadingPad + Theme.Metrics.tabTrailingSlot }
+    /// Where the title is drawn (also read by the self-test).
+    var titleRect: CGRect {
+        let font = Theme.Fonts.tabActive
+        let h = ceil(font.ascender - font.descender)
+        let lead = Theme.Metrics.tabLeadingPad
+        return CGRect(x: lead, y: (bounds.height - h) / 2, width: max(bounds.width - Self.chromeWidth, 0), height: h)
+    }
     private var showsClose: Bool { hovering }
 
     override init(frame: NSRect) {
@@ -504,9 +557,8 @@ final class TabButton: FlippedView {
             .foregroundColor: isActive ? Theme.text : (hovering ? Theme.text.mixed(with: Theme.textMuted, 0.4) : Theme.textMuted),
             .paragraphStyle: para,
         ]
-        // Symmetric side padding keeps the centered title steady when the close button appears.
-        let h = ceil(font.ascender - font.descender)
-        (title as NSString).draw(in: CGRect(x: 24, y: (r.height - h) / 2, width: r.width - 48, height: h), withAttributes: attrs)
+        // The trailing slot is always reserved, so the title stays put when the × appears (#46).
+        (title as NSString).draw(in: titleRect, withAttributes: attrs)
 
         if showsClose {
             if hoveringClose {

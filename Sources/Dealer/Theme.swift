@@ -100,7 +100,13 @@ enum Theme {
         static let overlayRadius: CGFloat = 6
         static let stripHeight: CGFloat = 32
         static let tabHeight: CGFloat = 24
-        static let tabMaxWidth: CGFloat = 180
+        /// Tabs fit their titles (#46): leading pad + title + a trailing slot that always holds
+        /// room for the hover × (and the attention dot, which shares it), so hovering never
+        /// resizes a tab. Widths lie in tabMinWidth…tabMaxWidth.
+        static let tabMaxWidth: CGFloat = 200
+        static let tabMinWidth: CGFloat = 40
+        static let tabLeadingPad: CGFloat = 8
+        static let tabTrailingSlot: CGFloat = 22
         static let tabSpacing: CGFloat = 2
         /// Workspace sidebar column (issue #6), and its rows with and without a status line.
         static let sidebarWidth: CGFloat = 200

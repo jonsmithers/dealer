@@ -82,7 +82,7 @@ Route follow-ups to whoever has the context:
   Memory Diagnostics, the self-test freeing closed panes' terminals (#43).
 - **run-tab**: out-of-view panes get their real size, so background output survives (#45).
 - **cmd-n**: menu shortcuts (⌘N workspace, ⇧⌘N window) and `SelfTestShortcuts` (#44).
-- **tab-fit**: tabs sized to their titles, `[window] tab_max_width` (#46, unmerged experiment).
+- **tab-fit**: tabs sized to their titles, capped by `Theme.Metrics.tabMaxWidth` (#46).
 - **waits**: `SelfTest.waitUntil`, the timer-driven runner without a step delay (#47).
 
 ## The user's preferences (learned)
