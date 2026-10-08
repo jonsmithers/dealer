@@ -54,12 +54,6 @@ extension TerminalWindowController {
             print("      (skipped \(what): ghostty couldn't create terminal surfaces here)")
             return nil
         }
-        /// Runs the run loop (so shells, ghostty and the socket make progress) until `cond` holds.
-        func wait(_ seconds: TimeInterval, _ cond: () -> Bool) -> Bool {
-            let end = Date().addingTimeInterval(seconds)
-            while !cond() && Date() < end { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
-            return cond()
-        }
 
         t.step("cli: create workspace", nil, {
             all(tree("Deck0[*c0]"), self.activeWorkspace.decks.first?.activeTab?.panes.first === ControlHandler.pane(id: ids["c0"] ?? -1) ? nil : "new workspace should be active")
@@ -150,10 +144,10 @@ extension TerminalWindowController {
         t.step("cli: send-text types into the shell; --command runs a command", nil, {
             if !live { return all(skipped("shell output")) }
             let typed = tmp + "/typed", ran = tmp + "/ran"
-            let ok = wait(15) {
-                FileManager.default.fileExists(atPath: typed) && FileManager.default.fileExists(atPath: ran)
-            }
-            let text = (try? String(contentsOfFile: typed, encoding: .utf8)) ?? ""
+            // `> file` creates the file before printf writes it, so wait for a whole line (#47).
+            func read(_ f: String) -> String { (try? String(contentsOfFile: f, encoding: .utf8)) ?? "" }
+            let ok = SelfTest.waitUntil(timeout: 15) { read(typed).hasSuffix("\n") && read(ran).hasSuffix("\n") }
+            let text = read(typed)
             return all(ok ? nil : "shell never ran the typed/--command lines",
                        text.contains("a\\b 'q' ✅") ? nil : "typed text arrived as \(text.debugDescription)")
         }) {
@@ -214,7 +208,7 @@ extension TerminalWindowController {
                 p.standardError = err
                 do { try p.run() } catch { return (-1, "", "\(error)") }
                 // The client blocks until main answers, so keep the run loop going meanwhile.
-                _ = wait(10) { !p.isRunning }
+                _ = SelfTest.waitUntil(timeout: 10) { !p.isRunning }
                 if p.isRunning { p.terminate(); return (-1, "", "timed out") }
                 let o = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
                 let e = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)

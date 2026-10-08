@@ -33,7 +33,8 @@ extension TerminalWindowController {
             self.dragControllerForTest(.pane(t.pane("dsA")), from: from, to: t.pane("dsB").view)
         }
         t.step("drop settle: the preview is gone afterwards, and the terminals weren't resized while it ran", nil, {
-            all(hl.isHidden ? nil : "the preview should have faded out",
+            // The glide and the fade take Theme.Motion.standard each.
+            all(SelfTest.waitUntil("the preview to fade out") { hl.isHidden },
                 frames() == surfaceFrames ? nil : "surface frames changed after the drop: \(surfaceFrames) → \(frames())")
         }) {}
         t.step("drop settle: a drop with no target leaves no preview behind", nil, {

@@ -26,10 +26,18 @@ explains current decisions. Keep it current.
 - Agents merge only through `.git/coord/merge.sh "<summary>"`: lock → rebase → `swift build` →
   `DEALER_SELFTEST=quit .build/debug/Dealer` → **step-count guard** (refuses if `SELFTEST PASS N`
   drops below `last-pass-count`) → fast-forward master → log.
-- After each merge, the orchestrator rebuilds, re-runs the self-test on master, compares the count
-  with the last one, then pushes **the exact SHA it tested** (`git push origin $SHA:master`), and
-  only if the test exited 0. Agents keep merging during your test run, and a `| tail` pipe hides a
-  failing exit code. Both mistakes happened once.
+- **merge.sh's run is the verification; one full run per merge is the gate (#47).** The lead
+  pushes **the SHA merge.sh verified** (`git push origin $SHA:master`, the SHA in its BOARD.md
+  line) without rerunning the self-test. Before #47 the lead reran every merge, and agents did 5
+  to 30 full runs per issue; at ~3.5 min a run that was most of the time spent. Never push a
+  SHA merge.sh didn't log, and never a later master tip "because it includes it": agents keep
+  merging, and a `| tail` pipe hides a failing exit code (both mistakes happened once).
+- Agents iterate with `DEALER_SELFTEST_ONLY=<title prefix>` on the sections they touch and leave
+  the full run to merge.sh. A refused merge (a red step) costs one more full run, so tell agents
+  to rerun only the failing sections before retrying.
+- Self-test steps wait on their own conditions (`SelfTest.waitUntil`), never on fixed delays,
+  and there is no pause between steps (`DEALER_SELFTEST_DELAY` defaults to 0). A full run takes
+  about 20 s. Reject a new step that sleeps a fixed time or passes only at a nonzero delay.
 - The user has authorized **pushing master after a verified landing**, and pushing the `media`
   branch for demos after a full privacy review. Ask whether they're on **metered wifi** before
   pushing media; they asked to hold video pushes once. Ask first for anything else outward:

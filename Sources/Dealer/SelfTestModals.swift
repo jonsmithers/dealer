@@ -5,14 +5,6 @@ import GhosttyKit
 
 extension TerminalWindowController {
     func modalsSelfTestSteps(_ t: SelfTestKit) {
-        func wait(_ seconds: TimeInterval, _ cond: () -> Bool) -> Bool {
-            let end = Date().addingTimeInterval(seconds)
-            while !cond() && Date() < end {
-                GhosttyRuntime.shared.tick()
-                RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-            }
-            return cond()
-        }
         var ran = false
         var before = 0
         var busy = false
@@ -35,10 +27,10 @@ extension TerminalWindowController {
             alert.messageText = "Guard probe"
             alert.addButton(withTitle: "OK")
             alert.beginSheetModal(for: window) { _ in }
-            _ = wait(2) { window.attachedSheet != nil }
+            _ = SelfTest.waitUntil(timeout: 2) { window.attachedSheet != nil }
             let found = SelfTest.openModal()
             SelfTest.dismissModals()
-            let gone = wait(2) { SelfTest.openModal() == nil }
+            let gone = SelfTest.waitUntil(timeout: 2) { SelfTest.openModal() == nil }
             if !(found?.contains("Guard probe") ?? false) { return "guard should name the sheet, got \(found ?? "nil")" }
             return gone ? nil : "dismissModals should clear it, still \(SelfTest.openModal() ?? "?")"
         }) {}
@@ -51,7 +43,7 @@ extension TerminalWindowController {
             // Busy *because `sleep` runs*: while the shell is still starting, ghostty also reads
             // it as busy, and between the first prompt and the typed command it briefly isn't, so
             // a close then wouldn't ask (that made the next step flaky).
-            busy = wait(15) {
+            busy = SelfTest.waitUntil(timeout: 15) {
                 guard let s = t.pane("mb").surface.surface, t.pane("mb").surface.needsConfirmQuit else { return false }
                 let pid = Int32(truncatingIfNeeded: ghostty_surface_foreground_pid(s))
                 return pid > 0 && ProcessTree.arguments(of: pid)?.first.map { ($0 as NSString).lastPathComponent } == "sleep"

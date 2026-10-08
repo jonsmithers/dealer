@@ -50,16 +50,11 @@ extension TerminalWindowController {
             return p.isEmpty ? nil : p.joined(separator: "; ")
         }
         func eq<T: Equatable>(_ a: T?, _ b: T, _ what: String) -> String? { a == b ? nil : "\(what): \(a.map { "\($0)" } ?? "nil") ≠ \(b)" }
-        func wait(_ seconds: TimeInterval, _ cond: () -> Bool) -> Bool {
-            let end = Date().addingTimeInterval(seconds)
-            while !cond() && Date() < end { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
-            return cond()
-        }
         var live: Bool { pane("j0")?.surface.surface != nil }
         /// Waits for the job's shell to report, or reports for it when there's no shell.
         func outcome(_ job: String, status: Int, until cond: () -> Bool) -> String? {
             if live {
-                return wait(20, cond) ? nil : "the job's shell never reported back (status \(status))"
+                return SelfTest.waitUntil(timeout: 20, cond) ? nil : "the job's shell never reported back (status \(status))"
             }
             print("      (no live shell: reporting job-done \(status) through the handler; the typed tail wasn't exercised)")
             let r = call("job-done", ["status": status], caller: job)
@@ -98,7 +93,7 @@ extension TerminalWindowController {
             p.standardOutput = out
             p.standardError = err
             do { try p.run() } catch { return (-1, "", "\(error)") }
-            _ = wait(10) { !p.isRunning }
+            _ = SelfTest.waitUntil(timeout: 10) { !p.isRunning }
             if p.isRunning { p.terminate(); return (-1, "", "timed out") }
             return (p.terminationStatus, String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self),
                     String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self))
@@ -142,14 +137,20 @@ extension TerminalWindowController {
             guard live, let s = p.surface.surface else {
                 return all(hidden, skipped("--tab job output"))
             }
-            let reported = wait(20) { ControlJobs.job(for: p)?.status != nil }
-            _ = wait(3) { p.surface.screenText.contains("hello hello\n") }
+            let reported = SelfTest.waitUntil(timeout: 20) { ControlJobs.job(for: p)?.status != nil }
+            _ = SelfTest.waitUntil(timeout: 3) { p.surface.screenText.contains("hello hello\n") }
+            // Sized while hidden, so showing the tab doesn't resize the grid (#45), and the output
+            // read below is what the user sees, with no resize still to come.
+            let hiddenGrid = ghostty_surface_size(s)
             self.select(tab: l.tab, in: l.deck)
-            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+            let shownGrid = ghostty_surface_size(s)
+            func visible(_ t: String) -> Bool { t.contains("echo hello hello && false") && t.contains("hello hello\n") }
+            SelfTest.waitUntil(timeout: 3) { visible(p.surface.screenText) }
             let text = p.surface.screenText
             let shown = all(reported ? nil : "the job's shell never reported back",
-                            text.contains("echo hello hello && false") && text.contains("hello hello\n")
-                                ? nil : "after showing the tab its screen is \(text.debugDescription)")
+                            (hiddenGrid.columns, hiddenGrid.rows) == (shownGrid.columns, shownGrid.rows) ? nil
+                                : "showing the tab resized its grid \(hiddenGrid.columns)x\(hiddenGrid.rows) → \(shownGrid.columns)x\(shownGrid.rows)",
+                            visible(text) ? nil : "after showing the tab its screen is \(text.debugDescription)")
             pane("j0").map { self.focus($0) }
             self.remove(p)
             return all(hidden, shown)
@@ -160,6 +161,8 @@ extension TerminalWindowController {
             all(tree("Deck0[*Col(j0, ja), jb]"), focused("j0"),
                 eq(self.locate(pane("jb")!)?.tab.title, "RUN true", "tab title"))
         }) {
+            // The directory exists only if an earlier section made it (not under DEALER_SELFTEST_ONLY).
+            try? FileManager.default.createDirectory(at: Settings.fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? "[jobs]\nplacement = \"tab\"\n".write(to: Settings.fileURL, atomically: true, encoding: .utf8)
             Settings.reload(force: true)
             created(call("run", ["command": "true", "cwd": tmp], caller: "j0"), "jb")
@@ -169,14 +172,13 @@ extension TerminalWindowController {
                 marked("j0", .done), focused("j0"))
         }) {}
         // The shell's `exit` closes the pane through ghostty's close callback, which arrives on the
-        // main queue: not inside a check's run-loop wait, only between steps. So this step waits for
-        // the shell to exit, and the next one checks the pane is gone.
+        // main queue. This step waits for the shell to exit, and the next one checks the pane is gone.
         var jb: Pane?
         var j0AfterClose: Attention?
         var j0Looked = false
         t.step("jobs: ...and its shell exits", nil, {
             guard live, let s = jb?.surface.surface else { return nil }
-            let ok = wait(10, { ghostty_surface_process_exited(s) })
+            let ok = SelfTest.waitUntil(timeout: 10, { ghostty_surface_process_exited(s) })
             return ok ? nil : "jb's shell should have exited"
         }) { jb = pane("jb") }
         t.step("jobs: --keep --quiet: a successful job stays, retitled, and nothing is marked", nil, {
@@ -214,7 +216,7 @@ extension TerminalWindowController {
             let out = Pipe()
             p.standardOutput = out
             do { try p.run() } catch { return "can't run the CLI: \(error)" }
-            _ = wait(10) { !p.isRunning }
+            _ = SelfTest.waitUntil(timeout: 10) { !p.isRunning }
             let o = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
             guard let id = Int(o.trimmingCharacters(in: .whitespacesAndNewlines)), let jp = ControlHandler.pane(id: id) else {
                 return "run printed \(o.debugDescription), status \(p.terminationStatus)"
@@ -290,13 +292,12 @@ extension TerminalWindowController {
             guard live else { return all(skipped("real-shell quoting")) }
             // `> file` creates the file before the command writes it, so wait for whole lines, not
             // just the files (an empty `piped` read here made this step flaky).
-            func done(_ f: String) -> Bool { ((try? String(contentsOfFile: tmp + f, encoding: .utf8)) ?? "").hasSuffix("\n") }
-            let ok = wait(20) {
-                fm.fileExists(atPath: tmp + "/copied.png") && done("/words") && done("/piped")
+            func read(_ f: String) -> String { (try? String(contentsOfFile: tmp + "/" + f, encoding: .utf8)) ?? "" }
+            let ok = SelfTest.waitUntil(timeout: 20) {
+                fm.fileExists(atPath: tmp + "/copied.png") && read("words").hasSuffix("\n") && read("piped").hasSuffix("\n")
             }
-            let words = (try? String(contentsOfFile: tmp + "/words", encoding: .utf8)) ?? ""
-            let piped = (try? String(contentsOfFile: tmp + "/piped", encoding: .utf8)) ?? ""
-            return all(ok ? nil : "jobs didn't all produce their files (copied.png, words, piped)",
+            let words = read("words"), piped = read("piped")
+            return all(ok ? nil : "jobs didn't all produce their files and contents (copied.png, words, piped)",
                        eq(words, "it's\n$HOME\n*.png\n\"q\"\n", "words"),
                        eq(piped, "A B\n", "pipeline"))
         }) {

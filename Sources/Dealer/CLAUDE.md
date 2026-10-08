@@ -174,7 +174,7 @@
   line. Never re-serialize the whole document.
 - The watcher's dispatch sources run on a private queue and hop to the main **run loop in default
   mode** (`CFRunLoopPerformBlock`, like `ControlServer.onMain`), with a run-loop timer for the
-  debounce. Main-queue delivery would never run during the self-test's nested run-loop waits.
+  debounce (keeps it independent of how the caller runs the main loop).
   It re-arms after every event and every reload (atomic saves replace the inode), and watches
   the nearest existing ancestor while `dealer/` doesn't exist.
 - Reloads that change effective values or problems post `Settings.didChange` (userInfo `keys`);
@@ -235,11 +235,21 @@
 
 - Feature steps live in their own files (e.g. `SelfTestWorkspaces.swift`) and are added through
   the `SelfTestKit` passed from `runSelfTest`, one call line per section.
-- Waiting on a real shell inside a check: ghostty's actions (OSC 7 pwd, titles, close) arrive via
-  `ghostty_app_tick`, which `wakeup_cb` schedules on the **main queue**, and that queue doesn't drain
-  during a check's nested `RunLoop.run` wait. Call `GhosttyRuntime.shared.tick()` in the wait loop
-  (SelfTestCwd.swift), or check in the next step. Panes in an inactive workspace aren't laid out,
-  and their shells reported no foreground process in testing; activate the workspace before checking one.
+- **Steps wait on conditions, never on fixed delays (#47).** The runner doesn't pause between
+  steps (`DEALER_SELFTEST_DELAY` defaults to 0 and exists only to watch the UI). Synchronous
+  controller calls plus `layoutNow()` need no wait. Anything asynchronous (a shell, ghostty's
+  actions, an animation's end, AppKit's deferred release, the settings watcher) is waited for in
+  the step with `SelfTest.waitUntil(timeout:_:)` (returns whether it held) or
+  `SelfTest.waitUntil(_:timeout:_:)` (a failure message naming the condition). Default timeout 5 s;
+  shell steps use 10–20 s, since a timeout only costs time when the behavior is broken. Don't
+  hand-roll `RunLoop.run` loops, and don't rely on time passing between steps: a step that
+  passes only because an earlier step took long (e.g. #34's 0.3 s reveal window) is a bug.
+  - Steps start from a run-loop **timer**, not a main-queue block, so a wait drains the main
+    queue: ghostty's actions (`wakeup_cb` → `DispatchQueue.main.async` → `ghostty_app_tick`),
+    `onClose`/`onTitle`, and `setAttention` from shell-driven events all arrive inside it. The
+    helper also ticks ghostty each slice. The `runner:` step asserts this.
+  - Panes in an inactive workspace aren't laid out, and their shells reported no foreground
+    process in testing; activate the workspace before checking one.
 - **Pixel checks go through `PixelProbe` only** (SelfTestPixels.swift): `sample(_:at:)`, `pixels` (raw bytes for "renders identically"),
   `distance`, `matches`, `isWaitingOutlined`. Never call `cacheDisplay`/`colorAt` in a check
   directly. Two traps it handles:
@@ -324,8 +334,8 @@
   `[agent] errors_as_failed = false`, exported as `DEALER_CLAUDE_ERROR_STATE`), and COMMAND_FINISHED
   with a non-zero exit (`commandFinishedAttention`, `[attention] failed_commands`).
 - Shell-driven events (ghostty actions, socket requests from a shell) reach `setAttention` through
-  `DispatchQueue.main.async`, which the self-test's nested run-loop waits don't drain. Check their
-  effect in a *later* step, not by spinning inside the same step.
+  `DispatchQueue.main.async`. A `SelfTest.waitUntil` in the same step sees them (the runner starts
+  steps from a timer, #47).
 - Fade-out (#34): elements never draw `pane.attention`/`attention` directly. They draw
   `attentionFade.shown` at `attentionFade.alpha` (`AttentionFadeState`, one per PaneView ring,
   TabButton, WorkspaceRow and WorkspaceButton), fed the model value on every refresh with the
@@ -335,8 +345,14 @@
   `revealHold` when it follows `reveal(_:)`. A raise cancels it, Reduce Motion drops it, and one
   common-mode timer (`AttentionFader`) ticks only while something fades. Colors are read from
   `Attention.color` (Theme) on every draw and tick, never cached. Fades are off in self-test
-  mode (`AttentionFade.enabled`) so checks see clears at once; SelfTestFade.swift turns them on
-  and checks timing in a single step, because the runner pauses ~0.6 s between steps.
+  mode (`AttentionFade.enabled`) so checks see clears at once; SelfTestFade.swift turns them on.
+  **Animations in the self-test run at real speed (#47's choice):** the fade steps assert the
+  timing itself (solid during the hold, part-transparent mid-fade, gone after), so they sample it
+  part-way with short real-time waits and wait for the end state with `waitUntil` and the same
+  deadline. A time scale would make the mid-fade samples fragile at a 60 Hz tick for about 2 s
+  saved. Animations whose timing isn't under test (drop settle, #28) are only waited out with
+  `waitUntil` on their end state. A fade step must first wait out the reveal window
+  (`AttentionFade.timing().hold == 0`) if a ⌘⇧U step may precede it.
 - Look (#7): `waiting` and `failed` are outlined (`Attention.outlined`). That means the pane ring plus an outline on the tab and
   workspace entry, in `Theme.attentionWaiting` (adaptive blue). `done`/`unread` are a muted dot
   only (`Theme.attentionDone` = `textMuted`). Chrome elements draw attention only through

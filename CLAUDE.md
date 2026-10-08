@@ -60,12 +60,24 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   through the controller and asserts the deck/tab/pane tree after each step; it exits 0 on pass.
   When you add or change a structural behavior, add a step. Feature steps live in their own
   `SelfTest<Feature>.swift` files (see `Sources/Dealer/CLAUDE.md`).
+- **One full run per merge is the gate (#47):** the one inside `merge.sh`. While iterating, run only
+  the sections you touch with `DEALER_SELFTEST_ONLY=<title prefix>` (e.g. `jobs:`, `memory:`;
+  some sections build on earlier steps, so pick a prefix that covers its setup). Don't do
+  repeated full runs "to be sure"; the lead pushes the SHA that merge.sh verified without
+  rerunning it. A full run takes about 20 s (it was ~3.5 min with the old 0.6 s pause).
+- **New steps wait on conditions, never on fixed delays:** `SelfTest.waitUntil` (see
+  `Sources/Dealer/CLAUDE.md`). There is no pause between steps (`DEALER_SELFTEST_DELAY`
+  defaults to 0; set it only to watch the UI), so a step that needs time to pass must wait for
+  its own condition.
 - To look at the UI, run with `DEALER_SELFTEST=1 DEALER_SELFTEST_DELAY=2`, which keeps the window
   open, and capture it with `screencapture -x -o -l<windowID>`. Get the window ID from
   `CGWindowListCopyWindowInfo`, filtering on owner name "Dealer", layer 0, and the PID you launched.
 - **Kill only your own Dealer processes, by PID** (start it in the background, keep `$!`,
   `kill $PID`). Never `pkill`/`killall` by name or `-f` pattern: other agents' self-tests and
   merges are live Dealer processes too, and `pkill -f` can kill your own shell.
+  **Before you stop, kill every Dealer you started**, including after an interrupted or timed-out
+  run (a hung self-test keeps its shells and GPU memory). Keep the PIDs somewhere you can find
+  them again, and check `ps -p <pid>` for each.
 - **Real Claude Code runs:** never against the user's `~/.claude`. Set `CLAUDE_CONFIG_DIR` to a
   scratch directory; auth still works, and transcripts land there instead of
   `~/.claude/projects`. Pre-set `hasCompletedOnboarding` and the project's
@@ -162,8 +174,9 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
 
 - **Memory (#43):** `DEALER_SELFTEST_ONLY=<title prefix>` runs only matching steps (e.g. `memory:`,
   whose steps need no earlier state). `DEALER_SELFTEST_LIVE=1` prints `LiveObjects` counts after each
-  step, next to the panes the windows hold. A full run ends near 6 GB on purpose: the runner's
-  name table keeps every named pane (about 120) alive, at about 50 MB each. Measure leaks only on
+  step, next to the panes the windows hold. A full run ends near 600 MB: the runner's name table
+  keeps every named pane (about 120) alive for lookups, but frees the terminal (about 50 MB each)
+  of one that has been out of every window for two steps (it used to end near 6 GB). Measure leaks only on
   your own self-test instance (`footprint -p`, `vmmap --summary`, `heap`, and
   `leaks --traceTree=<addr>`, which is noisy because it scans conservatively). Never attach them
   to the user's Dealer. `dealer diagnose` writes the user-facing report (docs/diagnostics.md).

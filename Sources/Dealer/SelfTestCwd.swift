@@ -29,17 +29,6 @@ extension TerminalWindowController {
             ids[n] = p.id
             t.named(p, n)
         }
-        func wait(_ seconds: TimeInterval, _ cond: () -> Bool) -> Bool {
-            let end = Date().addingTimeInterval(seconds)
-            while !cond() && Date() < end {
-                // ghostty's actions (OSC 7 → pwd) are delivered from ghostty_app_tick, which the
-                // wakeup callback schedules on the main queue; that doesn't drain inside this
-                // nested wait, so tick here.
-                GhosttyRuntime.shared.tick()
-                RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-            }
-            return cond()
-        }
         var live: Bool { pane("c0")?.surface.surface != nil }
         /// The new pane starts in `want`: as passed to ghostty (its initial `pwd`), and, with a live
         /// shell, as the real cwd of the process running in it.
@@ -49,7 +38,7 @@ extension TerminalWindowController {
             }
             guard live, reported, let p = pane(n) ?? (n == "win" ? extraWindow?.focusedPane : nil) else { return nil }
             var real: String?
-            let ok = wait(15) {
+            let ok = SelfTest.waitUntil(timeout: 15) {
                 guard let s = p.surface.surface else { return false }
                 let pid = Int32(truncatingIfNeeded: ghostty_surface_foreground_pid(s))
                 real = pid > 0 ? ProcessTree.cwd(of: pid) : nil
@@ -69,7 +58,7 @@ extension TerminalWindowController {
                 print("      (skipped the real shell: ghostty couldn't create terminal surfaces here; inheriting the starting directory)")
                 return nil
             }
-            reported = wait(15) { canonical(pane("c0")?.pwd) == canonical(moved) }
+            reported = SelfTest.waitUntil(timeout: 15) { canonical(pane("c0")?.pwd) == canonical(moved) }
             if reported { want = moved } else {
                 print("      (c0's shell never reported its cwd (no OSC 7 / shell integration?); inheriting the starting directory)")
             }

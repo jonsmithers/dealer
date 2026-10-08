@@ -97,8 +97,7 @@ extension TerminalWindowController {
                 print("      (skipped the typed-claude round trip: ghostty couldn't create terminal surfaces here)")
                 return nil
             }
-            let end = Date().addingTimeInterval(10)
-            while target.attention != .waiting && Date() < end { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
+            SelfTest.waitUntil(timeout: 10) { target.attention == .waiting }
             return target.attention == .waiting ? nil : "pane attention is \(target.attention.name), expected waiting"
         }) {
             // A fresh pane beside the focused one, then focus goes back, so the target isn't the
@@ -132,9 +131,8 @@ extension TerminalWindowController {
                 return nil
             }
             let out = tmp + "/pane-env.txt"
-            let end = Date().addingTimeInterval(10)
             func text() -> String { (try? String(contentsOfFile: out, encoding: .utf8)) ?? "" }
-            while !text().contains("END") && Date() < end { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
+            SelfTest.waitUntil(timeout: 10) { text().contains("END") }
             let lines = text().split(separator: "\n").filter { $0 != "END" }
             return text().contains("END") ? (lines.isEmpty ? nil : "pane shell inherited: \(lines)") : "pane never wrote its environment"
         }) {

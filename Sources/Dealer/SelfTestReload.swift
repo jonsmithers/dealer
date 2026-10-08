@@ -45,10 +45,6 @@ extension TerminalWindowController {
             guard let item = menuItem ?? findItem(), let action = item.action else { return }
             NSApp.sendAction(action, to: nil, from: item)
         }
-        func waitUntil(_ timeout: TimeInterval = 2, _ cond: () -> Bool) {
-            let end = Date().addingTimeInterval(timeout)
-            while !cond() && Date() < end { RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02)) }
-        }
 
         // The panes the checks look at: a split (so one pane is veiled) in a fresh tab, plus the sidebar.
         var tab: Tab?
@@ -185,7 +181,10 @@ extension TerminalWindowController {
             t.named(self.focusedPane, "rlB")
             self.sidebarPreference = true
             self.layoutNow()
-            waitUntil(1) { false }  // let the new surfaces start
+            // Let the new surfaces start: each has its cell metrics (trivially true without surfaces).
+            SelfTest.waitUntil(timeout: 2) {
+                (tab?.panes ?? []).allSatisfy { $0.surface.surface.map { ghostty_surface_size($0).cell_height_px > 0 } ?? true }
+            }
             recordSurfaces()
             cellHeight = cell()
             oldColors = themeColors()
@@ -199,7 +198,7 @@ extension TerminalWindowController {
         t.step("reload: the terminals took the new font and kept their processes", nil, {
             all(fontApplied(bigger: true), surfacesKept())
         }) {
-            waitUntil { cell() > cellHeight }
+            SelfTest.waitUntil(timeout: 2) { cell() > cellHeight }
         }
         t.step("reload: a waiting pane's ring and its tab's outline re-theme too (#34's layers)", nil, {
             let ring = paneA().view.layer?.sublayers?.first { $0.name == "dealer.attentionRing" }
@@ -240,7 +239,7 @@ extension TerminalWindowController {
             if let s = paneA().surface.surface {
                 // Through ghostty: the keybind action reaches GhosttyRuntime.handle as RELOAD_CONFIG.
                 _ = "reload_config".withCString { ghostty_surface_binding_action(s, $0, UInt("reload_config".utf8.count)) }
-                waitUntil { themeIs(frappe) == nil }
+                SelfTest.waitUntil(timeout: 2) { themeIs(frappe) == nil }
             } else {
                 print("      (skipped reload_config action: no live surface, screen locked?)")
                 pressReload()
@@ -253,14 +252,14 @@ extension TerminalWindowController {
             writeConfig("theme = light:\(latte.name),dark:\(frappe.name)\nfont-size = 13\n")
             pressReload()
             GhosttyRuntime.shared.setColorScheme(dark: true)
-            waitUntil { themeIs(frappe) == nil }
+            SelfTest.waitUntil(timeout: 2) { themeIs(frappe) == nil }
         }
         t.step("reload: …and back to light (→ Latte), chrome included", nil, {
             all(themeIs(latte), pixelsMatchTheme(), noStaleColors())
         }) {
             oldColors = themeColors()
             GhosttyRuntime.shared.setColorScheme(dark: false)
-            waitUntil { themeIs(latte) == nil }
+            SelfTest.waitUntil(timeout: 2) { themeIs(latte) == nil }
         }
         t.step("reload: clean up (back to the launch config)", nil, {
             tab.flatMap { self.deck(of: $0) } == nil ? nil : "test tab should be closed"

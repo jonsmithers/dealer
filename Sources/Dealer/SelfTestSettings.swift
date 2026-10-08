@@ -19,11 +19,6 @@ extension TerminalWindowController {
             return p.isEmpty ? nil : p.joined(separator: "; ")
         }
         func eq<T: Equatable>(_ a: T, _ b: T, _ what: String) -> String? { a == b ? nil : "\(what): got \(a), expected \(b)" }
-        /// Lets the file watcher (main-queue dispatch sources) run until `cond` holds.
-        func waitUntil(_ timeout: TimeInterval = 3, _ cond: () -> Bool) {
-            let end = Date().addingTimeInterval(timeout)
-            while !cond() && Date() < end { RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02)) }
-        }
         func topBarShowing() -> Bool { !workspaceBar.isHidden && workspaceSidebar.isHidden }
         func bannerShowing() -> Bool { settingsBanner.window != nil && !settingsBanner.isHidden }
 
@@ -115,7 +110,7 @@ extension TerminalWindowController {
             let tmp = url().deletingLastPathComponent().appendingPathComponent(".settings.toml.swp")
             try? "[workspaces]\nswitcher = \"top\"\n".write(to: tmp, atomically: false, encoding: .utf8)
             _ = Darwin.rename(self.path(tmp), self.path(url()))
-            waitUntil { topBarShowing() }
+            SelfTest.waitUntil(timeout: 3) { topBarShowing() }
         }
         t.step("settings: an in-place write is picked up live too", nil, {
             all(eq(Settings.workspaceSwitcher, .sidebar, "switcher"), !topBarShowing() ? nil : "window should go back to the sidebar")
@@ -125,7 +120,7 @@ extension TerminalWindowController {
                 h.write(Data("[workspaces]\nswitcher = \"sidebar\"\n".utf8))
                 h.closeFile()
             }
-            waitUntil { !topBarShowing() }
+            SelfTest.waitUntil(timeout: 3) { !topBarShowing() }
         }
         let mine = "# mine\n[agent]\ncommand = \"aider\"   # keep\n\n[workspaces]\nswitcher   =   \"sidebar\"  # where\n\n[future]\nx = 1\n"
         t.step("settings: a menu toggle rewrites only its own value", nil, {

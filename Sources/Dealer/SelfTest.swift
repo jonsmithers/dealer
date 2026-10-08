@@ -11,8 +11,31 @@ enum SelfTest {
     }
     static var enabled: Bool { env("SELFTEST") != nil }
     static var quitWhenDone: Bool { env("SELFTEST") == "quit" }
+    /// Pause between steps. 0 by default (#47): a step that needs time waits for its own
+    /// condition with `waitUntil`. Set `DEALER_SELFTEST_DELAY` (seconds) to watch the UI by eye.
     static var stepDelay: TimeInterval {
-        Double(env("SELFTEST_DELAY") ?? "") ?? 0.6
+        Double(env("SELFTEST_DELAY") ?? "") ?? 0
+    }
+
+    /// The one way a step waits for something asynchronous (#47): a shell, ghostty's actions, an
+    /// animation's end, AppKit's deferred release. Spins the main run loop in ~15 ms slices
+    /// (ticking ghostty, whose wakeups would otherwise only arrive between steps) until `cond`
+    /// holds, and gives up after `timeout`. Returns whether `cond` held. Never wait a fixed time
+    /// instead; a timeout only costs time when the behavior is broken.
+    @discardableResult
+    static func waitUntil(timeout: TimeInterval = 5, _ cond: () -> Bool) -> Bool {
+        let end = Date().addingTimeInterval(timeout)
+        while !cond() {
+            guard Date() < end else { return false }
+            GhosttyRuntime.shared.tick()
+            RunLoop.current.run(mode: .default, before: min(end, Date().addingTimeInterval(0.015)))
+        }
+        return true
+    }
+
+    /// `waitUntil` as a check result: nil when `cond` held, else a failure naming `what`.
+    static func waitUntil(_ what: String, timeout: TimeInterval = 5, _ cond: () -> Bool) -> String? {
+        waitUntil(timeout: timeout, cond) ? nil : "timed out after \(timeout) s waiting for \(what)"
     }
 
     /// A sheet or app-modal window that is open now, described for a failure message (#38).
@@ -254,6 +277,17 @@ extension TerminalWindowController {
         // Attention and jump to next unread (#4): SelfTestAttention.swift.
         steps += attentionSelfTestSteps(pane: p).map { s in (s.title, s.run, nil, s.check) }
 
+        // #47: steps start from a run-loop timer, so a check's wait sees main-queue work (ghostty's
+        // actions, socket replies hopping to main), and a timeout names its condition.
+        step("runner: a step's waitUntil drains the main queue, and a timeout says what it waited for", check: {
+            var delivered = false
+            DispatchQueue.main.async { delivered = true }
+            let drained = SelfTest.waitUntil("main-queue work", timeout: 2) { delivered }
+            let timedOut = SelfTest.waitUntil("a condition that never holds", timeout: 0.05) { false }
+            return [drained, timedOut?.contains("waiting for a condition that never holds") == true ? nil
+                        : "a timeout should name its condition, got \(timedOut ?? "nil")"].compactMap { $0 }.first
+        }) {}
+
         // Feature sections live in their own files and append steps through this kit.
         let kit = SelfTestKit(step: { step($0, expect: $1, check: $2, $3) }, named: named, pane: p,
                               name: { names[ObjectIdentifier($0)] ?? $0.title })
@@ -328,11 +362,17 @@ extension TerminalWindowController {
             if SelfTest.env("SELFTEST_LIVE") != nil { print("      live: \(LiveObjects.summary) windowsOpen=\(AppDelegate.shared.windowControllers.count) panesInTrees=\(AppDelegate.shared.windowControllers.flatMap(\.allDecks).flatMap(\.tabs).flatMap(\.panes).count)") }
             fflush(stdout)
             freeClosedTerminals()
-            DispatchQueue.main.asyncAfter(deadline: .now() + SelfTest.stepDelay) { run(i + 1) }
+            next(i + 1, after: SelfTest.stepDelay)
+        }
+        // Steps start from a run-loop timer, not a main-queue block (#47): inside a main-queue
+        // block the main queue can't drain, so a step's `waitUntil` would never see ghostty's
+        // actions or anything else the app delivers with `DispatchQueue.main.async`.
+        func next(_ i: Int, after delay: TimeInterval) {
+            RunLoop.main.add(Timer(timeInterval: delay, repeats: false) { _ in run(i) }, forMode: .default)
         }
         if let note = SelfTest.environmentNote() {
             print("SELFTEST NOTE: \(note) at start; click/drag/shell steps may skip or fail")
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { run(0) }
+        next(0, after: 1)
     }
 }

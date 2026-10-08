@@ -8,10 +8,10 @@ extension TerminalWindowController {
             let p = problems.compactMap { $0 }
             return p.isEmpty ? nil : p.joined(separator: "; ")
         }
-        func spin(_ secs: TimeInterval) {
-            let end = Date().addingTimeInterval(secs)
-            while Date() < end { RunLoop.current.run(until: Date().addingTimeInterval(0.02)) }
-        }
+        /// Real time passing, to sample a fade part-way (#47: the only fixed waits in the suite).
+        /// These steps assert the timing itself (solid hold, half-faded, gone), so they run the
+        /// animation at its real speed; the ends are condition waits with the same deadlines.
+        func spin(_ secs: TimeInterval) { SelfTest.waitUntil(timeout: secs) { false } }
         func ring(_ p: Pane) -> CALayer? { p.view.layer?.sublayers?.first { $0.name == "dealer.attentionRing" } }
         func tabButton(_ p: Pane) -> TabButton? {
             guard let loc = locate(p), let i = loc.deck.index(of: loc.tab),
@@ -48,8 +48,8 @@ extension TerminalWindowController {
                               let solid = PixelProbe.matches(px, Theme.attentionFailed) && (px?.alphaComponent ?? 0) > 0.98
                               return solid ? "a fading outline shouldn't be solid red (alpha \(px?.alphaComponent ?? -1))" : nil
                           }())
-            // After.
-            spin(AttentionFade.duration * 0.8)
+            // After: gone by 1.25 × duration.
+            SelfTest.waitUntil(timeout: AttentionFade.duration * 0.8) { ring(p) == nil && !btn.attentionFade.isFading }
             let after = all(ring(p) == nil ? nil : "ring should be gone after the fade",
                             !btn.attentionFade.isFading && btn.attentionFade.shown == .none ? nil : "tab should be done fading",
                             !PixelProbe.isFailedOutlined(btn) ? nil : "tab still red")
@@ -57,6 +57,8 @@ extension TerminalWindowController {
         }) {
             AttentionFade.enabled = true
             AttentionFade.reduceMotionOverride = false
+            // A ⌘⇧U step just before this one would give the fade a solid hold first (#47).
+            SelfTest.waitUntil(timeout: 1) { AttentionFade.timing().hold == 0 }
             home = self.focusedPane
             target = self.allPanes.first { $0 !== home && self.locate($0)?.workspace === self.activeWorkspace }
             guard let p = target else { return }
@@ -94,7 +96,7 @@ extension TerminalWindowController {
             let held = opacity(p)
             spin(AttentionFade.revealHold * 0.4 + AttentionFade.duration * 0.5)
             let fading = opacity(p)
-            spin(AttentionFade.duration)
+            SelfTest.waitUntil(timeout: AttentionFade.duration) { ring(p) == nil }
             return all(self.focusedPane === p ? nil : "⌘⇧U should have focused the pane",
                        p.attention == .none ? nil : "focus should clear the model at once",
                        held == 1 ? nil : "during the hold the ring should be solid, opacity \(held.map { String($0) } ?? "gone")",
