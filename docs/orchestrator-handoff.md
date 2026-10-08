@@ -76,11 +76,17 @@ Route follow-ups to whoever has the context:
   re-theming via `Theme.didChange` (#33).
 - **rename**: the MyTerm→Dealer rename, build scripts, the Ghostty pin and its enforcement
   (`check-ghostty.sh`, launch banner) (#3, #20, #35).
+- **selftest-env**: Ghostty resource lookup and pinned shell integration for the self-test,
+  `Confirmation.skip` plus the per-step modal guard, and the sleeping-display finding (#38, #39, #40).
+- **memory**: leak audit, `LiveObjects` counts, SelfTestMemory, `dealer diagnose` / Help › Capture
+  Memory Diagnostics, the self-test freeing closed panes' terminals (#43).
+- **run-tab**: out-of-view panes get their real size, so background output survives (#45).
+- **cmd-n**: menu shortcuts (⌘N workspace, ⇧⌘N window) and `SelfTestShortcuts` (#44).
+- **tab-fit**: tabs sized to their titles, `[window] tab_max_width` (#46, unmerged experiment).
+- **waits**: `SelfTest.waitUntil`, the timer-driven runner without a step delay (#47).
 
 ## The user's preferences (learned)
 
-- **selftest-env**: Ghostty resource lookup and pinned shell integration for the self-test,
-  `Confirmation.skip` plus the per-step modal guard, and the sleeping-display finding (#38, #39, #40).
 - **Merge early**, small increments. Fan out in parallel; keep the user informed concisely.
 - They sometimes say **"don't pick up new issues"** or **"don't assign an agent yet"**. Then file
   issues only and leave them unassigned, until told otherwise.
@@ -126,20 +132,26 @@ Route follow-ups to whoever has the context:
 | Agents cut off by rate limits / API overload / network loss (many times) | Inspect the worktree, commit WIP, resume with "you were at X" |
 | Overnight lock: the display slept and the self-test failed about 21 steps then crashed (#38) | Treat runs while the display is asleep or the screen is locked as not verified; the runner prints a `SELFTEST NOTE` |
 | zsh `"$P:src/…"` applied the `:s` modifier in a `git show` | Write `"${P}:path"` |
+| Self-test instances left running by interrupted agents grew to ~6 GB each; the user killed them | Runner frees closed panes' terminals (~600 MB per run); agents kill every Dealer they start, by PID, before stopping |
+| A fixed 0.6 s pause per step hid races and made runs ~3.5 min; agents reran the full suite 5–30× per issue | Condition waits (`waitUntil`), ~20 s runs, one full run per merge in merge.sh; the lead pushes what merge.sh verified (#47) |
+| Teammate panes looked stuck: a teammate sees messages (the lead's or the user's) only between turns | Check its transcript/commits before calling it stuck; Esc in its pane delivers a queued message; replace it with a fresh agent briefed from its last commit |
 
-## State at hand-off (2026-10-07, end of round 7)
+## State at hand-off (2026-10-08, end of round 8)
 
-- **Master `9f68fc1`, 264 self-test steps, pushed.** `media` is at `8a3762b`, pushed: demos recorded
-  with `tabs_in_titlebar = true` and captions in a band at the bottom.
-- **Closed:** #38, #39, #40. **Landed, open for the user's check:** #41 (Dealer.app ships Ghostty's
-  resources from the pinned build; the check is in `TODO.md`). The main checkout's
-  `vendor/ghostty-resources` was installed by the lead from the #41 build.
-- **Open, waiting on the user:** **#27** (titlebar drag zones, plus the close-the-last-tab-while-hovered
-  case fixed in 4b5498e; checks in `TODO.md`).
-- **Recording demos:** sessions running inside Dealer.app have no Screen Recording permission (a
-  rebundled ad-hoc build loses it). The user runs `scripts/record-demo.sh` from another terminal,
-  and the lead reviews the sheets and publishes.
-- No agents running. Worktrees: only `myterm-wt/media-branch`.
+- **Master `70a1f1d`, 279 self-test steps (~20 s per run), pushed.** `media` is at `8a3762b`.
+- **Landed, open for the user's checks (in `TODO.md`):** #41 (bundled Ghostty resources), #44 (⌘N
+  New Workspace, ⇧⌘N New Window), #45 (`dealer run --tab` output survives), #27 (titlebar drag zones).
+- **#43 (memory):** two leaks fixed (356c9b2), diagnostics added. ~65–70 MB per pane is libghostty's
+  renderer (the user confirmed Ghostty.app is similar). Open in case memory grows with few panes.
+- **#42 (no Xcode):** landed 4c22f5a; open until the reporter confirms on a Mac with only the CLT.
+- **#46 (tab-fit experiment):** branch `issue-46-tab-fit` (a13c1eb, pushed), bundle in
+  `myterm-wt/tab-fit/build/Dealer.app`. **Don't merge until the user approves.**
+- **#47:** landed 70a1f1d; open for the user. `.git/coord/merge.sh` gained a 300 s timeout, a
+  refusal on `SELFTEST NOTE`/`(skipped`, failing-step output and run time on the board line
+  (backup `merge.sh.bak-0108`). A one-line `|| true` fix on its failure grep is pending the user's OK.
+- **Possible bug, not filed:** Split Down's ⇧⌘D uses `"d"` + shift, the pattern that broke ⇧⌘N
+  (cmd-n's finding); the user was asked to try a real ⇧⌘D.
+- No agents running. Worktrees: `myterm-wt/media-branch`, `myterm-wt/tab-fit`.
 - Generic skill: `~/git/orchestrate-issues` (GitHub `jonsmithers/orchestrate-issues`, private),
   symlinked as `~/.claude/skills/orchestrate-issues`. Add generic lessons there and Dealer-specific
   ones here.
