@@ -122,7 +122,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ])
 
         submenu("Shell", [
-            item("New Window", #selector(newWindow(_:)), "n"),
+            // ⇧⌘N (#44). Uppercase "N" carries the shift: AppKit matches "n" + a shift mask against
+            // plain ⌘N (ahead of New Workspace), and never against a real ⇧⌘N event ("N").
+            item("New Window", #selector(newWindow(_:)), "N"),
             item("New Tab", #selector(TerminalWindowController.newTab(_:)), "t"),
             .separator(),
             item("Split Right", #selector(TerminalWindowController.splitRight(_:)), "d"),
@@ -179,7 +181,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return i
             }(),
             .separator(),
-            item("New Workspace", #selector(TerminalWindowController.newWorkspace(_:)), "n", [.command, .control]),
+            item("New Workspace", #selector(TerminalWindowController.newWorkspace(_:)), "n"),  // ⌘N (#44)
             item("Rename Workspace…", #selector(TerminalWindowController.renameWorkspace(_:))),
             item("Close Workspace", #selector(TerminalWindowController.closeWorkspace(_:)), "w", [.command, .control]),
             .separator(),

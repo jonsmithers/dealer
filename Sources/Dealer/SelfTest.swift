@@ -261,6 +261,7 @@ extension TerminalWindowController {
         failedSelfTestSteps(kit)
         fadeSelfTestSteps(kit)
         workspaceSelfTestSteps(kit)
+        shortcutsSelfTestSteps(kit)
         sidebarSelfTestSteps(kit)
         switcherSelfTestSteps(kit)
         settingsSelfTestSteps(kit)

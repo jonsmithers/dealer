@@ -21,45 +21,11 @@ extension TerminalWindowController {
         func toggleEnabled() -> Bool {
             validateWorkspaceMenuItem(NSMenuItem(title: "", action: #selector(toggleWorkspaceSidebar(_:)), keyEquivalent: "")) ?? true
         }
-        /// #13: a ⌘B keystroke into a terminal pane, the way a real one travels: SurfaceView is first
-        /// responder and asks the main menu first (`SurfaceView.performKeyEquivalent`); the menu sends
-        /// the matched item's nil-target action up the responder chain. Nothing is re-targeted: a
-        /// chain member that also answers the selector (NSWindow has its own `toggleSidebar:`) wins.
-        /// When this run is the active app, the event goes through `NSApp.sendEvent`. Otherwise there
-        /// is no key window, AppKit has nowhere to route the action, and we can't take focus from the
-        /// user mid-run; then the event still goes through the window and SurfaceView to the menu,
-        /// and the item's action is resolved and validated from SurfaceView the same way AppKit does.
-        /// Returns whether the item ⌘B matched was enabled for its resolved target.
+        /// #13: a ⌘B keystroke into a terminal pane, the way a real one travels (`pressMenuKeyForTest`,
+        /// SelfTestShortcuts.swift). A chain member that also answers the selector (NSWindow has its
+        /// own `toggleSidebar:`) wins. Returns whether the item ⌘B matched was enabled for its target.
         @discardableResult func pressCmdB() -> Bool {
-            guard let window = self.window, let menu = NSApp.mainMenu,
-                  let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
-                                           windowNumber: window.windowNumber, context: nil,
-                                           characters: "b", charactersIgnoringModifiers: "b", isARepeat: false, keyCode: 11)
-            else { return false }
-            let surface = (self.focusedPane ?? t.pane("srv")).surface
-            window.makeFirstResponder(surface)
-            func find(_ m: NSMenu) -> NSMenuItem? {
-                for i in m.items {
-                    if i.keyEquivalent == "b" && i.keyEquivalentModifierMask == .command { return i }
-                    if let sub = i.submenu, let hit = find(sub) { return hit }
-                }
-                return nil
-            }
-            guard let item = find(menu), let action = item.action else { return false }
-            if NSApp.keyWindow === window {
-                NSApp.sendEvent(e)
-                return item.isEnabled
-            }
-            // The window hands it to SurfaceView, which must give it to the menu, not to ghostty.
-            guard window.performKeyEquivalent(with: e) else { return false }
-            var r: NSResponder? = surface
-            while let cur = r, !cur.responds(to: action) {
-                r = cur === window ? (window.delegate as? NSResponder) ?? cur.nextResponder : cur.nextResponder
-            }
-            guard let target = r else { return false }
-            let enabled = (target as AnyObject).validateMenuItem?(item) ?? true  // informal, as AppKit asks it
-            if enabled { NSApp.sendAction(action, to: target, from: item) }
-            return enabled
+            pressMenuKeyForTest("b", .command, keyCode: 11, surface: (self.focusedPane ?? t.pane("srv")).surface)
         }
 
         var before = ""

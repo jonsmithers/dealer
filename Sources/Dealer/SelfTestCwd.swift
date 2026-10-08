@@ -102,7 +102,7 @@ extension TerminalWindowController {
             let ws = self.newWorkspace(name: "cwd-new", activate: true)
             made(ws.panes.first, "ws")
         }
-        t.step("cwd: ⌘N opens a window in the front window's focused directory", nil, {
+        t.step("cwd: New Window (⇧⌘N) opens a window in the front window's focused directory", nil, {
             startsInWant("win", passed: passed["win"] ?? nil)
         }) {
             guard let c0 = pane("c0") else { return }

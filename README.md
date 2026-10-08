@@ -141,9 +141,9 @@ starts in your `working-directory`. Restored sessions keep each pane's saved dir
 | ⌘⌥←→↑↓ | Move focus by geometry, across decks |
 | ⌘⇧↩ | Zoom: fill the deck, press again to fill the window, again to restore |
 | ⌃⌘= | Equalize splits |
-| ⌘N | New window |
+| ⌘N / ⇧⌘N | New workspace / new window |
 | ⌃1…⌃9 | Go to workspace N |
-| ⌃⌘N / ⌃⌘W | New / close workspace |
+| ⌃⌘W | Close workspace |
 | ⌃⌘] / ⌃⌘[ | Next / previous workspace |
 | ⌘B | Show / hide the workspace sidebar (sidebar mode only) |
 | ⌘⇧U | Jump to the next pane that needs attention |
