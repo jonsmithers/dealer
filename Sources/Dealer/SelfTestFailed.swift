@@ -20,18 +20,20 @@ extension TerminalWindowController {
         /// Two panes the user isn't looking at, in one tab, plus one in another tab.
         var a: Pane?, b: Pane?, other: Pane?, home: Pane?
 
-        t.step("failed: red ring on the pane, red outline and a `!` dot on its tab (exact pixels)", nil, {
+        t.step("failed: red ring on the pane, red outline and a `!` dot on its tab (exact pixels, 2x and 1x)", nil, {
             guard let a, let btn = tabButton(a) else { return "no unfocused pane to mark" }
-            let outline = PixelProbe.sample(btn, at: PixelProbe.outlinePoint(in: btn))
             let dot = btn.attentionDotRect
-            let bang = PixelProbe.sample(btn, at: CGPoint(x: dot.midX, y: dot.minY + dot.height * 0.35))
-            let dotRed = PixelProbe.sample(btn, at: CGPoint(x: dot.minX + dot.width * 0.22, y: dot.midY))
-            return all(a.attention == .failed ? nil : "pane is \(a.attention.name)",
-                       PixelProbe.matches(ring(a), Theme.attentionFailed) ? nil : "pane ring is \(hex(ring(a))), want \(hex(Theme.attentionFailed))",
-                       PixelProbe.isFailedOutlined(btn) ? nil : "tab outline is \(hex(outline)), want \(hex(Theme.attentionFailed))",
-                       PixelProbe.isWaitingOutlined(btn) ? "failed must not draw the waiting blue" : nil,
-                       PixelProbe.matches(dotRed, Theme.attentionFailed) ? nil : "dot is \(hex(dotRed)), want red",
-                       PixelProbe.matches(bang, Theme.chrome) ? nil : "the dot's `!` is \(hex(bang)), want \(hex(Theme.chrome))")
+            var problems = [a.attention == .failed ? nil : "pane is \(a.attention.name)",
+                            PixelProbe.matches(ring(a), Theme.attentionFailed) ? nil : "pane ring is \(hex(ring(a))), want \(hex(Theme.attentionFailed))"].compactMap { $0 }
+            problems += PixelProbe.atEachScale { _ in
+                let outline = PixelProbe.sample(btn, at: PixelProbe.outlinePoint(in: btn))
+                let dotRed = PixelProbe.sample(btn, at: CGPoint(x: dot.minX + dot.width * 0.22, y: dot.midY))
+                return [PixelProbe.isFailedOutlined(btn) ? nil : "tab outline is \(hex(outline)), want \(hex(Theme.attentionFailed))",
+                        PixelProbe.isWaitingOutlined(btn) ? "failed must not draw the waiting blue" : nil,
+                        PixelProbe.matches(dotRed, Theme.attentionFailed) ? nil : "dot is \(hex(dotRed)), want red",
+                        PixelProbe.bangProblem(btn, dotRect: dot)].compactMap { $0 }
+            }
+            return problems.isEmpty ? nil : problems.joined(separator: "; ")
         }) {
             home = self.focusedPane
             // A tab other than the focused one, with at least two panes.
@@ -42,20 +44,23 @@ extension TerminalWindowController {
             self.setAttention(.failed, on: a!, title: "t", body: "b")
         }
 
-        t.step("failed: red in both themes, never the swatch red, and done/waiting unchanged", nil, {
+        t.step("failed: red and its `!` in both themes at 2x and 1x, never the swatch red, and done/waiting unchanged", nil, {
             var problems: [String] = []
             for (name, bg, swatch) in [("dark", NSColor(hex: "#282c34")!, NSColor(hex: "#e06c75")!),
                                        ("light", NSColor(hex: "#fafafa")!, NSColor(hex: "#c8414c")!)] {
-                Theme.withBackground(bg) {
+                problems += PixelProbe.atEachScale { _ in Theme.withBackground(bg) {
+                    var problems: [String] = []
                     let btn = TabButton(frame: CGRect(x: 0, y: 0, width: 160, height: Theme.Metrics.tabHeight))
                     btn.title = "tab"
                     btn.attention = .failed
                     let px = PixelProbe.sample(btn, at: PixelProbe.outlinePoint(in: btn))
                     if !PixelProbe.matches(px, Theme.attentionFailed) { problems.append("\(name): outline \(hex(px)), want \(hex(Theme.attentionFailed))") }
                     if PixelProbe.distance(Theme.attentionFailed, swatch) < 0.2 { problems.append("\(name): failed red is too close to the red swatch") }
+                    if let p = PixelProbe.bangProblem(btn, dotRect: btn.attentionDotRect) { problems.append("\(name): \(p)") }
                     btn.attention = .waiting
                     if !PixelProbe.isWaitingOutlined(btn) { problems.append("\(name): waiting outline changed") }
-                }
+                    return problems
+                } }
             }
             return problems.isEmpty ? nil : problems.joined(separator: "; ")
         }) {}

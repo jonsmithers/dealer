@@ -258,6 +258,13 @@
     0.22 off). `sample` renders into its own sRGB bitmap instead.
   - `colorAt` can label display-space components "calibrated RGB"; converting them as labeled
     is off by up to ~0.25. `sample` re-tags mislabeled components with the bitmap's color space.
+- `PixelProbe` renders at a fixed 2x (`PixelProbe.scale`), never the window's
+  `backingScaleFactor` (#48): on a 1x display the failed dot's 1.44pt `!` covers no whole pixel and
+  a fixed sample point landed on its antialiased edge. Sample points must be fully covered at 2x
+  (a 1pt line at `+0.5` is; at 1x it isn't unless the frame is whole points). For thin glyphs,
+  take the best pixel in the shape's rect (`samples(_:in:)`, as `bangProblem` does) rather than
+  one point. `atEachScale` reruns a check at 2x and 1x so 1x regressions show on Retina-only
+  machines; the `pixels:` steps and the failed-dot steps use it.
 - Compare with `PixelProbe.matches` (tolerance 2/255) against the exact expected color, e.g.
   `Theme.attentionWaiting`. Reads are exact for solid fills. Don't loosen the tolerance to make a
   check pass; that hid the bug above. The `pixels:` steps fail first if the probe regresses.

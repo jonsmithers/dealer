@@ -280,12 +280,17 @@ enum AttentionStyle {
     /// A `!` knocked out of the failed dot: a bar and a point, as vector shapes so it stays crisp
     /// at 6–8pt. Drawn in the chrome color, so it reads as a hole in the red dot.
     static func drawBang(in r: CGRect, alpha: CGFloat = 1) {
-        let w = max(r.width * 0.18, 1)
+        let bar = bangBar(in: r), w = bar.width
         Theme.chrome.withAlphaComponent(alpha).setFill()
-        // Flipped views: y grows downward. Bar from 18% to 58% of the height, point at 70–84%.
-        NSBezierPath(roundedRect: CGRect(x: r.midX - w / 2, y: r.minY + r.height * 0.18, width: w, height: r.height * 0.40),
-                     xRadius: w / 2, yRadius: w / 2).fill()
+        NSBezierPath(roundedRect: bar, xRadius: w / 2, yRadius: w / 2).fill()
         NSBezierPath(ovalIn: CGRect(x: r.midX - w / 2, y: r.minY + r.height * 0.68, width: w, height: w)).fill()
+    }
+
+    /// The `!`'s bar in a dot of rect `r` (the self-test samples it, #48). Flipped views: y grows
+    /// downward. Bar from 18% to 58% of the height, point at 68–86%.
+    static func bangBar(in r: CGRect) -> CGRect {
+        let w = max(r.width * 0.18, 1)
+        return CGRect(x: r.midX - w / 2, y: r.minY + r.height * 0.18, width: w, height: r.height * 0.40)
     }
 }
 
