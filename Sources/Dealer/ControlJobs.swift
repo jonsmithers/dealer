@@ -6,11 +6,13 @@ import AppKit
 /// The job pane is an ordinary interactive shell (aliases, functions and rc environment work, and a
 /// failed job leaves you at a prompt). The command is typed into it with a reporting tail:
 ///
-///      <cmd>; "$DEALER_CLI" job-done $? && exit
+///      <cmd>; "$DEALER_CLI" job-done $?
 ///
-/// `job-done` hands the exit status back here, and its own exit status tells the shell whether to
-/// close: 0 on success (with `close_on_success`), 1 otherwise. If Dealer can't be reached the pane
-/// simply stays open. The leading space keeps the line out of history with HIST_IGNORE_SPACE.
+/// `job-done` hands the exit status back here and exits with it, so shell integration sees the
+/// job's own status (a kept success isn't marked failed by `failed_commands`, #50). The shell never
+/// exits on its own: on success Dealer closes the pane itself (see `done`), and otherwise, or if
+/// Dealer can't be reached, the pane stays at a prompt. The leading space keeps the line out of
+/// history with HIST_IGNORE_SPACE.
 enum ControlJobs {
     struct Job {
         let command: String
@@ -67,7 +69,7 @@ enum ControlJobs {
                 wc = w
             case nil:
                 // Nothing owns $PWD: the job gets a new workspace of its own, named after the
-                // directory, as its only pane. On success its shell exits and the workspace goes too.
+                // directory, as its only pane. On success Dealer closes it and the workspace goes too.
                 let callerWS = wc.locate(anchor)?.workspace
                 let name = (c as NSString).lastPathComponent
                 // The title goes on the pane only: the tab follows it, so it doesn't keep a stale
@@ -109,7 +111,7 @@ enum ControlJobs {
         jobs[pane.id] = Job(command: command, origin: origin, notify: args["notify"] as? Bool ?? true,
                             closeOnSuccess: args["close"] as? Bool ?? Settings.jobCloseOnSuccess, tab: tab, cwd: cwd)
         if let s = pane.surface.surface {
-            pane.surface.perform("text:" + ControlHandler.escapeForBinding(" \(command); \"$DEALER_CLI\" job-done $? && exit"))
+            pane.surface.perform("text:" + ControlHandler.escapeForBinding(" \(command); \"$DEALER_CLI\" job-done $?"))
             try ControlHandler.parseKey("enter").send(to: s)
         }
         if focus { ControlHandler.bringForward(wc) }
@@ -166,7 +168,7 @@ enum ControlJobs {
     }
 
     /// Called from the job's own shell (`caller` is the job pane) with the command's exit status.
-    /// Returns `close` = whether the shell should exit.
+    /// Returns `close` = whether Dealer is closing the pane.
     static func done(_ args: [String: Any], _ ctx: ControlHandler.Context) throws -> [String: Any] {
         guard let id = ctx.caller, let pane = ControlHandler.pane(id: id),
               let loc = ControlHandler.locate(pane) else {
@@ -184,10 +186,11 @@ enum ControlJobs {
                 o.wc.setAttention(.done, on: origin, title: "✓ \(job.command)", body: "Finished in \(pane.pwd.map(short) ?? "job")")
             }
             if job.closeOnSuccess {
-                // Close it from here too, right after replying. The shell's own `exit` isn't enough:
-                // ghostty on macOS treats any exit within abnormal-command-exit-runtime (250 ms) of
-                // the shell starting as abnormal and keeps the surface open, so a quick job
-                // (`dealer run true`) would never close. Default mode, like ControlServer.onMain.
+                // Close it from here, right after replying. The shell doesn't `exit`: besides
+                // putting a non-zero status on kept jobs (#50), ghostty on macOS treats any exit within
+                // abnormal-command-exit-runtime (250 ms) of the shell starting as abnormal and keeps
+                // the surface open, so a quick job (`dealer run true`) would never close. Default
+                // mode, like ControlServer.onMain.
                 RunLoop.main.perform(inModes: [.default]) { [weak pane, weak wc] in
                     if let pane, let wc { wc.remove(pane) }
                 }

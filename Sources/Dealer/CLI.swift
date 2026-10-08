@@ -84,8 +84,9 @@ enum CLI {
                 return 1
             }
             let result = resp["result"] as? [String: Any] ?? [:]
-            // The job's shell runs `job-done $? && exit`: exit 0 means "close this pane".
-            if cmd == "job-done" { return result["close"] as? Bool == true ? 0 : 1 }
+            // The job's shell runs `<cmd>; job-done $?`: pass the job's status on, so shell
+            // integration reports the job's own outcome (#50).
+            if cmd == "job-done" { return Int32(truncatingIfNeeded: (reqArgs["status"] as? Int ?? 1) & 0xff) }
             if cmd == "run", let route = result["route"] as? [String: Any] { logRoute(route) }
             print(format(cmd, result, output), terminator: "")
             return 0

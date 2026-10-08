@@ -104,6 +104,22 @@ extension TerminalWindowController {
             print("      (skipped \(what): ghostty couldn't create terminal surfaces here)")
             return nil
         }
+        /// Once the kept job "jc" has reported, its whole typed line has finished too. Shell
+        /// integration reports that line's exit status (COMMAND_FINISHED) at the next prompt, and a
+        /// non-zero one marks the pane failed (`failed_commands`). #50: the tail used to end
+        /// `job-done $? && exit`, where job-done exited 1 to keep the shell, so a kept success
+        /// went red. Typing a marker and waiting for its output gets past that prompt first.
+        func keptLineFinished() -> String? {
+            guard let p = pane("jc") else { return "no kept job pane" }
+            guard live, let s = p.surface.surface else { return skipped("the kept job's line status") }
+            p.surface.perform("text:" + ControlHandler.escapeForBinding(" echo kept-$((40+2))"))
+            try? ControlHandler.parseKey("enter").send(to: s)
+            guard SelfTest.waitUntil(timeout: 10, { p.surface.screenText.contains("kept-42\n") }) else {
+                return "the kept job's shell didn't come back to a prompt: \(p.surface.screenText.debugDescription)"
+            }
+            return all(eq(p.attention, Attention.none, "kept job's attention"),
+                       p.surface.screenText.contains("&& exit") ? "the kept job's line still ends in && exit" : nil)
+        }
         /// Marks only show when the user isn't looking at the pane (Attention.swift).
         func marked(_ n: String, _ a: Attention) -> String? {
             guard let p = pane(n) else { return "\(n) is gone" }
@@ -171,21 +187,18 @@ extension TerminalWindowController {
             all(outcome("jb", status: 0) { pane("jb").flatMap { ControlJobs.job(for: $0)?.status } == 0 || pane("jb") == nil },
                 marked("j0", .done), focused("j0"))
         }) {}
-        // The shell's `exit` closes the pane through ghostty's close callback, which arrives on the
-        // main queue. This step waits for the shell to exit, and the next one checks the pane is gone.
-        var jb: Pane?
+        // Dealer closes a successful job's pane itself (the shell doesn't `exit`), on the main queue
+        // right after replying to job-done.
         var j0AfterClose: Attention?
         var j0Looked = false
-        t.step("jobs: ...and its shell exits", nil, {
-            guard live, let s = jb?.surface.surface else { return nil }
-            let ok = SelfTest.waitUntil(timeout: 10, { ghostty_surface_process_exited(s) })
-            return ok ? nil : "jb's shell should have exited"
-        }) { jb = pane("jb") }
+        t.step("jobs: ...and Dealer closes its pane", nil, {
+            SelfTest.waitUntil(timeout: 10) { pane("jb") == nil } ? nil : "jb's pane should have closed"
+        }) {}
         t.step("jobs: --keep --quiet: a successful job stays, retitled, and nothing is marked", nil, {
-            jb = nil
-            return all(j0Looked || j0AfterClose == .done ? nil : "j0's done mark should survive the job pane closing, is \(j0AfterClose?.name ?? "nil")",
+            all(j0Looked || j0AfterClose == .done ? nil : "j0's done mark should survive the job pane closing, is \(j0AfterClose?.name ?? "nil")",
                 outcome("jc", status: 0) { pane("jc")?.customTitle == "DONE true" },
-                eq(pane("j0")?.attention, Attention.none, "caller attention"))
+                eq(pane("j0")?.attention, Attention.none, "caller attention"),
+                keptLineFinished())
         }) {
             j0AfterClose = pane("j0")?.attention
             j0Looked = pane("j0").map { self.isLookingAt($0) } ?? false
@@ -311,7 +324,7 @@ extension TerminalWindowController {
         }
         t.step("jobs: close the test workspace", nil, {
             // Checked this late because the close arrives on the main queue, between steps.
-            all(eq(jbGone, true, "jb closed by its shell's exit"),
+            all(eq(jbGone, true, "jb closed by Dealer on success"),
                 self.workspaces.contains { ["jobs", "deep", "tie"].contains($0.name ?? "") } ? "test workspaces should be gone" : nil)
         }) {
             jbGone = ids["jb"].flatMap(ControlHandler.pane(id:)) == nil

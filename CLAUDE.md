@@ -232,13 +232,17 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   change. New commands go in `ControlHandler`, call the same controller methods the menus use, get
   a step in `SelfTestCLI.swift`, and are documented in `docs/cli.md`.
 - `dealer run` (#21, `ControlJobs.swift`) types the command into a normal interactive shell with
-  the tail `; "$DEALER_CLI" job-done $? && exit`, and keeps the outcome policy (close on success,
-  stay and mark waiting on failure) in Dealer, not in user shell functions. Don't switch it to the
+  the tail `; "$DEALER_CLI" job-done $?`, and keeps the outcome policy (close on success,
+  stay and mark failed on failure) in Dealer, not in user shell functions. Don't switch it to the
   surface `command` (aliases and the failed-job prompt would be lost), and don't detect the end
   with ghostty's COMMAND_FINISHED (it fires for every command and needs shell integration).
-  - On success Dealer also removes the pane itself: ghostty on macOS keeps a shell that exits
-    within `abnormal-command-exit-runtime` (250 ms) open as "abnormal", so a quick job's `exit`
-    alone never closes it. Any pane-closing feature that relies on a fast shell exit has the same trap.
+  - On success Dealer removes the pane itself; the shell never `exit`s. ghostty on macOS keeps a
+    shell that exits within `abnormal-command-exit-runtime` (250 ms) open as "abnormal", so a
+    quick job's `exit` alone never closes it. Any pane-closing feature that relies on a fast shell
+    exit has the same trap.
+  - `job-done` exits with the job's own status, never a "keep the shell" code: shell integration
+    reports the whole typed line's status, and a non-zero one marks the pane failed
+    (`failed_commands`). The old `&& exit` tail turned every `--keep` success red (#50).
   - Quoting (user's call): ONE CLI argument is a raw shell string; SEVERAL are an argv, quoted
     word by word. The documented one-liner is `b() { dealer run -- "$@"; }`, never `"$*"`.
   - Routing is by panes' current cwds (deepest containing `$PWD`, caller's workspace on ties,

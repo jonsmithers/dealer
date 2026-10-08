@@ -48,7 +48,7 @@ workspaces, type into them, focus, resize, rename, color, list, and notify.
 | `close` | Closes a pane or tab without asking. |
 | `run [--here] [--split \| --tab] [--size 12\|30%] [--keep] [--quiet] [--focus] [--title T] [--cwd DIR] [--] CMD...` | Runs CMD as a background job next to the caller (see below) and prints the job's pane ID. Routes to the workspace that best fits `$PWD`. One argument is a shell string; several are an argv, each word shell-quoted. |
 | `diagnose [--leaks]` | Writes a memory diagnostics report to `~/Library/Logs/Dealer/` and prints its path (Help › Capture Memory Diagnostics… does the same). It holds counts and sizes only, no titles, cwds or terminal contents. `--leaks` also runs `leaks`, which is slow, pauses Dealer, and can quote leaked memory. See [diagnostics.md](diagnostics.md). |
-| `job-done STATUS` | Internal: the tail `run` types into the job's shell. Exits 0 when the shell should close. |
+| `job-done STATUS` | Internal: the tail `run` types into the job's shell. Reports STATUS and exits with it. |
 
 ## Recipes
 
@@ -91,13 +91,15 @@ b_str() { dealer run --quiet -- "$@"; }   # same, without the "done" mark on suc
   your rc environment work, followed by a tail that reports the exit status:
 
   ```
-   make test; "$DEALER_CLI" job-done $? && exit
+   make test; "$DEALER_CLI" job-done $?
   ```
 
   The leading space keeps the line out of history if you `setopt HIST_IGNORE_SPACE` (zsh) or
   set `HISTCONTROL=ignorespace` (bash).
-- **Success:** the pane closes. Dealer closes it itself, because ghostty keeps a shell that exits
-  within 250 ms of starting open as "abnormal". With `[jobs] close_on_success = false` or
+  `job-done` exits with the job's own status, so a kept success isn't marked failed by
+  `[attention] failed_commands`.
+- **Success:** Dealer closes the pane itself (the shell never exits on its own; ghostty would
+  keep a shell that exits within 250 ms of starting open as "abnormal"). With `[jobs] close_on_success = false` or
   `--keep` it stays. The pane you ran it from gets the *done* mark (a muted dot), plus a macOS
   notification when Dealer isn't in front; `--quiet` skips both.
 - **Failure:** the pane stays open at a prompt, so you can inspect and rerun. It's marked
