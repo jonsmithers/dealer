@@ -42,7 +42,10 @@ enum CLI {
                                                  that best fits $PWD (one arg: a shell string; several:
                                                  each word quoted);
                                                  success closes it and marks you done, failure keeps
-                                                 it open, marked waiting. Prints the job's pane ID.
+                                                 it open, marked failed. Prints the job's pane ID.
+                                                 --keep: stay open on success too (titled DONE)
+                                                 --quiet: no done mark or notification on success
+                                                 --here: run next to this pane instead of routing
       diagnose [--leaks]                         write a memory diagnostics report (safe to attach to
                                                  an issue) and print its path; --leaks also runs
                                                  `leaks` (slow, pauses Dealer)
