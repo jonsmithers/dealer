@@ -9,7 +9,8 @@ import AppKit
 /// | A tab strip             | becomes its own tab there  | reorder / move across decks |
 /// | Window edge             | promote to a new deck      | becomes a new deck          |
 ///
-/// Hovering a tab while dragging switches to it after a short delay.
+/// Hovering a tab while dragging switches to it after a short delay. A dragged tab stops covering its
+/// deck, which shows another tab, so the tab can be dropped beside that tab's panes (#27).
 final class DragController {
     enum Source {
         case pane(Pane)
@@ -37,7 +38,9 @@ final class DragController {
     }
 
     /// Runs a modal tracking loop until the mouse goes up. A click without movement does nothing.
-    func begin(_ source: Source, event: NSEvent) {
+    /// - Parameter behind: for a tab, the tab its deck showed before the press selected it; the deck
+    ///   shows that one again while the tab is dragged.
+    func begin(_ source: Source, event: NSEvent, behind: Tab? = nil) {
         guard let window = controller.window else { return }
         let start = event.locationInWindow
         var dragging = false
@@ -65,6 +68,7 @@ final class DragController {
                 guard hypot(last.x - start.x, last.y - start.y) > 4 else { continue }
                 dragging = true
                 NSCursor.closedHand.push()
+                uncover(source, showing: behind)
             }
             target = update(source, at: last, hover: &hover)
         }
@@ -73,7 +77,7 @@ final class DragController {
         NSCursor.pop()
         let previewed = !view.dropHighlight.isHidden
         clear(keepHighlight: previewed)
-        if let target { perform(source, target) }
+        if let target { perform(source, target) } else { recover(source) }
         // The preview settles onto where the content landed (#28), or just goes away.
         if previewed, target != nil, let r = landedRect(source) {
             view.dropHighlight.settle(to: r)
@@ -88,6 +92,23 @@ final class DragController {
         guard let n = sourceNode(source), let ws = n.leaves.first.flatMap({ controller.workspace(of: $0) }),
               ws === controller.activeWorkspace else { return nil }
         return controller.frame(of: n)
+    }
+
+    /// The tab under a dragged tab: without this its deck would show only the dragged tab's own panes,
+    /// which are no drop target, so a tab could never rejoin its own deck as a split (#27).
+    private func uncover(_ source: Source, showing behind: Tab?) {
+        guard case .tab(let tab) = source, let deck = controller.deck(of: tab), deck.activeTab === tab,
+              deck.tabs.count > 1, let i = deck.index(of: tab) else { return }
+        deck.activeIndex = behind.flatMap { $0 === tab ? nil : deck.index(of: $0) } ?? (i > 0 ? i - 1 : i + 1)
+        controller.layoutNow()
+    }
+
+    /// A tab drag that went nowhere: the tab is selected again, as the press left it.
+    private func recover(_ source: Source) {
+        guard case .tab(let tab) = source, let deck = controller.deck(of: tab), let i = deck.index(of: tab),
+              deck.activeIndex != i else { return }
+        deck.activeIndex = i
+        controller.layoutNow()
     }
 
     private func clear(keepHighlight: Bool = false) {

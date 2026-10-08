@@ -580,10 +580,11 @@ final class TabButton: FlippedView {
             c.renameTab(tab)
             return
         }
+        let shown = deck.activeTab
         c.select(tab: tab, in: deck)
         // Top half of a titlebar tab: a drag moves the window, like Ghostty's native tabs (#27).
         if titlebarZone(at: event.locationInWindow) == .window { return dragWindowIfDragged(event) }
-        c.drag.begin(.tab(tab), event: event)
+        c.drag.begin(.tab(tab), event: event, behind: shown)
     }
 
     override func otherMouseUp(with event: NSEvent) {
