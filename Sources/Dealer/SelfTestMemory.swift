@@ -109,8 +109,10 @@ extension TerminalWindowController {
                 }
             }
         }
-        t.step("memory: a closed window frees its controller, workspaces and panes", nil, {
-            unchanged("closing a window", only: [.window, .workspace, .deck, .tab, .pane])
+        // Checked right after the closes, while AppKit still holds the closed NSWindows (its close
+        // animation keeps each one about 0.3 s): their views and surfaces must already be gone.
+        t.step("memory: a closed window frees its controller, workspaces, panes, views and surfaces", nil, {
+            unchanged("closing a window")
         }) {
             cycle {
                 AppDelegate.shared.newWindow(nil)
@@ -118,15 +120,24 @@ extension TerminalWindowController {
                 if let a = wc.focusedPane { wc.split(a, side: .right) }
                 _ = wc.newWorkspace()
                 closedWindows.append(WeakRef(wc.window))
+                // No close animation, so the run doesn't depend on how fast it runs under load.
+                wc.window?.animationBehavior = .none
                 wc.window?.close()
             }
             self.window?.makeKeyAndOrderFront(nil)
         }
-        // AppKit lets go of a closed window's views a run-loop turn later, so check them here.
-        t.step("memory: …and, a moment later, its views and surfaces", nil, {
-            let open = closedWindows.filter { $0.value != nil }.count
-            let windows = open == 0 ? nil : "\(open) closed NSWindow(s) still alive"
-            return [unchanged("closing a window"), windows].compactMap { $0 }.joined(separator: "; ").nilIfEmpty
+        // When AppKit frees a closed NSWindow is its business and not deterministic inside the
+        // runner: at a 0.6 s step delay it's gone, at delay 0 two of three outlive even a 10 s
+        // poll (held until the step's outer main-queue block returns), and animated closes take
+        // seconds under load (#43). What the leak was about is checked instead: a closed window
+        // that's still alive holds no deck, pane or terminal view, and the counts stay down.
+        t.step("memory: …and closed windows that AppKit still holds keep no decks, panes or terminals", nil, {
+            func heavy(_ v: NSView) -> Int { (v is DeckView || v is PaneView || v is SurfaceView ? 1 : 0) + v.subviews.reduce(0) { $0 + heavy($1) } }
+            let held = closedWindows.compactMap(\.value).compactMap(\.contentView).map(heavy).reduce(0, +)
+            let alive = closedWindows.filter { $0.value != nil }.count
+            if alive > 0 { print("      (\(alive) closed NSWindow(s) not yet freed by AppKit, holding \(held) heavy views)") }
+            return [unchanged("closing a window"), held == 0 ? nil : "closed windows still hold \(held) deck/pane/terminal views"]
+                .compactMap { $0 }.joined(separator: "; ").nilIfEmpty
         }) {}
     }
 }

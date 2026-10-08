@@ -287,6 +287,19 @@ extension TerminalWindowController {
             steps = steps.filter { $0.title.hasPrefix(only) }
         }
 
+        // #43: `byName` keeps every named pane alive, and a closed pane's terminal costs ~50 MB of
+        // GPU memory plus a shell; ~120 of them made each run ~6 GB, and parallel runs then
+        // starved the GPU (a close hung in ghostty_surface_free). Free the terminal of a named pane
+        // that has been in no window for two step ends; the Pane object stays for lookups.
+        var closedLastStep: Set<ObjectIdentifier> = []
+        func freeClosedTerminals() {
+            let open = Set(AppDelegate.shared.windowControllers.flatMap(\.allDecks).flatMap(\.tabs)
+                .flatMap(\.panes).map(ObjectIdentifier.init))
+            let closed = byName.values.filter { !open.contains(ObjectIdentifier($0)) && $0.surface.surface != nil }
+            for p in closed where closedLastStep.contains(ObjectIdentifier(p)) { p.surface.freeSurface() }
+            closedLastStep = Set(closed.map(ObjectIdentifier.init))
+        }
+
         var failures = 0
         func run(_ i: Int) {
             guard i < steps.count else {
@@ -314,6 +327,7 @@ extension TerminalWindowController {
             // #43: `DEALER_SELFTEST_LIVE=1` prints live object counts after each step, to find a leak.
             if SelfTest.env("SELFTEST_LIVE") != nil { print("      live: \(LiveObjects.summary) windowsOpen=\(AppDelegate.shared.windowControllers.count) panesInTrees=\(AppDelegate.shared.windowControllers.flatMap(\.allDecks).flatMap(\.tabs).flatMap(\.panes).count)") }
             fflush(stdout)
+            freeClosedTerminals()
             DispatchQueue.main.asyncAfter(deadline: .now() + SelfTest.stepDelay) { run(i + 1) }
         }
         if let note = SelfTest.environmentNote() {

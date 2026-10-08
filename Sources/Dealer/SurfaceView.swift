@@ -76,6 +76,16 @@ final class SurfaceView: NSView, NSTextInputClient {
         }
     }
 
+    /// Frees the terminal now (shell, threads, renderer memory) and leaves an inert view. For the
+    /// self-test, whose name table keeps closed panes' objects alive (#43); the app frees surfaces
+    /// only in `deinit`.
+    func freeSurface() {
+        guard let s = surface else { return }
+        surface = nil
+        ghostty_surface_free(s)
+        LiveObjects.remove(.ghosttySurface)
+    }
+
     var needsConfirmQuit: Bool {
         guard let surface else { return false }
         return ghostty_surface_needs_confirm_quit(surface)

@@ -1,4 +1,5 @@
 import AppKit
+import GhosttyKit
 
 // MARK: - Self-test section: no modal dialogs in self-test mode (issue #38)
 
@@ -47,7 +48,14 @@ extension TerminalWindowController {
                 print("      (skipped: ghostty couldn't create terminal surfaces here)")
                 return nil
             }
-            busy = wait(10) { t.pane("mb").surface.needsConfirmQuit }
+            // Busy *because `sleep` runs*: while the shell is still starting, ghostty also reads
+            // it as busy, and between the first prompt and the typed command it briefly isn't, so
+            // a close then wouldn't ask (that made the next step flaky).
+            busy = wait(15) {
+                guard let s = t.pane("mb").surface.surface, t.pane("mb").surface.needsConfirmQuit else { return false }
+                let pid = Int32(truncatingIfNeeded: ghostty_surface_foreground_pid(s))
+                return pid > 0 && ProcessTree.arguments(of: pid)?.first.map { ($0 as NSString).lastPathComponent } == "sleep"
+            }
             return busy ? nil : "`sleep 30` should make the pane busy"
         }) {
             guard let deck = self.focusedDeck else { return }

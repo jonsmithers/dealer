@@ -288,9 +288,11 @@ extension TerminalWindowController {
         let shot = tmp + "/Screenshot 2024-12-10 at 3.52.12 PM.png"
         t.step("jobs: quoting: a path with spaces, quotes, $ and globs survive; a single string is a pipeline", nil, {
             guard live else { return all(skipped("real-shell quoting")) }
+            // `> file` creates the file before the command writes it, so wait for whole lines, not
+            // just the files (an empty `piped` read here made this step flaky).
+            func done(_ f: String) -> Bool { ((try? String(contentsOfFile: tmp + f, encoding: .utf8)) ?? "").hasSuffix("\n") }
             let ok = wait(20) {
-                fm.fileExists(atPath: tmp + "/copied.png") && fm.fileExists(atPath: tmp + "/words")
-                    && fm.fileExists(atPath: tmp + "/piped")
+                fm.fileExists(atPath: tmp + "/copied.png") && done("/words") && done("/piped")
             }
             let words = (try? String(contentsOfFile: tmp + "/words", encoding: .utf8)) ?? ""
             let piped = (try? String(contentsOfFile: tmp + "/piped", encoding: .utf8)) ?? ""

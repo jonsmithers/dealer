@@ -66,7 +66,11 @@
     decks that are gone are dropped in `layoutWindow`.
   - `windowWillClose` calls `releaseViews()`: AppKit keeps a closed NSWindow (and its views) past
     the controller, and a later layout pass then read freed decks through `TabStripView.deck`
-    (`unowned`) and crashed.
+    (`unowned`) and crashed. When AppKit frees the closed NSWindow itself isn't
+    deterministic in the self-test. At delay 0, AppKit holds it until the step's outer
+    main-queue block returns; animated, it takes seconds under load. So SelfTestMemory checks that
+    views and surfaces are gone right after the close, and that a still-alive closed window holds
+    no deck, pane or terminal views. It never waits for the window to be freed.
   - Counted classes call `LiveObjects.add`/`remove` in init/deinit (DiagnosticsCounters.swift).
     A new heavy class that should die with the model gets a `Kind`. Any new create/close path
     gets a cycle step in SelfTestMemory.swift, which fails when a count doesn't return to its
