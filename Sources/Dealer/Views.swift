@@ -30,6 +30,9 @@ final class PaneView: FlippedView, ThemeApplying {
     var accent: NSColor = Theme.accentNeutral { didSet { if accent != oldValue { updateChrome() } } }
     /// Sits above the surface; never takes mouse events.
     private let veil = PassthroughView()
+    var veilView: NSView { veil }
+    /// The find bar (#49, SearchBar.swift), created on first ⌘F.
+    var searchBar: PaneSearchBar?
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -50,6 +53,7 @@ final class PaneView: FlippedView, ThemeApplying {
         // The veil's strength comes from the config too (`unfocused-split-opacity`).
         veil.alphaValue = dimsWhenUnfocused && !isFocusedPane ? Theme.unfocusedAlpha : 0
         applyAttentionRing()  // its border color is a Theme color (Attention.swift)
+        searchBar?.applyTheme()
     }
 
     /// Self-test hook (#33): the veil's color and current alpha.
@@ -82,6 +86,7 @@ final class PaneView: FlippedView, ThemeApplying {
             top = Self.barHeight
         }
         pane?.surface.frame = CGRect(x: 0, y: top, width: max(bounds.width, 1), height: max(bounds.height - top, 1))
+        layoutSearchBar(surfaceFrame: pane?.surface.frame ?? bounds)
         veil.frame = bounds
         if subviews.last !== veil { addSubview(veil, positioned: .above, relativeTo: nil) }
         updateChrome()

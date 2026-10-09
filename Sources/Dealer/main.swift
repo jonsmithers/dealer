@@ -142,6 +142,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item("Copy", #selector(SurfaceView.copy(_:)), "c"),
             item("Paste", #selector(SurfaceView.paste(_:)), "v"),
             item("Select All", #selector(SurfaceView.selectAll(_:)), "a"),
+            .separator(),
+            // Find in the focused pane (#49, SearchBar.swift). ⇧⌘F is Fold Deck; esc hides the bar.
+            item("Find…", #selector(PaneView.findInPane(_:)), "f"),
+            item("Find Next", #selector(PaneView.findNext(_:)), "g"),
+            item("Find Previous", #selector(PaneView.findPrevious(_:)), "G"),
+            item("Use Selection for Find", #selector(PaneView.useSelectionForFind(_:)), "e"),
+            item("Hide Find Bar", #selector(PaneView.hideFindBar(_:))),
         ])
 
         submenu("Layout", [

@@ -222,6 +222,26 @@ final class GhosttyRuntime {
             // Per-surface echo of an app config change; the app-level one re-themes the chrome.
             return true
 
+        // Find in pane (#49, SearchBar.swift). Ghostty searches; we show the bar and the counts.
+        case GHOSTTY_ACTION_START_SEARCH:
+            let needle = action.action.start_search.needle.map { String(cString: $0) }
+            DispatchQueue.main.async { view.pane?.view.startSearch(needle: needle) }
+            return true
+
+        case GHOSTTY_ACTION_END_SEARCH:
+            DispatchQueue.main.async { view.pane?.view.endSearch() }
+            return true
+
+        case GHOSTTY_ACTION_SEARCH_TOTAL:
+            let total = action.action.search_total.total
+            DispatchQueue.main.async { view.pane?.view.searchBar?.total = total >= 0 ? Int(total) : nil }
+            return true
+
+        case GHOSTTY_ACTION_SEARCH_SELECTED:
+            let selected = action.action.search_selected.selected
+            DispatchQueue.main.async { view.pane?.view.searchBar?.selected = selected >= 0 ? Int(selected) : nil }
+            return true
+
         case GHOSTTY_ACTION_SET_TITLE:
             guard let p = action.action.set_title.title else { return false }
             let title = String(cString: p)
