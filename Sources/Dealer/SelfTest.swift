@@ -303,6 +303,7 @@ extension TerminalWindowController {
         titlebarTabsSelfTestSteps(kit)
         tabDragSelfTestSteps(kit)
         tabFitSelfTestSteps(kit)
+        fileDropSelfTestSteps(kit)
         cliSelfTestSteps(kit)
         jobsSelfTestSteps(kit)
         cwdSelfTestSteps(kit)

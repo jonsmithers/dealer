@@ -26,6 +26,7 @@ final class SurfaceView: NSView, NSTextInputClient {
     /// `command` replaces the shell (`dealer create --command`); the pane closes when it exits.
     init(workingDirectory: String?, env: [String: String] = [:], command: String? = nil) {
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        registerForDraggedTypes(Array(Self.dropTypes))  // #51, SurfaceView+Drop.swift
         pwd = workingDirectory
 
         var cfg = ghostty_surface_config_new()
