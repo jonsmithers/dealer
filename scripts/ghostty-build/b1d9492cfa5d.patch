@@ -1,4 +1,4 @@
-Dealer's patch to Ghostty's build, for Ghostty 243f7df7c131f9cc69bed4bc4586f5bf17b9d4fa (#42).
+Dealer's patch to Ghostty's build, for Ghostty b1d9492cfa5d0d22c534a00e81bea623957113e7 (#42).
 Lets libghostty build with only the Command Line Tools. Applied by scripts/build-ghosttykit.sh to a
 temporary clone, never to your checkout. See scripts/ghostty-build/README.md.
 
@@ -6,16 +6,13 @@ One line per hunk:
 - Config.zig (field): new `metallib` setting, a path to a precompiled Ghostty.metallib.
 - Config.zig (init): exposes it as the build option `-Dmetallib=<path>`.
 - GhosttyXCFramework.zig (macOS graphs): builds the universal or the native macOS library, not both.
-- GhosttyXCFramework.zig (iOS graphs): builds the iOS libraries only for the universal target, so
-  `-Dxcframework-target=native` no longer needs the iPhoneOS SDK (Xcode only). Upstream dropped
-  them in 7a171895d, after the zig 0.16 bump.
 - SharedDeps.zig: with -Dmetallib, embeds that file instead of running `xcrun metal` (Xcode's
   Metal Toolchain only). Without it, unchanged.
 - XCFrameworkStep.zig: for a single library, writes the xcframework (folder + Info.plist) with sh
   instead of `xcodebuild -create-xcframework` (Xcode only). Several libraries keep xcodebuild.
 
 diff --git a/src/build/Config.zig b/src/build/Config.zig
-index 0a9947317..dbe0075d3 100644
+index 71fa4d289..9055bbf61 100644
 --- a/src/build/Config.zig
 +++ b/src/build/Config.zig
 @@ -20,6 +20,8 @@ const GitVersion = @import("GitVersion.zig");
@@ -27,7 +24,7 @@ index 0a9947317..dbe0075d3 100644
  wasm_target: WasmTarget,
  
  /// Comptime interfaces
-@@ -144,6 +146,12 @@ pub fn init(b: *std.Build, appVersion: []const u8, libVersion: []const u8) !Conf
+@@ -186,6 +188,12 @@ pub fn init(b: *std.Build, appVersion: []const u8, libVersion: []const u8) !Conf
          "The target for the xcframework.",
      ) orelse .universal;
  
@@ -41,10 +38,10 @@ index 0a9947317..dbe0075d3 100644
      // Comptime Interfaces
      config.font_backend = b.option(
 diff --git a/src/build/GhosttyXCFramework.zig b/src/build/GhosttyXCFramework.zig
-index a19dd18af..7c9c0230a 100644
+index 3f3b97eb2..c835dd93f 100644
 --- a/src/build/GhosttyXCFramework.zig
 +++ b/src/build/GhosttyXCFramework.zig
-@@ -16,16 +16,17 @@ pub fn init(
+@@ -16,10 +16,11 @@ pub fn init(
      target: Target,
  ) !GhosttyXCFramework {
      // Universal macOS build
@@ -58,27 +55,11 @@ index a19dd18af..7c9c0230a 100644
          b,
          Config.genericMacOSTarget(b, null),
      ));
- 
-     // iOS
--    const ios = try GhosttyLib.initStatic(b, &try deps.retarget(
-+    const ios = if (!universal) undefined else try GhosttyLib.initStatic(b, &try deps.retarget(
-         b,
-         b.resolveTargetQuery(.{
-             .cpu_arch = .aarch64,
-@@ -36,7 +37,7 @@ pub fn init(
-     ));
- 
-     // iOS Simulator
--    const ios_sim = try GhosttyLib.initStatic(b, &try deps.retarget(
-+    const ios_sim = if (!universal) undefined else try GhosttyLib.initStatic(b, &try deps.retarget(
-         b,
-         b.resolveTargetQuery(.{
-             .cpu_arch = .aarch64,
 diff --git a/src/build/SharedDeps.zig b/src/build/SharedDeps.zig
-index b68be92d0..845e0a59b 100644
+index 7f777faa1..abbad9c79 100644
 --- a/src/build/SharedDeps.zig
 +++ b/src/build/SharedDeps.zig
-@@ -441,11 +441,17 @@ pub fn add(
+@@ -500,11 +500,17 @@ pub fn add(
      if (step.rootModuleTarget().os.tag.isDarwin()) {
          try @import("apple_sdk").addPaths(b, step);
  
@@ -102,7 +83,7 @@ index b68be92d0..845e0a59b 100644
  
      // Other dependencies, mostly pure Zig
 diff --git a/src/build/XCFrameworkStep.zig b/src/build/XCFrameworkStep.zig
-index 39f0f9bac..6987ef057 100644
+index 5f1b676fb..218013bc4 100644
 --- a/src/build/XCFrameworkStep.zig
 +++ b/src/build/XCFrameworkStep.zig
 @@ -49,7 +49,25 @@ pub fn create(b: *std.Build, opts: Options) *XCFrameworkStep {

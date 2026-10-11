@@ -10,10 +10,10 @@ extension TerminalWindowController {
             return p.isEmpty ? nil : p.joined(separator: "; ")
         }
         let fm = FileManager.default
-        // ghostty reads $XDG_CONFIG_HOME/ghostty/config (and its themes/ directory) at every load.
+        // A temp ghostty config, loaded through `GhosttyRuntime.configFileOverride` (libghostty no
+        // longer sees a runtime XDG_CONFIG_HOME change). Themes are named by absolute path.
         let home = fm.temporaryDirectory.appendingPathComponent("dealer-selftest-ghostty-\(getpid())", isDirectory: true)
         let dir = home.appendingPathComponent("ghostty", isDirectory: true)
-        let savedXDG = getenv("XDG_CONFIG_HOME").map { String(cString: $0) }
         struct Look { let name, background, foreground: String; let fontSize: Int }
         // Catppuccin Frappé and Latte (background/foreground), as theme files of our own so the
         // test doesn't depend on an installed Ghostty.app's themes.
@@ -28,7 +28,8 @@ extension TerminalWindowController {
             }
             try? text.write(to: dir.appendingPathComponent("config"), atomically: true, encoding: .utf8)
         }
-        func use(_ l: Look) { writeConfig("theme = \(l.name)\nfont-size = \(l.fontSize)\n") }
+        func themePath(_ l: Look) -> String { dir.appendingPathComponent("themes/\(l.name)").path }
+        func use(_ l: Look) { writeConfig("theme = \(themePath(l))\nfont-size = \(l.fontSize)\n") }
 
         /// ⌘⇧, through the menu item, the way a key press resolves it.
         var menuItem: NSMenuItem?
@@ -170,7 +171,7 @@ extension TerminalWindowController {
         t.step("reload: a temp ghostty config with the Frappé theme applies to the chrome", nil, {
             all(themeIs(frappe), pixelsMatchTheme(), GhosttyRuntime.shared.configProblems.isEmpty ? nil : "no problems expected: \(GhosttyRuntime.shared.configProblems)")
         }) {
-            setenv("XDG_CONFIG_HOME", home.path, 1)
+            GhosttyRuntime.configFileOverride = dir.appendingPathComponent("config").path
             use(frappe)
             pressReload()
             guard let deck = self.focusedDeck else { return }
@@ -226,7 +227,7 @@ extension TerminalWindowController {
             pressReload()
             oldColors = themeColors()
             cellHeight = cell()
-            writeConfig("theme = \(frappe.name)\nbackground = not-a-color\nfont-size = 13\nno-such-key = 1\n")
+            writeConfig("theme = \(themePath(frappe))\nbackground = not-a-color\nfont-size = 13\nno-such-key = 1\n")
             pressReload()
         }
         t.step("reload: ghostty's reload_config keybind action reloads too; fixing the config clears the banner", nil, {
@@ -249,7 +250,7 @@ extension TerminalWindowController {
         t.step("reload: theme = light:…,dark:… follows the macOS appearance (dark → Frappé)", nil, {
             all(themeIs(frappe), pixelsMatchTheme())
         }) {
-            writeConfig("theme = light:\(latte.name),dark:\(frappe.name)\nfont-size = 13\n")
+            writeConfig("theme = light:\(themePath(latte)),dark:\(themePath(frappe))\nfont-size = 13\n")
             pressReload()
             GhosttyRuntime.shared.setColorScheme(dark: true)
             SelfTest.waitUntil(timeout: 2) { themeIs(frappe) == nil }
@@ -266,7 +267,7 @@ extension TerminalWindowController {
         }) {
             if let tab { self.close(tab: tab) }
             self.sidebarPreference = nil
-            if let x = savedXDG { setenv("XDG_CONFIG_HOME", x, 1) } else { unsetenv("XDG_CONFIG_HOME") }
+            GhosttyRuntime.configFileOverride = nil
             try? fm.removeItem(at: home)
             pressReload()
             let dark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua

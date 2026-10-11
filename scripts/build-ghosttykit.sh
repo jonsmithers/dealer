@@ -84,7 +84,7 @@ or rerun with --any-version to build this commit anyway."
   fi
 fi
 
-# zig: Ghostty's build.zig.zon says which version it needs (0.15.x for the pinned commit).
+# zig: Ghostty's build.zig.zon says which version it needs (0.16.x for the pinned commit).
 NEED=$(sed -n 's/.*minimum_zig_version *= *"\([0-9]*\.[0-9]*\).*/\1/p' "$GHOSTTY/build.zig.zon")
 if [ -z "${ZIG:-}" ]; then
   for z in "/opt/homebrew/opt/zig@$NEED/bin/zig" "/usr/local/opt/zig@$NEED/bin/zig" "$(command -v zig || true)"; do

@@ -139,6 +139,54 @@ extension TerminalWindowController {
             return [unchanged("closing a window"), held == 0 ? nil : "closed windows still hold \(held) deck/pane/terminal views"]
                 .compactMap { $0 }.joined(separator: "; ").nilIfEmpty
         }) {}
+
+        // A hidden pane gives back its renderer's GPU memory (#43). libghostty since c4e16970a frees
+        // the swap chain (3 window-sized render targets, plus 6 more with a custom shader) when a
+        // surface is occluded; at the old pin each hidden pane kept them (about 3.7 buffers each).
+        var hiddenCost: (perPane: Double, buffer: Double)?
+        t.step("memory: panes in background tabs give back their renderer memory (GPU swap chain)", nil, {
+            guard let c = hiddenCost else { return nil }  // skipped (printed why)
+            let mb = { (b: Double) in String(format: "%.1f MB", b / 1_048_576) }
+            let limit = max(1.5 * c.buffer, 8 * 1_048_576)
+            return c.perPane < limit ? nil
+                : "each hidden pane still costs \(mb(c.perPane)) (a window-sized buffer is \(mb(c.buffer)), limit \(mb(limit)))"
+        }) {
+            hiddenCost = nil
+            guard let deck = self.focusedDeck else { return }
+            func footprint() -> Double { Double(Diagnostics.memory().footprint) }
+            var tabs: [Tab] = []
+            defer { tabs.forEach { self.close(tab: $0) } }
+            self.newTab(in: deck)
+            guard let first = deck.activeTab, let pane = first.panes.first, pane.surface.surface != nil else {
+                print("      (skipped: no live surface, screen locked?)")
+                return
+            }
+            tabs.append(first)
+            self.layoutNow()
+            let px = pane.surface.convertToBacking(pane.surface.bounds.size)
+            let buffer = Double(px.width * px.height * 4)
+            guard buffer > 3 * 1_048_576 else { print("      (skipped: pane too small to tell, \(px))"); return }
+            // Each shown pane allocates its render targets on its first frames.
+            func showNewTab() {
+                let before = footprint()
+                self.newTab(in: deck)
+                if let t = deck.activeTab { tabs.append(t) }
+                self.layoutNow()
+                _ = SelfTest.waitUntil(timeout: 2) { footprint() - before > 2 * buffer }
+            }
+            showNewTab()
+            let base = footprint()  // `first` hidden, one pane shown
+            let hidden = 4
+            for _ in 0..<hidden { showNewTab() }
+            self.select(tab: first, in: deck)
+            self.layoutNow()
+            // Now `hidden` + 1 panes are hidden, against `base`'s one hidden and one shown: `hidden`
+            // more hidden panes. Release happens on their render threads.
+            _ = SelfTest.waitUntil(timeout: 3) { (footprint() - base) / Double(hidden) < 1.5 * buffer }
+            hiddenCost = (max(0, footprint() - base) / Double(hidden), buffer)
+            print(String(format: "      (each hidden pane: %.1f MB; a window-sized buffer: %.1f MB)",
+                         hiddenCost!.perPane / 1_048_576, buffer / 1_048_576))
+        }
     }
 }
 

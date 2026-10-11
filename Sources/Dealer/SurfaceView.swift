@@ -14,6 +14,8 @@ final class SurfaceView: NSView, NSTextInputClient {
 
     private var markedText = NSMutableAttributedString()
     private var keyTextAccumulator: [String]?
+    /// A lead surrogate from `insertText` waiting for its trail (Unicode Hex Input).
+    private var leadSurrogate: UTF16Char?
     private var trackingArea: NSTrackingArea?
     private var cursor: NSCursor = .iBeam
 
@@ -318,7 +320,8 @@ final class SurfaceView: NSView, NSTextInputClient {
         guard let surface else { return false }
         var ev = keyEvent(action, event, translationMods: translationEvent?.modifierFlags)
         ev.composing = composing
-        if let text, !text.isEmpty, let first = text.utf8.first, first >= 0x20 {
+        // Control characters (and DEL, 0x7F) are encoded by ghostty itself (`keyEventText` upstream).
+        if let text, let first = text.unicodeScalars.first, first.value >= 0x20, first.value != 0x7F {
             return text.withCString { p in
                 ev.text = p
                 return ghostty_surface_key(surface, ev)
@@ -462,10 +465,23 @@ final class SurfaceView: NSView, NSTextInputClient {
     }
 
     func insertText(_ string: Any, replacementRange: NSRange) {
-        let chars: String
+        guard NSApp.currentEvent != nil else { return }
+        var chars: String
         switch string {
         case let s as NSAttributedString: chars = s.string
-        case let s as String: chars = s
+        case let s as NSString:
+            // Unicode Hex Input commits a surrogate pair as two calls; join them (as Terminal.app,
+            // a lone trail surrogate is dropped).
+            if s.length == 1, UTF16.isLeadSurrogate(s.character(at: 0)) {
+                leadSurrogate = s.character(at: 0)
+                chars = ""
+            } else if s.length == 1, UTF16.isTrailSurrogate(s.character(at: 0)) {
+                chars = leadSurrogate.map { String(decoding: [$0, s.character(at: 0)], as: UTF16.self) } ?? ""
+                leadSurrogate = nil
+            } else {
+                chars = s as String
+                leadSurrogate = nil
+            }
         default: return
         }
         unmarkText()
@@ -473,8 +489,17 @@ final class SurfaceView: NSView, NSTextInputClient {
             keyTextAccumulator?.append(chars)
             return
         }
-        guard let surface else { return }
-        chars.withCString { ghostty_surface_text(surface, $0, UInt(chars.utf8.count)) }
+        // Committed text (IME, dictation, …) goes in as a key event so programs see typing, never
+        // a paste (upstream #13817).
+        guard let surface, !chars.isEmpty else { return }
+        var ev = ghostty_input_key_s()
+        ev.action = GHOSTTY_ACTION_PRESS
+        ev.mods = GHOSTTY_MODS_NONE
+        ev.consumed_mods = GHOSTTY_MODS_NONE
+        _ = chars.withCString { p in
+            ev.text = p
+            return ghostty_surface_key(surface, ev)
+        }
     }
 
     override func doCommand(by selector: Selector) {

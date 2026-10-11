@@ -46,28 +46,14 @@ final class GhosttyRuntime {
             action_cb: { app, target, action in
                 GhosttyRuntime.shared.handle(target: target, action: action)
             },
-            read_clipboard_cb: { ud, loc, state in
-                guard let view = SurfaceView.from(ud), let surface = view.surface else { return false }
-                let str = NSPasteboard.general.string(forType: .string) ?? ""
-                str.withCString { ghostty_surface_complete_clipboard_request(surface, $0, state, false) }
-                return true
+            read_clipboard_cb: { ud, loc, state, mimes, mimesLen, list in
+                GhosttyClipboard.read(ud, location: loc, state: state, mimes: mimes, mimesLen: mimesLen, list: list)
             },
-            confirm_read_clipboard_cb: { ud, str, state, _ in
-                // No confirmation UI: accept the paste as-is.
-                guard let view = SurfaceView.from(ud), let surface = view.surface else { return }
-                ghostty_surface_complete_clipboard_request(surface, str, state, true)
+            confirm_read_clipboard_cb: { ud, confirm, state, _ in
+                GhosttyClipboard.confirmRead(ud, confirm: confirm, state: state)
             },
             write_clipboard_cb: { _, loc, content, len, _ in
-                guard loc == GHOSTTY_CLIPBOARD_STANDARD, let content, len > 0 else { return }
-                for i in 0..<len {
-                    let item = content[i]
-                    guard let mime = item.mime, let data = item.data else { continue }
-                    if String(cString: mime) == "text/plain" {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(String(cString: data), forType: .string)
-                        return
-                    }
-                }
+                GhosttyClipboard.write(location: loc, content: content, len: len)
             },
             close_surface_cb: { ud, _ in
                 guard let view = SurfaceView.from(ud) else { return }
@@ -94,11 +80,21 @@ final class GhosttyRuntime {
 
     // MARK: Config reload (#33)
 
+    /// Self-test only: load this one file instead of ghostty's default files. libghostty snapshots
+    /// the process environment at `ghostty_init` (zig 0.16), so a later `setenv("XDG_CONFIG_HOME")`
+    /// no longer redirects it; and Dealer must not `setenv` after `ghostty_init` at all, because
+    /// libghostty keeps pointing at the environ array that setenv may reallocate.
+    static var configFileOverride: String?
+
     /// A fresh config from ghostty's default files (XDG and Application Support), finalized, with
     /// its diagnostics. Mirrors `Ghostty.Config.loadConfig` in Ghostty's macOS app.
     private static func loadConfig() -> (ghostty_config_t?, [String]) {
         guard let cfg = ghostty_config_new() else { return (nil, ["ghostty_config_new failed"]) }
-        ghostty_config_load_default_files(cfg)
+        if let file = configFileOverride {
+            ghostty_config_load_file(cfg, file)
+        } else {
+            ghostty_config_load_default_files(cfg)
+        }
         ghostty_config_load_recursive_files(cfg)
         ghostty_config_finalize(cfg)
         let problems = (0..<ghostty_config_diagnostics_count(cfg)).map { i -> String in

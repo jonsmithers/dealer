@@ -305,6 +305,7 @@ extension TerminalWindowController {
         tabDragSelfTestSteps(kit)
         tabFitSelfTestSteps(kit)
         fileDropSelfTestSteps(kit)
+        clipboardSelfTestSteps(kit)
         searchSelfTestSteps(kit)
         cliSelfTestSteps(kit)
         jobsSelfTestSteps(kit)

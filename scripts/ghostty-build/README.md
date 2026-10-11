@@ -89,7 +89,8 @@ Once it's gone, building `vendor/` needs full Xcode plus its Metal Toolchain
 
 ## When it becomes unnecessary
 
-- The iOS hunks go at the zig 0.16 pin bump: upstream 7a171895d stopped building iOS libraries.
+- The iOS hunks went at the zig 0.16 pin bump (b1d9492cf, #43): upstream 7a171895d stopped building
+  iOS libraries.
 - The rest goes if upstream adds a way to use a precompiled metallib and a path that doesn't need
   `xcodebuild`. Both would be reasonable to propose upstream. Until then, the patch is the only
   thing that can drift.

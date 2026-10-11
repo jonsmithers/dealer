@@ -70,8 +70,7 @@ Claude session: a real one shows its own permission prompt in the pane.
 ## Build & run
 
 Prerequisites: macOS 14+, Xcode command-line tools (full Xcode isn't needed; see
-`scripts/ghostty-build/README.md`), `brew install zig@0.15` (Homebrew's default
-zig 0.16 can't build the pinned Ghostty), and a Ghostty checkout at the commit pinned in
+`scripts/ghostty-build/README.md`), zig 0.16 (`brew install zig`), and a Ghostty checkout at the commit pinned in
 `scripts/ghostty.version`. The easiest place for it is next to this repo:
 
 ```sh
@@ -430,7 +429,8 @@ and asserts the tree after each step.
 
 ## Layout
 
-- `GhosttyRuntime.swift` – `ghostty_app_t`, config, runtime callbacks (clipboard, actions, close)
+- `GhosttyRuntime.swift` – `ghostty_app_t`, config, runtime callbacks (actions, close)
+- `GhosttyClipboard.swift` – the clipboard callbacks (MIME-based reads and writes, ported from Ghostty.app)
 - `GhosttyVersion.swift` – the pinned Ghostty commit, the launch-time check against `ghostty_info()`, and its banner
 - `SurfaceView.swift` – NSView hosting a `ghostty_surface_t`: keys + IME, mouse, sizing, focus
 - `Model.swift` – generic binary split `Node`, `Pane`, `Tab`, `Deck`

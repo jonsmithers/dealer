@@ -1,4 +1,5 @@
 import AppKit
+import GhosttyKit
 
 // MARK: - Dropping files, URLs and text onto a pane (#51)
 //
@@ -31,9 +32,11 @@ extension SurfaceView {
         return pb.string(forType: .string)
     }
 
-    /// Focuses this pane (the drop implies intent), then types the text: no paste, no newline.
+    /// Focuses this pane (the drop implies intent), then sends the text with paste semantics (as
+    /// Ghostty does since 550151882; `insertText` now types key events), no newline.
     func receiveDrop(_ text: String) {
         window?.makeFirstResponder(self)
-        insertText(text, replacementRange: NSRange(location: 0, length: 0))
+        guard let surface else { return }
+        text.withCString { ghostty_surface_text(surface, $0, UInt(text.utf8.count)) }
     }
 }

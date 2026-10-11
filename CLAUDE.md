@@ -21,8 +21,9 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   link, but pass `--out <tmp>` when testing it, and use `--dry-run` to avoid a slow zig build.
 - **Ghostty is pinned** in `scripts/ghostty.version`, and the script refuses other commits unless
   you pass `--any-version`. `ghostty.h` is Ghostty's internal API and breaks without notice. For
-  example, after the pin the clipboard callbacks and `ghostty_surface_complete_clipboard_request`
-  changed signature, and `main` moved to zig 0.16. Never move the user's Ghostty checkout yourself;
+  example, the bump to b1d9492cf (#43) changed the clipboard callbacks and
+  `ghostty_surface_complete_clipboard_request` to MIME-based payloads (`GhosttyClipboard.swift`).
+  Never move the user's Ghostty checkout yourself;
   for a different commit, use a `git clone --shared` into a temp dir. To bump the pin, rebuild, fix
   the drift, update the hash in **both** `scripts/ghostty.version` and
   `GhosttyVersion.pinnedCommit`, and run the self-test.
@@ -37,11 +38,19 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   - To check by hand without touching `vendor/`, run `scripts/check-ghostty.sh <path/to/GhosttyKit.xcframework>`.
     The script only greps the `.a`, so a temp dir holding a small fake `*/libghostty*.a` with a
     `1.3.2-main-+<hash>` string is enough to fake a mismatch.
-- **No Xcode needed (#42):** building `vendor/` needs zig 0.15 and the Command Line Tools only; full
+- **No Xcode needed (#42):** building `vendor/` needs zig 0.16 and the Command Line Tools only; full
   Xcode is needed just to regenerate the shader library when Ghostty's shaders change. How it works,
   pin bumps and removal: `scripts/ghostty-build/README.md`.
-- The pinned commit needs **zig 0.15**. The script reads `minimum_zig_version` from the checkout's
-  `build.zig.zon` and prefers `/opt/homebrew/opt/zig@<ver>/bin/zig`; Homebrew's default `zig` is 0.16.
+- The pinned commit needs **zig 0.16** (Homebrew's default `zig`). The script reads
+  `minimum_zig_version` from the checkout's `build.zig.zon` and prefers
+  `/opt/homebrew/opt/zig@<ver>/bin/zig`, then `zig` on `PATH`.
+- **libghostty snapshots the process environment at `ghostty_init`** (zig 0.16's `std.process.Environ`,
+  #43). It builds every child shell's environment, and finds `$XDG_CONFIG_HOME/ghostty`, from that
+  snapshot, so a later `setenv` is invisible to it. Worse, the snapshot points into libc's `environ`
+  array, which `setenv` may reallocate. So **never `setenv`/`unsetenv` after `ghostty_init`**: do it
+  before `GhosttyRuntime.start()` (as `InheritedEnvironment`, `GhosttyResources` and
+  `ControlServer.start()` do), pass per-pane variables through `Pane.childEnvironment`, and in the
+  self-test use `GhosttyRuntime.configFileOverride` rather than a runtime `XDG_CONFIG_HOME`.
 - `swift build` compiles the code; `scripts/bundle.sh [debug|release]` produces `build/Dealer.app`.
 
 ## Running

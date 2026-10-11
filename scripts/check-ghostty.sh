@@ -15,7 +15,7 @@ PIN=$(grep -v '^#' "$REPO/scripts/ghostty.version" | tr -d '[:space:]')
 
 LIB=$(ls "$FW"/*/libghostty*.a 2>/dev/null | head -1 || true)
 if [ -z "$LIB" ]; then
-  echo "error: no GhosttyKit library under $FW. Build it with scripts/build-ghosttykit.sh (needs zig 0.15 and the Command Line Tools, not Xcode; see scripts/ghostty-build/README.md)." >&2
+  echo "error: no GhosttyKit library under $FW. Build it with scripts/build-ghosttykit.sh (needs zig 0.16 and the Command Line Tools, not Xcode; see scripts/ghostty-build/README.md)." >&2
   exit 1
 fi
 VERSION=$(LC_ALL=C grep -a -o -m1 -E '[0-9]+\.[0-9]+\.[0-9]+-[A-Za-z0-9.-]*\+[0-9a-f]{7,40}' "$LIB" | head -1 || true)
@@ -36,14 +36,14 @@ case $PIN in
     STAMP=$(cat "$RES/ghostty-commit" 2>/dev/null || true)
     [ "$STAMP" = "$PIN" ] && { echo "ghostty-resources OK: built from the pin"; exit 0; }
     MSG="$RES was built from Ghostty ${STAMP:-<no stamp>}, but scripts/ghostty.version pins $PIN.
-Rebuild with scripts/build-ghosttykit.sh (needs zig 0.15 and the Command Line Tools, not Xcode; see scripts/ghostty-build/README.md)."
+Rebuild with scripts/build-ghosttykit.sh (needs zig 0.16 and the Command Line Tools, not Xcode; see scripts/ghostty-build/README.md)."
     [ "${GHOSTTY_ANY_VERSION:-}" = 1 ] && { echo "WARNING: $MSG" >&2; exit 0; }
     echo "error: $MSG
 Set GHOSTTY_ANY_VERSION=1 to proceed anyway." >&2
     exit 1 ;;
 esac
 MSG="GhosttyKit at $FW was built from Ghostty $COMMIT ($VERSION), but scripts/ghostty.version pins $PIN.
-Rebuild it from the pinned commit: scripts/build-ghosttykit.sh (needs zig 0.15 and the Command Line Tools, not Xcode; see scripts/ghostty-build/README.md).
+Rebuild it from the pinned commit: scripts/build-ghosttykit.sh (needs zig 0.16 and the Command Line Tools, not Xcode; see scripts/ghostty-build/README.md).
 It tells you how to check out the pin."
 if [ "${GHOSTTY_ANY_VERSION:-}" = 1 ]; then
   echo "WARNING: $MSG" >&2
