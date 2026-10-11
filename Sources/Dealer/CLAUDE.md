@@ -155,6 +155,10 @@
   `visibleWorkspaceSwitchers`, before the edge bands (the pills lie in the titlebar row, which is
   otherwise the top-edge promote band). A new switcher style only needs to conform.
 - Both draw attention only through `AttentionStyle.draw` (#7 owns the look), called last in `draw`.
+- Both mark the selected workspace through `SelectionStyle` (WorkspaceSwitcher.swift, #52): the
+  `Theme.workspaceSelection` fill inset like the color tint (so an attention outline stays outside
+  and selection never reads as an outline), a left bar in the workspace color or `Theme.text`, and
+  `Theme.Fonts.workspaceActive`. Change both switchers together; `SelfTestSelection.swift` checks both.
 
 ## Settings (`Settings.swift`, `SettingsFile.swift`, `TOML.swift`, `SettingsBanner.swift`)
 

@@ -131,8 +131,8 @@ extension TerminalWindowController {
             if !near(chrome, Theme.chrome) { p.append("strip chrome \(hex(chrome)) ≠ \(hex(Theme.chrome))") }
             // Sidebar: the active workspace's row.
             if let row = (0..<workspaces.count).compactMap({ self.workspaceSidebar.row(at: $0) as? WorkspaceRow }).first(where: { $0.isActive }) {
-                let got = PixelProbe.sample(row, at: CGPoint(x: 3, y: row.bounds.midY))
-                if !near(got, Theme.surface) { p.append("sidebar row \(hex(got)) ≠ surface \(hex(Theme.surface))") }
+                let got = PixelProbe.sample(row, at: CGPoint(x: row.bounds.maxX - 4, y: row.bounds.midY))
+                if !near(got, Theme.workspaceSelection) { p.append("sidebar row \(hex(got)) ≠ selection \(hex(Theme.workspaceSelection))") }
             } else { p.append("no active sidebar row") }
             // Pane bar: its right end (no dots, no text, no × without hover).
             let bar = paneA().view.bar

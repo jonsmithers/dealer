@@ -134,13 +134,16 @@ final class WorkspaceButton: FlippedView {
     required init?(coder: NSCoder) { fatalError() }
 
     private var titleAttrs: [NSAttributedString.Key: Any] {
-        [.font: isActive ? Theme.Fonts.tabActive : Theme.Fonts.tab,
+        [.font: isActive && !isAddButton ? Theme.Fonts.workspaceActive : Theme.Fonts.tab,
          .foregroundColor: isActive || hovering ? Theme.text : Theme.textMuted]
     }
 
+    /// The title's font, for the self-test's weight check (#52).
+    var titleFontForTest: NSFont { titleAttrs[.font] as! NSFont }
+
     private var numberAttrs: [NSAttributedString.Key: Any] {
         [.font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium),
-         .foregroundColor: Theme.textFaint]
+         .foregroundColor: isActive && !isAddButton ? Theme.textMuted : Theme.textFaint]
     }
 
     private var numberWidth: CGFloat { number.isEmpty ? 0 : ceil((number as NSString).size(withAttributes: numberAttrs).width) + 6 }
@@ -149,6 +152,12 @@ final class WorkspaceButton: FlippedView {
     private var chipWidth: CGFloat { color == nil || isAddButton ? 0 : 10 }
     /// Where the color dot sits (also sampled by the self-test).
     var chipRect: CGRect { CGRect(x: Self.padding, y: (bounds.height - 6) / 2, width: 6, height: 6) }
+    /// The selected pill's bar (#52), in the left padding: the sidebar's bar, narrower, since a
+    /// pill has no room for a wider one without shifting its text.
+    var barRect: CGRect {
+        let w = Theme.Metrics.workspacePillBarWidth
+        return CGRect(x: 3, y: 6, width: w, height: bounds.height - 12)
+    }
 
     var idealWidth: CGFloat {
         if isAddButton { return 24 }
@@ -162,9 +171,9 @@ final class WorkspaceButton: FlippedView {
 
     override func draw(_ dirtyRect: NSRect) {
         let radius = Theme.Metrics.tabRadius
-        if isActive && !isAddButton {
-            Theme.surface.setFill()
-            NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).fill()
+        let selected = isActive && !isAddButton
+        if selected {
+            SelectionStyle.drawFill(in: bounds, cornerRadius: radius)
         } else if hovering {
             Theme.hover.setFill()
             NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).fill()
@@ -172,6 +181,7 @@ final class WorkspaceButton: FlippedView {
         if !isAddButton {
             ColorStyle.drawTint(color, in: bounds, cornerRadius: radius)
             ColorStyle.drawChip(color, in: chipRect)
+            if selected { SelectionStyle.drawBar(color, in: barRect) }
         }
 
         if isAddButton {

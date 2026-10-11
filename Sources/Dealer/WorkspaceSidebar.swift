@@ -119,8 +119,13 @@ final class WorkspaceRow: FlippedView {
 
     private static let padding: CGFloat = 10
 
-    /// Where the color chip sits (also sampled by the self-test).
-    static func chipRect(in bounds: CGRect) -> CGRect { CGRect(x: 4, y: 7, width: 3, height: bounds.height - 14) }
+    /// Where the color chip sits (also sampled by the self-test). The selected row's bar (#52) is
+    /// wider and taller, on the same center.
+    static func chipRect(in bounds: CGRect, active: Bool = false) -> CGRect {
+        guard active else { return CGRect(x: 4, y: 7, width: 3, height: bounds.height - 14) }
+        let w = Theme.Metrics.workspaceBarWidth
+        return CGRect(x: 5.5 - w / 2, y: 5, width: w, height: bounds.height - 10)
+    }
     private static let dotSize: CGFloat = 6
 
     override init(frame: NSRect) {
@@ -135,20 +140,23 @@ final class WorkspaceRow: FlippedView {
     private var titleAttrs: [NSAttributedString.Key: Any] {
         let para = NSMutableParagraphStyle()
         para.lineBreakMode = .byTruncatingTail
-        return [.font: isActive ? Theme.Fonts.tabActive : Theme.Fonts.tab,
+        return [.font: isActive && !isAddRow ? Theme.Fonts.workspaceActive : Theme.Fonts.tab,
                 .foregroundColor: isAddRow ? (hovering ? Theme.text : Theme.textFaint)
                     : (isActive || hovering ? Theme.text : Theme.textMuted),
                 .paragraphStyle: para]
     }
 
+    /// The title's font, for the self-test's weight check (#52).
+    var titleFontForTest: NSFont { titleAttrs[.font] as! NSFont }
+
     private var numberAttrs: [NSAttributedString.Key: Any] {
-        [.font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium), .foregroundColor: Theme.textFaint]
+        [.font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium), .foregroundColor: isActive && !isAddRow ? Theme.textMuted : Theme.textFaint]
     }
 
     private var detailAttrs: [NSAttributedString.Key: Any] {
         let para = NSMutableParagraphStyle()
         para.lineBreakMode = .byTruncatingMiddle
-        return [.font: Theme.Fonts.paneBar, .foregroundColor: Theme.textFaint, .paragraphStyle: para]
+        return [.font: Theme.Fonts.paneBar, .foregroundColor: isActive && !isAddRow ? Theme.textMuted : Theme.textFaint, .paragraphStyle: para]
     }
 
     override var mouseDownCanMoveWindow: Bool { false }
@@ -158,16 +166,17 @@ final class WorkspaceRow: FlippedView {
 
     override func draw(_ dirtyRect: NSRect) {
         let radius = Theme.Metrics.tabRadius
-        if isActive && !isAddRow {
-            Theme.surface.setFill()
-            NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).fill()
+        let selected = isActive && !isAddRow
+        if selected {
+            SelectionStyle.drawFill(in: bounds, cornerRadius: radius)
         } else if hovering {
             Theme.hover.setFill()
             NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).fill()
         }
         if !isAddRow {
             ColorStyle.drawTint(color, in: bounds, cornerRadius: radius)
-            ColorStyle.drawChip(color, in: Self.chipRect(in: bounds))
+            if selected { SelectionStyle.drawBar(color, in: Self.chipRect(in: bounds, active: true)) }
+            else { ColorStyle.drawChip(color, in: Self.chipRect(in: bounds)) }
         }
 
         let titleFont = titleAttrs[.font] as! NSFont

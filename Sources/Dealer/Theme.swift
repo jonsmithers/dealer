@@ -35,10 +35,12 @@ enum Theme {
 
     /// Self-test only (#14): runs `body` with `background` (and so `isDark` and every derived
     /// color) temporarily replaced, to check light and dark variants of draw-time colors.
-    static func withBackground<T>(_ bg: NSColor, _ body: () -> T) -> T {
-        let old = background
+    /// `foreground` replaces the foreground too, for a whole light or dark theme (#52).
+    static func withBackground<T>(_ bg: NSColor, foreground fg: NSColor? = nil, _ body: () -> T) -> T {
+        let old = (background, foreground)
         background = bg
-        defer { background = old }
+        if let fg { foreground = fg }
+        defer { (background, foreground) = old }
         return body()
     }
     static var appearance: NSAppearance? { NSAppearance(named: isDark ? .darkAqua : .aqua) }
@@ -61,6 +63,10 @@ enum Theme {
     static var textFaint: NSColor { foreground.mixed(with: chrome, 0.68) }
     /// Accent for single-deck windows, where deck colors aren't shown.
     static var accentNeutral: NSColor { foreground.mixed(with: chrome, 0.35) }
+    /// The selected workspace's switcher entry (#52): a neutral fill a fifth of the way from the
+    /// chrome to the foreground, well past `hover` (7%), in light and dark themes. Never an
+    /// outline (outlines mean attention) and never an attention color.
+    static var workspaceSelection: NSColor { chrome.mixed(with: foreground, 0.20) }
 
     /// Agent attention (#4, #7): needs input. The accent-blue outline on pane, tab and workspace.
     /// Two shades keep ≥ 4.9:1 contrast against the chrome: #5AA2FF on dark (6.3:1 on the default
@@ -112,6 +118,10 @@ enum Theme {
         static let sidebarWidth: CGFloat = 200
         static let sidebarRowHeight: CGFloat = 28
         static let sidebarRowDetailHeight: CGFloat = 40
+        /// The selected workspace's bar at the left edge of its sidebar row or pill (#52), in the
+        /// workspace's color or `Theme.text`. Unselected colored rows keep a 3pt chip.
+        static let workspaceBarWidth: CGFloat = 5
+        static let workspacePillBarWidth: CGFloat = 3
         static let paneBarHeight: CGFloat = 20
         /// The hover-only × on a pane bar (#24).
         static let paneBarCloseSize: CGFloat = 16
@@ -129,6 +139,8 @@ enum Theme {
     enum Fonts {
         static let tab = NSFont.systemFont(ofSize: 12, weight: .regular)
         static let tabActive = NSFont.systemFont(ofSize: 12, weight: .medium)
+        /// The selected workspace's name (#52): a step heavier than an active tab.
+        static let workspaceActive = NSFont.systemFont(ofSize: 12, weight: .semibold)
         static let paneBar = NSFont.systemFont(ofSize: 11, weight: .regular)
         static let overlay = NSFont.systemFont(ofSize: 12, weight: .medium)
     }

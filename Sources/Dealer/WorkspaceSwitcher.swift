@@ -21,6 +21,28 @@ protocol WorkspaceDropTargets: NSView {
 
 extension WorkspaceSidebarView: WorkspaceDropTargets {}
 
+/// How both switchers mark the selected workspace (#52): a strong neutral fill, a bar at the left
+/// edge (the workspace's color, or the text color without one) and a heavier title. The fill is
+/// inset like the color tint, so a waiting/failed outline still draws outside it and selection
+/// never reads as an outline.
+enum SelectionStyle {
+    static var inset: CGFloat { AttentionStyle.outlineWidth + 0.5 }
+
+    static func drawFill(in bounds: CGRect, cornerRadius: CGFloat) {
+        let r = bounds.insetBy(dx: inset, dy: inset), radius = max(cornerRadius - inset, 0)
+        Theme.workspaceSelection.setFill()
+        NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius).fill()
+    }
+
+    static func barColor(_ workspaceColor: NSColor?) -> NSColor { workspaceColor ?? Theme.text }
+
+    static func drawBar(_ workspaceColor: NSColor?, in rect: CGRect) {
+        barColor(workspaceColor).setFill()
+        let r = rect.width / 2
+        NSBezierPath(roundedRect: rect, xRadius: r, yRadius: r).fill()
+    }
+}
+
 extension TerminalWindowController {
     /// The switcher views currently showing; DragController offers them as drop targets.
     var visibleWorkspaceSwitchers: [WorkspaceDropTargets] {
