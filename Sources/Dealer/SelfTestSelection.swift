@@ -22,14 +22,36 @@ extension TerminalWindowController {
             let fill = PixelProbe.sample(v, at: CGPoint(x: v.bounds.maxX - 4, y: v.bounds.midY))
             let want = SelectionStyle.barColor(color)
             let barPx = [r.minX + 0.5, r.midX, r.maxX - 0.5].map { PixelProbe.sample(v, at: CGPoint(x: $0, y: r.midY)) }
-            let edge = PixelProbe.sample(v, at: PixelProbe.outlinePoint(in: v))
+            let out = outlineProblem(v)
             // A colored entry's tint lies over the fill; the bar carries its color.
             return [color != nil || PixelProbe.matches(fill, Theme.workspaceSelection) ? nil
                         : "\(what): fill is \(hex(fill)), want \(hex(Theme.workspaceSelection))",
                     barPx.allSatisfy { PixelProbe.matches($0, want) } ? nil
                         : "\(what): bar is \(barPx.map(hex)), want \(r.width)pt of \(hex(want))",
-                    (edge?.alphaComponent ?? 1) < 0.05 && !PixelProbe.matches(edge, Theme.attentionWaiting) ? nil
-                        : "\(what): the outline margin should stay empty, is \(hex(edge))"]
+                    out.map { "\(what): \($0)" }]
+        }
+        /// The neutral selection outline (#52): `Theme.text`, `workspaceSelectionOutline` wide, on the
+        /// top and left edges. At 2x the 1.5pt stroke covers three whole pixels; at 1x one whole pixel
+        /// and half of the next. Just inside it there is no outline color.
+        func outlineProblem(_ v: NSView) -> String? {
+            let w = Theme.Metrics.workspaceSelectionOutline, s = PixelProbe.scale
+            let solid = stride(from: 0.5 / s, to: floor(w * s) / s, by: 1 / s).map { $0 }
+            var pts = solid.map { CGPoint(x: v.bounds.midX, y: $0) } + solid.map { CGPoint(x: $0, y: v.bounds.midY) }
+            if w < 1.5 / s { pts = [CGPoint(x: v.bounds.midX, y: 0.5 / s)] }
+            let px = pts.map { PixelProbe.sample(v, at: $0) }
+            guard px.allSatisfy({ PixelProbe.matches($0, Theme.text) }) else {
+                return "outline should be \(w)pt of \(hex(Theme.text)), reads \(px.map(hex)) at y/x \(solid)"
+            }
+            let inside = PixelProbe.sample(v, at: CGPoint(x: v.bounds.midX, y: ceil(w * s + 0.5) / s + 0.5 / s))
+            if PixelProbe.matches(inside, Theme.text) { return "outline is wider than \(w)pt" }
+            if s < 2 {
+                // 1x: the stroke half covers the next pixel (the gap before the fill is transparent on
+                // a detached view, so that pixel is the text color at partial alpha).
+                let edge = PixelProbe.sample(v, at: CGPoint(x: v.bounds.midX, y: floor(w * s) / s + 0.5 / s))
+                let a = edge?.alphaComponent ?? 0
+                if !(0.2...0.8).contains(a) { return "@1x the stroke's last pixel should be partly covered, alpha \(a)" }
+            }
+            return nil
         }
         func unselected(_ v: NSView, bar r: CGRect, _ what: String) -> [String?] {
             let fill = PixelProbe.sample(v, at: CGPoint(x: v.bounds.maxX - 4, y: v.bounds.midY))
@@ -69,9 +91,18 @@ extension TerminalWindowController {
                     p.append(heavy(row.titleFontForTest, "\(name) row"))
                     p.append(heavy(pill.titleFontForTest, "\(name) pill"))
                     // Attention still draws its outline around a selected entry.
-                    row.attention = .waiting; pill.attention = .waiting
-                    p.append(PixelProbe.isWaitingOutlined(row) ? nil : "\(name): a selected waiting row lost its outline")
-                    p.append(PixelProbe.isWaitingOutlined(pill) ? nil : "\(name): a selected waiting pill lost its outline")
+                    // Attention's colored outline wins on a selected entry: exactly its color, on every edge
+                    // (no neutral stroke stacked under it), and the neutral one is back once it clears.
+                    for (state, color) in [(Attention.waiting, Theme.attentionWaiting), (.failed, Theme.attentionFailed)] {
+                        for (v, kind) in [(row as NSView, "row"), (pill, "pill")] {
+                            (v as? WorkspaceRow)?.attention = state; (v as? WorkspaceButton)?.attention = state
+                            let edges = [PixelProbe.outlinePoint(in: v), CGPoint(x: 0.25, y: v.bounds.midY)].map { PixelProbe.sample(v, at: $0) }
+                            p.append(edges.allSatisfy { PixelProbe.matches($0, color) } ? nil
+                                     : "\(name): a selected \(state) \(kind)'s outline should be \(hex(color)), reads \(edges.map(hex))")
+                        }
+                    }
+                    row.attention = .none; pill.attention = .none
+                    p.append(outlineProblem(row).map { "\(name) row after attention: \($0)" })
                     return p.compactMap { $0 }
                 } }
             }

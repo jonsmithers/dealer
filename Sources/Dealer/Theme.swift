@@ -122,6 +122,9 @@ enum Theme {
         /// workspace's color or `Theme.text`. Unselected colored rows keep a 3pt chip.
         static let workspaceBarWidth: CGFloat = 5
         static let workspacePillBarWidth: CGFloat = 3
+        /// The selected entry's neutral outline (#52): the attention outline's width and path, so an
+        /// attention outline covers it exactly.
+        static var workspaceSelectionOutline: CGFloat { AttentionStyle.outlineWidth }
         static let paneBarHeight: CGFloat = 20
         /// The hover-only × on a pane bar (#24).
         static let paneBarCloseSize: CGFloat = 16

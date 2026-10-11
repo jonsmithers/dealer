@@ -214,6 +214,10 @@ final class WorkspaceButton: FlippedView {
         let w = bounds.width - x - Self.padding - dotWidth
         (title as NSString).draw(in: CGRect(x: x, y: (bounds.height - h) / 2, width: max(w, 0), height: h), withAttributes: attrs)
 
+        if isActive {
+            SelectionStyle.drawOutline(in: bounds, cornerRadius: Theme.Metrics.tabRadius,
+                                       attention: attentionFade.shown, attentionAlpha: attentionFade.alpha)
+        }
         if attentionFade.shown > .none {
             // #7 owns the look: waiting outlines the pill, done/unread get a muted dot (Attention.swift).
             let d = Self.dotSize

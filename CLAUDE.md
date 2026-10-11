@@ -220,7 +220,9 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   Ghostty-style by veiling unfocused panes (`unfocused-split-fill`/`-opacity`); pane rings are
   reserved for attention. Don't reintroduce focus borders.
 - Workspace and tab colors (#9) are a chip/underline plus a faint tint, never an outline (outlines
-  mean attention). **A workspace's color shows only on its switcher entry**: the sidebar row, or
+  mean attention). The one non-attention outline is the selected workspace's switcher entry: neutral
+  (`Theme.text`, never a workspace or attention color), asked for by the user in #52, and it gives
+  way to an attention outline on the same entry. **A workspace's color shows only on its switcher entry**: the sidebar row, or
   the pill in top-bar mode (#15, #18; the user's call). Not in the deck area, and it has no effect
   at all on tabs (tint, underline, fill, or deck-color fallback). Tabs get color only from their own `Tab.color`; the
   per-deck underline stays and a tab color overrides it on that tab. `[colors] auto_assign`
