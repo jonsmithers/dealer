@@ -320,6 +320,7 @@ extension TerminalWindowController {
         ghosttyResourcesSelfTestSteps(kit)
         modalsSelfTestSteps(kit)
         memorySelfTestSteps(kit)
+        occlusionSelfTestSteps(kit)
 
         // `DEALER_SELFTEST_ONLY=<prefix>` keeps only the steps whose title starts with it, for a
         // quick run of one self-contained section (e.g. `memory:`). Merges always run them all.

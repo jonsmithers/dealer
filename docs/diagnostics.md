@@ -19,7 +19,8 @@ a few seconds. Attach the file to a GitHub issue (for example #43).
 - **Objects:** live counts of windows, workspaces, decks, tabs, panes, their views, and libghostty
   surfaces, next to how many the open windows actually hold. A count above that is a leak.
 - **Panes:** one line per pane, numbered in tree order: its window, workspace, deck and tab
-  *numbers*, whether it's on screen, its grid (columns × rows), its pixel and cell size, and
+  *numbers*, whether the layout shows it (`visible`/`hidden`; `window-occluded` when its window is
+  minimized, covered or on another Space), its grid (columns × rows), its pixel and cell size, and
   whether a process is running in it.
 - **`vmmap --summary`** of Dealer (memory by region type: IOSurface and IOAccelerator are
   terminal renderer memory, MALLOC is ordinary heap).
@@ -39,10 +40,12 @@ before you attach it.
 
 ## What's normal
 
-Each terminal surface has its own renderer, whether its pane is on screen or in a background tab
-or workspace. Measured at the pinned Ghostty, in a full-screen window on a Retina display
-(2336×1340 px per surface), each pane costs about **65–70 MB**, almost all of it GPU buffers
-(IOSurface, IOAccelerator), plus four threads. The cost grows with the window's pixel size.
-Scrollback adds at most ghostty's `scrollback-limit` per pane (10 MB by default). So 70 panes
-in a big window come to about 5 GB with no leak at all. libghostty's C API doesn't report memory
-per surface, so the report can't break that down per pane. It lists each pane's pixel size instead.
+Each terminal surface has its own renderer. While a pane is drawn, its renderer holds three
+window-sized render targets (IOSurface), plus six more window-sized textures (IOAccelerator) if
+your ghostty config sets `custom-shader`: at 3020×2036 px that's about 75 MB, or about 220 MB with
+a shader, plus four threads. A pane that isn't drawn (a background tab or workspace, a parked deck,
+or any pane of a minimized or fully covered window, #54) gives that memory back within a moment
+and costs a few MB (#43, Ghostty since c4e16970a). A pane that was created hidden and never shown
+keeps one window-sized buffer until it's first shown (#53). Scrollback adds at most ghostty's
+`scrollback-limit` per pane (10 MB by default). libghostty's C API doesn't report memory per
+surface, so the report can't break that down per pane. It lists each pane's pixel size instead.

@@ -41,6 +41,11 @@
 - **Hide surfaces; don't remove them.** Panes in background tabs, and decks hidden by a
   window-level zoom, get `isHidden = true` plus `surface.setVisible(false)`
   (ghostty occlusion). Reparenting a pane between decks is just `addSubview`.
+- **Occlusion has one rule (#54):** `SurfaceView` tells libghostty a pane is visible only when
+  `setVisible` (the layout's say) is true AND its window is visible (`WindowVisibility`: not
+  minimized, not covered, not on another Space; each SurfaceView observes its own window). Never
+  call `ghostty_surface_set_occlusion` elsewhere. Occluded surfaces free their GPU swap chain but
+  keep their size, shell, scrollback and attention; occlusion never resizes.
 - **Out-of-view panes still get their real size (#45).** Background tabs are laid out in their
   deck's bounds (`sizeHidden`), and parked decks (other workspaces, zoom-hidden) at their
   workspace's unzoomed frame (`sizeParked`). A pane created out of view otherwise has no frame,

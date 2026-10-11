@@ -72,6 +72,7 @@ final class SurfaceView: NSView, NSTextInputClient {
     required init?(coder: NSCoder) { fatalError() }
 
     deinit {
+        windowObservers.forEach { NotificationCenter.default.removeObserver($0) }
         LiveObjects.remove(.surfaceView)
         if let surface {
             ghostty_surface_free(surface)
@@ -94,8 +95,54 @@ final class SurfaceView: NSView, NSTextInputClient {
         return ghostty_surface_needs_confirm_quit(surface)
     }
 
+    // MARK: Occlusion (#43, #54)
+    //
+    // One rule: libghostty is told a pane is visible only when the layout shows it AND its window
+    // is visible (not minimized, not fully covered, not on another Space). Occluded surfaces stop
+    // drawing and free their GPU swap chain; their shell, scrollback, size and attention go on.
+
+    /// The layout's say: false for background tabs, parked decks, other workspaces, zoomed-away panes.
+    private(set) var layoutVisible = true
+    /// The window's say, from `NSWindow.occlusionState` (see `WindowVisibility`).
+    private(set) var windowVisible = true
+    private var sentOcclusion: Bool?
+    private var windowObservers: [NSObjectProtocol] = []
+
+    /// What libghostty was last told: the pane is drawn.
+    var isEffectivelyVisible: Bool { layoutVisible && windowVisible }
+
     func setVisible(_ visible: Bool) {
-        if let surface { ghostty_surface_set_occlusion(surface, visible) }
+        layoutVisible = visible
+        syncOcclusion()
+    }
+
+    private func syncOcclusion() {
+        let visible = isEffectivelyVisible
+        guard let surface, sentOcclusion != visible else { return }
+        sentOcclusion = visible
+        ghostty_surface_set_occlusion(surface, visible)
+    }
+
+    /// Re-reads the window's visibility. A view outside any window keeps its last state, so a
+    /// reparent (moving a pane between decks or windows) doesn't flap occlusion.
+    func updateWindowVisibility() {
+        guard let window else { return }
+        windowVisible = WindowVisibility.isVisible(window)
+        syncOcclusion()
+    }
+
+    private func observeWindow() {
+        windowObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        windowObservers = []
+        guard let window else { return }
+        let names: [Notification.Name] = [NSWindow.didChangeOcclusionStateNotification,
+                                          NSWindow.didMiniaturizeNotification, NSWindow.didDeminiaturizeNotification]
+        windowObservers = names.map {
+            NotificationCenter.default.addObserver(forName: $0, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.updateWindowVisibility() }
+            }
+        }
+        updateWindowVisibility()
     }
 
     func perform(_ action: String) {
@@ -122,6 +169,7 @@ final class SurfaceView: NSView, NSTextInputClient {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         updateScale()
+        if window != nil { observeWindow() }
     }
 
     override func viewDidChangeBackingProperties() {

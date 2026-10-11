@@ -227,6 +227,7 @@ enum Diagnostics {
                             let shown = p.view.window != nil && !p.view.isHiddenOrHasHiddenAncestor
                             var s = "pane \(n): window \(wi + 1) workspace \(si + 1) deck \(di + 1) tab \(ti + 1)"
                                 + (shown ? " visible" : " hidden")
+                                + (shown && !p.surface.windowVisible ? " window-occluded" : "")  // #54
                             if let surface = p.surface.surface {
                                 let z = ghostty_surface_size(surface)
                                 s += " grid \(z.columns)x\(z.rows) px \(z.width_px)x\(z.height_px) cell \(z.cell_width_px)x\(z.cell_height_px)"
