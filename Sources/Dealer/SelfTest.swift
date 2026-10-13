@@ -301,6 +301,7 @@ extension TerminalWindowController {
         settingsSelfTestSteps(kit)
         colorsSelfTestSteps(kit)
         titlebarTabsSelfTestSteps(kit)
+        titlebarAccentSelfTestSteps(kit)
         tabDragSelfTestSteps(kit)
         tabFitSelfTestSteps(kit)
         fileDropSelfTestSteps(kit)

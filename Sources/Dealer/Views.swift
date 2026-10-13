@@ -284,7 +284,9 @@ final class DeckView: FlippedView, ThemeApplying {
     }
 
     /// True when the window has several decks and each shows its identity color.
-    var showsColor = false { didSet { if showsColor != oldValue { strip.reload() } } }
+    /// Passed on to the strip, which keeps its own copy: in the titlebar row (#16) the strip's
+    /// superview isn't this deck view (#59).
+    var showsColor = false { didSet { if showsColor != oldValue { strip.showsDeckColor = showsColor } } }
 
     /// True while `strip` lives in the window's titlebar row (#16, TitlebarTabs.swift); the content
     /// card then fills the whole deck. Set by the controller, which also reparents the strip.
@@ -305,6 +307,8 @@ final class DeckView: FlippedView, ThemeApplying {
 
 final class TabStripView: FlippedView {
     unowned let deck: Deck
+    /// Whether tabs underline in the deck's color (several decks), set by the `DeckView`.
+    var showsDeckColor = false { didSet { if showsDeckColor != oldValue { reload() } } }
     private(set) var buttons: [TabButton] = []
     /// The strip's "+" (internal for the demo pointer and tests).
     let addButton = HoverButton()
@@ -344,14 +348,13 @@ final class TabStripView: FlippedView {
         while buttons.count > deck.tabs.count {
             buttons.removeLast().removeFromSuperview()
         }
-        let showsColor = (superview as? DeckView)?.showsColor ?? false
         for (i, tab) in deck.tabs.enumerated() {
             let b = buttons[i]
             b.tab = tab
             b.deck = deck
             b.title = tab.title
             b.isActive = i == deck.activeIndex
-            b.accent = showsColor ? deck.color : nil
+            b.accent = showsDeckColor ? deck.color : nil
             b.attention = tab.attention
             b.color = tab.color
             b.toolTip = tab.focusTarget?.statusLine  // AgentStatus.swift
