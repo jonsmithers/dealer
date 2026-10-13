@@ -238,6 +238,31 @@ extension TerminalWindowController {
             report = (try? String(contentsOfFile: reportPath, encoding: .utf8)) ?? ""
             try? FileManager.default.removeItem(atPath: reportPath)
         }
+        // #60: `close tab:N` never asks (a sheet would leave the reply pending, or the tab open on
+        // Cancel), and the tab is gone when the reply arrives.
+        var closeTabBusy = false
+        var closeTabReply: [String: Any]?
+        var closeTabStillThere = false
+        var closeTabAsked: [String] = []
+        t.step("cli: close tab:N with a busy pane closes it without asking, before replying (#60)", nil, {
+            all(closeTabReply?["tab"] == nil ? "close tab should reply with the tab id" : nil,
+                closeTabStillThere ? "the tab still existed when the reply came" : nil,
+                closeTabAsked.isEmpty ? nil : "close tab asked for confirmation: \(closeTabAsked)",
+                !live || closeTabBusy ? nil : "`sleep 30` should have made the pane busy")
+        }) {
+            created(call("create", ["type": "tab", "target": "\(ids["c0"] ?? 0)", "focus": false]), "ctb")
+            guard let tab = self.locate(t.pane("ctb"))?.tab else { return }
+            if live {
+                t.pane("ctb").surface.typeText("sleep 30\r")
+                closeTabBusy = SelfTest.waitUntil(timeout: 15) { t.pane("ctb").surface.needsConfirmQuit }
+            } else {
+                _ = skipped("a busy pane in the closed tab")
+            }
+            let before = Confirmation.autoAccepted.count
+            closeTabReply = call("close", ["target": "tab:\(tab.id)"])
+            closeTabStillThere = self.deck(of: tab) != nil
+            closeTabAsked = Array(Confirmation.autoAccepted.dropFirst(before))
+        }
         t.step("cli: close the test workspace", nil, {
             self.workspaces.contains { $0.name == "cli" } ? "workspace should be gone" : nil
         }) {

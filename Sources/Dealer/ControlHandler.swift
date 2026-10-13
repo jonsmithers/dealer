@@ -699,12 +699,13 @@ enum ControlHandler {
 
     static func close(_ args: [String: Any], _ ctx: Context) throws -> [String: Any] {
         let loc = try resolve(args["target"], ctx)
+        // No confirmation, for a tab or a pane: a script asked for it, and the reply must come
+        // after the change (a sheet would leave it pending, or cancelled).
         if loc.pane == nil, let tab = loc.tab {
-            loc.wc.close(tab: tab)
+            loc.wc.remove(tab: tab)
             return ["tab": tab.id]
         }
         guard let pane = loc.focusPane else { throw Failure(message: "no pane to close") }
-        // No confirmation: a script asked for it.
         loc.wc.remove(pane)
         return ["pane": pane.id]
     }

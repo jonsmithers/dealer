@@ -207,18 +207,23 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
+    /// Closes a tab, asking first when one of its panes is busy (menus, ⌘W).
     func close(tab: Tab) {
-        let run = { [weak self] in
-            guard let self, let deck = self.deck(of: tab) else { return }
-            self.detach(tab: tab, from: deck)
-            tab.panes.forEach { $0.view.removeFromSuperview() }
-            self.finishChange(focus: nil)
-        }
         if tab.panes.contains(where: { $0.surface.needsConfirmQuit }) {
-            confirm("Close this tab?", info: "A process is still running in one of its panes.", then: run)
+            confirm("Close this tab?", info: "A process is still running in one of its panes.") { [weak self] in
+                self?.remove(tab: tab)
+            }
         } else {
-            run()
+            remove(tab: tab)
         }
+    }
+
+    /// Removes a tab and its panes for good, without asking (`dealer close tab:N`, #60).
+    func remove(tab: Tab) {
+        guard let deck = deck(of: tab) else { return }
+        detach(tab: tab, from: deck)
+        tab.panes.forEach { $0.view.removeFromSuperview() }
+        finishChange(focus: nil)
     }
 
     /// Removes a pane for good (its shell exited or the user closed it).
