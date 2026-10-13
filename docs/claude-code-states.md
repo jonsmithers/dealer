@@ -105,13 +105,13 @@ Other relevant payload fields:
 
 ## Mapping onto Dealer
 
-| Dealer state | Set by | Cleared by |
-|---|---|---|
-| **running** | OSC 9;4 progress set (automatic, no setup) | progress removed (`9;4;0`); outranked by waiting/done |
-| **failed** | `dealer notify --state failed` from the `StopFailure` hook (#29, `[agent] errors_as_failed`); also `dealer run` failures and shell commands exiting non-zero | focusing the pane |
-| **waiting** | `dealer notify --state waiting` from hooks: `PermissionRequest`, `Notification` (`permission_prompt`, `elicitation_*`). Automatic since #12 (bundled plugin) | focusing the pane |
-| **done** | `dealer notify --state done` from the `Stop` hook. Automatic since #12 | focusing the pane |
-| **unread** | OSC 9/99/777 desktop notifications (Claude's own OSC 777 included), the bell, commands running ≥ 10 s | focusing the pane |
+| Dealer state | Set by | Default look | Cleared by |
+|---|---|---|---|
+| **running** | OSC 9;4 progress set (automatic, no setup) | "running" in the pane bar only | progress removed (`9;4;0`); outranked by waiting/done |
+| **failed** | `dealer notify --state failed` from the `StopFailure` hook (#29, `[agent] errors_as_failed`); also `dealer run` failures and shell commands exiting non-zero | red outline (not configurable) | focusing the pane |
+| **waiting** | `dealer notify --state waiting` from hooks: `PermissionRequest`, `Notification` (`permission_prompt`, `elicitation_*`). Automatic since #12 (bundled plugin) | blue outline (not configurable) | focusing the pane |
+| **done** | `dealer notify --state done` from the `Stop` hook. Automatic since #12 | blue outline, like waiting (#61; `[attention] done = "dot"` for a muted dot) | focusing the pane |
+| **unread** | OSC 9/99/777 desktop notifications (Claude's own OSC 777 included), the bell, successful commands that ran ≥ 10 s | muted dot (`[attention] unread = "outline"` to outline it) | focusing the pane |
 
 Since #12 these hooks load automatically in every Dealer pane; see
 [Injecting the hooks automatically](#injecting-the-hooks-automatically-12). The README's
@@ -120,12 +120,14 @@ Since #12 these hooks load automatically in every Dealer pane; see
 ### Gaps
 
 1. **Without hooks, a waiting Claude is labelled *unread*, not *waiting*.** Claude's own
-   OSC 777 lands as `unread` (a quiet grey dot since #7), and only after about 6 s. Until
+   OSC 777 lands as `unread` (a quiet grey dot by default), and only after about 6 s. Until
    then the pane shows *running*, because progress stays set while the dialog is open. Hooks
    fix this, and since #12 they're on by default. Title-based detection (#11) was closed as
    not planned in favor of #12, so Claude Code older than 2.1.280 still needs the manual recipe.
 2. **The catch-all `Notification` hook mislabelled idle as waiting.** `idle_prompt` fires
-   about 60 s after every finished turn, so a *done* pane turned blue a minute later.
+   about 60 s after every finished turn, so a *done* pane became *waiting* a minute later
+   (back then *done* was a grey dot, so it visibly turned blue; since #61 *done* is outlined
+   blue by default, but the state would still be wrong).
    *Fixed in #7:* the README hook now matches only
    `permission_prompt|elicitation_dialog|elicitation_url_dialog`.
 3. **`permission_prompt` is late** (about 6 s). *Fixed in #7:* the README adds a
@@ -312,7 +314,7 @@ self-test checks both the app and a pane's shell.
     --body "Permission: Bash"` (exit 0), and the pane showed the blue ring, tab outline and
     "waiting".
   - After approval, `Stop` produced `--state done` (exit 0), and the pane showed "done" with
-    a muted tab dot.
+    a muted tab dot (the look at the time; since #61 *done* is outlined blue by default).
   - The permission prompt itself worked normally.
 - The same plugin in a scratch interactive run also produced the ~6 s `permission_prompt`
   notification → *waiting*.

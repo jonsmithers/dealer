@@ -26,6 +26,27 @@ enum SettingsFile {
     # errors_as_failed = true
 
     [attention]
+    # The four attention states, most urgent first (a tab or workspace shows its most urgent pane,
+    # and ⌘⇧U visits them in this order). A mark is skipped on the pane you're looking at.
+    #
+    #   state    set by                                                   default look  setting
+    #   failed   `dealer run` job exits non-zero; Claude turn ends in an  red outline   not configurable
+    #            API error; shell command exits non-zero (failed_commands);
+    #            `dealer notify --state failed`
+    #   waiting  Claude permission prompt or question; MCP input request;  blue outline  not configurable
+    #            `dealer notify --state waiting`
+    #   done     Claude finishes a turn; `dealer run` succeeds (the job    blue outline  done = "outline" | "dot"
+    #            pane with --keep, else the pane you ran it from);
+    #            `dealer notify --state done`
+    #   unread   bell; desktop notification (OSC 9, 99, 777) from any      dot           unread = "dot" | "outline"
+    #            program; shell command that succeeded after 10 s or more;
+    #            `dealer notify` (its default state)
+    #
+    # "outline" draws the state exactly like waiting: a blue ring around the pane and a blue outline,
+    # tint and dot on its tab and workspace. "dot" is a muted dot on the tab and workspace only.
+    # done = "outline"
+    # unread = "dot"
+
     # Mark a pane failed (red) when a shell command exits non-zero while you're not looking at it.
     # Needs shell integration (Ghostty's, which Dealer bundles).
     # failed_commands = true

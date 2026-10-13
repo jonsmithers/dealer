@@ -298,6 +298,7 @@ extension TerminalWindowController {
         sidebarSelfTestSteps(kit)
         switcherSelfTestSteps(kit)
         selectionSelfTestSteps(kit)
+        attentionStyleSelfTestSteps(kit)
         settingsSelfTestSteps(kit)
         colorsSelfTestSteps(kit)
         titlebarTabsSelfTestSteps(kit)

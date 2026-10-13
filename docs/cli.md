@@ -100,7 +100,8 @@ b_str() { dealer run --quiet -- "$@"; }   # same, without the "done" mark on suc
   `[attention] failed_commands`.
 - **Success:** Dealer closes the pane itself (the shell never exits on its own; ghostty would
   keep a shell that exits within 250 ms of starting open as "abnormal"). With `[jobs] close_on_success = false` or
-  `--keep` it stays. The *done* mark (a muted dot), plus a macOS notification when Dealer isn't
+  `--keep` it stays. The *done* mark (a blue outline by default, like *waiting*;
+  `[attention] done = "dot"` makes it a muted dot), plus a macOS notification when Dealer isn't
   in front, goes on the job pane when it stays, and on the pane you ran it from when the job
   pane closes. A mark is skipped on the pane you're looking at, so a closing job run from the
   pane you're still in shows only its pane going away. `--quiet` skips the mark and notification.

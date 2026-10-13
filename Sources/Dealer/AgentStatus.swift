@@ -95,13 +95,9 @@ extension PaneBarView {
         let faint: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: Theme.textFaint]
         let text = NSMutableAttributedString(string: status, attributes: faint)
         if state != .idle {
-            let color: NSColor
-            switch state {
-            case .failed: color = Theme.attentionFailed
-            case .waiting: color = Theme.attentionWaiting
-            case .done: color = Theme.attentionDone
-            default: color = Theme.textMuted
-            }
+            // The attention colour (an outlined done is blue, #61); "running" has none.
+            let color = state == .running ? Theme.textMuted
+                : ((superview as? PaneView)?.pane?.attention.color ?? Theme.textMuted)
             text.addAttribute(.foregroundColor, value: color, range: NSRange(location: 0, length: state.rawValue.utf16.count))
         }
         let maxWidth = max(bounds.width * 0.55 - 10, 0)

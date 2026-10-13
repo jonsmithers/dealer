@@ -38,14 +38,24 @@ enum Attention: Int, Comparable, CaseIterable {
         }
     }
 
-    /// `waiting` and `failed` get outlines (pane ring, tab and workspace outline); the rest a dot.
-    var outlined: Bool { self == .waiting || self == .failed }
+    /// Whether the state is drawn with an outline (pane ring, tab and workspace outline, tint and
+    /// dot) rather than a muted dot only. `waiting` and `failed` always are; `done` and `unread`
+    /// follow `[attention] done` / `unread` (#61; by default done is outlined, unread a dot).
+    /// The one place every drawer asks, so the setting applies everywhere at once. Read live.
+    var outlined: Bool {
+        switch self {
+        case .none: return false
+        case .waiting, .failed: return true
+        case .done: return Settings.attentionDoneOutlined
+        case .unread: return Settings.attentionUnreadOutlined
+        }
+    }
 
-    /// Badge/ring colour, or nil for none.
+    /// Badge/ring colour, or nil for none. An outlined done/unread looks exactly like waiting.
     var color: NSColor? {
         switch self {
         case .none: return nil
-        case .unread, .done: return Theme.attentionDone
+        case .unread, .done: return outlined ? Theme.attentionWaiting : Theme.attentionDone
         case .waiting: return Theme.attentionWaiting
         case .failed: return Theme.attentionFailed
         }
@@ -310,7 +320,8 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
 extension PaneView {
     private static let ringName = "dealer.attentionRing"
 
-    /// An accent ring over the whole pane while an agent in it is waiting (#7; done/unread get no ring). Its own layer, above the
+    /// An accent ring over the whole pane while its state is outlined (#7: waiting and failed, plus
+    /// done/unread when `[attention]` outlines them, #61). Its own layer, above the
     /// Metal surface, so it doesn't fight the pane's focus styling.
     func updateAttentionRing() {
         if attentionFade.onChange == nil { attentionFade.onChange = { [weak self] in self?.applyAttentionRing() } }
@@ -359,7 +370,8 @@ extension TabButton {
 /// The one look for attention on chrome (tabs, workspace pills and sidebar rows), #7.
 /// - waiting: a 1.5pt accent-blue outline on the element's outer edge, a faint blue tint and a blue dot;
 /// - failed (#29): the same in red, and the dot carries a `!` so the state isn't color-only;
-/// - done / unread: a muted dot only;
+/// - done / unread: drawn like waiting when `Attention.outlined` says so (`[attention] done` /
+///   `unread`, #61; done is outlined by default), else a muted dot only;
 /// - none: nothing.
 /// Call it last in `draw(_:)`, so the outline sits on top of the element's own fill.
 enum AttentionStyle {

@@ -55,6 +55,8 @@ enum Settings {
         "agent.inject_hooks": .bool,
         "agent.errors_as_failed": .bool,
         "attention.failed_commands": .bool,
+        "attention.done": .oneOf(["outline", "dot"]),
+        "attention.unread": .oneOf(["dot", "outline"]),
         "workspaces.switcher": .oneOf(WorkspaceSwitcherStyle.allCases.map(\.rawValue)),
         "colors.auto_assign": .bool,
         "window.tabs_in_titlebar": .bool,
@@ -259,6 +261,13 @@ enum Settings {
     /// `[attention] failed_commands` (#29): a shell command that exits non-zero in a pane you aren't
     /// looking at marks it *failed* (red). Needs shell integration. Default true. Read live.
     static var attentionFailedCommands: Bool { bool("attention.failed_commands") ?? true }
+
+    /// `[attention] done` (#61): "outline" (default) draws *done* exactly like *waiting*; "dot" a
+    /// muted dot only. Read live through `Attention.outlined`.
+    static var attentionDoneOutlined: Bool { (string("attention.done") ?? "outline") == "outline" }
+
+    /// `[attention] unread` (#61): "dot" (default) or "outline" (drawn like *waiting*). Read live.
+    static var attentionUnreadOutlined: Bool { (string("attention.unread") ?? "dot") == "outline" }
 
     /// `[window] tabs_in_titlebar` (#16): top-edge decks' tab strips sit in the titlebar row.
     static var tabsInTitlebar: Bool { bool("window.tabs_in_titlebar") ?? false }

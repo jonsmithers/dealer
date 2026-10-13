@@ -218,8 +218,10 @@ workspace containing it get a blue outline and a blue dot, so you can see where 
 from anywhere. When something **failed**, the same ring, outline and dot appear in **red**,
 and the dot carries a `!` so it doesn't rely on color alone. That covers a `dealer run` job
 exiting non-zero, a Claude turn ending in an API error, and a shell command exiting non-zero
-while you're not looking. **Done** and **unread** (something finished or rang) are deliberately quieter:
-a muted grey dot on the tab and workspace, with no ring or outline. The blue is a lighter shade
+while you're not looking. **Done** (an agent finished its turn, a job succeeded: your move) looks
+exactly like waiting by default: blue ring, outline and dot. **Unread** (something rang or a long
+command finished) is deliberately quieter: a muted grey dot on the tab and workspace, with no ring
+or outline. Both looks are settings (`[attention] done` and `unread`, below). The blue is a lighter shade
 on dark ghostty themes and a deeper one on light themes, and so is the red. Focusing the pane
 clears all of it. A tab or workspace shows its most urgent pane: failed, then waiting, then done,
 then unread. **⌘⇧U** (Window > Jump to Next Unread) goes to the most urgent pane in any window,
@@ -230,6 +232,15 @@ When attention clears, its ring, outline and dot **fade out** over about a secon
 vanishing, so you can see which pane called you. Arriving via ⌘⇧U or a notification holds the
 color for half a second first. The state itself clears at once: ⌘⇧U and `dealer` see it gone
 immediately. With macOS **Reduce Motion** on, there's no fade (the hold stays).
+
+| State | Set by | Default look | Setting |
+|---|---|---|---|
+| **failed** | a `dealer run` job exits non-zero; a Claude turn ends in an API error (`[agent] errors_as_failed`, default on); a shell command exits non-zero (`[attention] failed_commands`, default on); `dealer notify --state failed` | red outline | not configurable |
+| **waiting** | a Claude permission prompt, question or plan approval; an MCP server asking for input; `dealer notify --state waiting` | blue outline | not configurable |
+| **done** | Claude finishes a turn; a `dealer run` job succeeds (marks the job pane with `--keep`, else the pane you ran it from); `dealer notify --state done` | blue outline | `done = "outline"` (default) or `"dot"` |
+| **unread** | the bell; a desktop notification (OSC 9, 99 or 777) from any program; a shell command that succeeded after running 10 s or more; `dealer notify` with no `--state` | grey dot | `unread = "dot"` (default) or `"outline"` |
+
+Most urgent first: failed > waiting > done > unread, whatever the looks.
 
 Sources:
 - the bell (BEL);
@@ -373,6 +384,11 @@ tabs_in_titlebar = false # put top-edge decks' tab strips in the titlebar row
 [colors]
 auto_assign = false      # color new workspaces with the next unused swatch
 palette = ["#e06c75", "#98c379", "#61afef"]   # replaces the preset swatches
+
+[attention]              # see the table under Attention for every state
+done = "outline"         # or "dot": done looks like waiting (blue outline) or gets a muted dot
+unread = "dot"           # or "outline"
+failed_commands = true   # a shell command exiting non-zero marks the pane failed
 
 [jobs]                   # `dealer run` (see Scripting below)
 placement = "split"      # or "tab" (a background tab next to yours)

@@ -210,8 +210,9 @@ extension TerminalWindowController {
                     if !PixelProbe.isWaitingOutlined(b) { problems.append("\(name): outline is \(px?.hexString ?? "nil"), want \(Theme.attentionWaiting.hexString)") }
                     // The other theme's blue is a near miss and must not pass.
                     if PixelProbe.matches(px, variants[1 - i].2) { problems.append("\(name): the other theme's blue would pass too") }
-                    b.attention = .done
-                    if PixelProbe.isWaitingOutlined(b) { problems.append("\(name): done must not draw the outline") }
+                    // A dot-only state must not pass the probe (#61 outlines done by default; unread stays a dot).
+                    b.attention = .unread
+                    if PixelProbe.isWaitingOutlined(b) { problems.append("\(name): unread (a dot by default) must not draw the outline") }
                     return problems
                 } }
             }

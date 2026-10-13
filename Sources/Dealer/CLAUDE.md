@@ -163,8 +163,8 @@
 - Both mark the selected workspace through `SelectionStyle` (WorkspaceSwitcher.swift, #52): the
   `Theme.workspaceSelection` fill inset like the color tint, a left bar in the workspace color or
   `Theme.text`, `Theme.Fonts.workspaceActive`, and a neutral `Theme.text` outline (the user asked
-  for it). The outline has the attention outline's width and path and yields to it: on a waiting or
-  failed entry only the colored outline shows (selection alpha = 1 − attention alpha, so it
+  for it). The outline has the attention outline's width and path and yields to it: on an outlined entry
+  (waiting, failed, and done/unread when `[attention]` outlines them) only the colored outline shows (selection alpha = 1 − attention alpha, so it
   cross-fades back during #34's fade). Draw it just before `AttentionStyle.draw`, never after.
   Change both switchers together; `SelfTestSelection.swift` checks both.
 
@@ -372,9 +372,15 @@
   saved. Animations whose timing isn't under test (drop settle, #28) are only waited out with
   `waitUntil` on their end state. A fade step must first wait out the reveal window
   (`AttentionFade.timing().hold == 0`) if a ⌘⇧U step may precede it.
-- Look (#7): `waiting` and `failed` are outlined (`Attention.outlined`). That means the pane ring plus an outline on the tab and
-  workspace entry, in `Theme.attentionWaiting` (adaptive blue). `done`/`unread` are a muted dot
-  only (`Theme.attentionDone` = `textMuted`). Chrome elements draw attention only through
+- Look (#7, #61): `Attention.outlined` is the single answer to "outline or dot", and `Attention.color`
+  the colour; every drawer (pane ring, `AttentionStyle`, `SelectionStyle`'s yield, the status line)
+  reads them, never the state directly. `waiting` and `failed` are always outlined; `done` follows
+  `[attention] done` (default "outline") and `unread` follows `[attention] unread` (default "dot"),
+  read live. Outlined means the pane ring plus an outline, tint and dot on the tab and workspace entry;
+  an outlined done/unread is exactly waiting's look, in `Theme.attentionWaiting` (adaptive blue). A
+  dot state is a muted dot only (`Theme.attentionDone` = `textMuted`). Priority doesn't change with
+  the look. A settings reload of those keys calls `applyTheme()` so unchanged marks redraw
+  (`SelfTestAttentionStyle.swift`). Chrome elements draw attention only through
   `AttentionStyle.draw(_:in:cornerRadius:dotRect:)`, called last in `draw(_:)` so the outline
   sits on the element's outer edge. The self-test samples the top edge's centre pixel
   (`PixelProbe.isWaitingOutlined`), so don't inset the outline or draw it in a sublayer.

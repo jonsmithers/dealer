@@ -91,5 +91,8 @@ extension TerminalWindowController {
     @objc private func settingsDidChange(_ note: Notification) {
         layoutNow()
         refreshChrome()
+        // The attention look (#61) changes how unchanged marks draw: redraw every element.
+        let keys = note.userInfo?["keys"] as? Set<String> ?? []
+        if keys.contains("attention.done") || keys.contains("attention.unread") { applyTheme() }
     }
 }
