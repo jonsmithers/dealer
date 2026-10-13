@@ -688,7 +688,7 @@ enum ControlHandler {
         return ["pane": pane.id]
     }
 
-    /// `notify`, or `--source`'s label (the Claude hook sends `claude:<event>`), kept to one short word.
+    /// `notify`, or the hook script's `--internal-log-source` label (the Claude hook sends `claude:<event>`), kept to one short word.
     static func notifyEvent(_ args: [String: Any]) -> String {
         guard let s = args["source"] as? String, !s.isEmpty else { return "notify" }
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: ":-_."))

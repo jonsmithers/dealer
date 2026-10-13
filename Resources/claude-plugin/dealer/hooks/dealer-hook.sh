@@ -22,6 +22,7 @@ case "${1:-}" in
     *) exit 0 ;;
 esac
 
-# --source only labels the call in Dealer's notification log ([notifications] log, #56).
-"${DEALER_CLI:-dealer}" notify --state "$state" --title "Claude Code" --body "$body" --source "claude:$1" >/dev/null 2>&1
+# --internal-log-source is undocumented and hook-only: it labels the call in Dealer's notification
+# log ([notifications] log, #56) and changes nothing else.
+"${DEALER_CLI:-dealer}" notify --state "$state" --title "Claude Code" --body "$body" --internal-log-source "claude:$1" >/dev/null 2>&1
 exit 0

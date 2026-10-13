@@ -77,11 +77,11 @@ extension TerminalWindowController {
             let outside = runHook("stop", stdin: "{}", env: ["CLAUDE_CODE_ENTRYPOINT": "cli"])
             let nested = runHook("stop", stdin: "{}", env: ["DEALER_PANE_ID": "7", "CLAUDE_CODE_ENTRYPOINT": "sdk-cli"])
             let optedOut = runHook("stop", stdin: "{}", env: pane.merging(["DEALER_CLAUDE_HOOKS": "0"]) { $1 })
-            return all(perm == "notify --state waiting --title Claude Code --body Permission: Bash --source claude:permission" ? nil : "permission: \(perm)",
-                       note == "notify --state waiting --title Claude Code --body Claude needs your permission --source claude:notification" ? nil : "notification: \(note)",
-                       stop == "notify --state done --title Claude Code --body Finished --source claude:stop" ? nil : "stop: \(stop)",
-                       fail == "notify --state failed --title Claude Code --body Error: rate_limit --source claude:stop-failure" ? nil : "stop-failure: \(fail)",
-                       failAsWaiting == "notify --state waiting --title Claude Code --body Error: rate_limit --source claude:stop-failure" ? nil : "stop-failure with errors_as_failed off: \(failAsWaiting)",
+            return all(perm == "notify --state waiting --title Claude Code --body Permission: Bash --internal-log-source claude:permission" ? nil : "permission: \(perm)",
+                       note == "notify --state waiting --title Claude Code --body Claude needs your permission --internal-log-source claude:notification" ? nil : "notification: \(note)",
+                       stop == "notify --state done --title Claude Code --body Finished --internal-log-source claude:stop" ? nil : "stop: \(stop)",
+                       fail == "notify --state failed --title Claude Code --body Error: rate_limit --internal-log-source claude:stop-failure" ? nil : "stop-failure: \(fail)",
+                       failAsWaiting == "notify --state waiting --title Claude Code --body Error: rate_limit --internal-log-source claude:stop-failure" ? nil : "stop-failure with errors_as_failed off: \(failAsWaiting)",
                        outside.isEmpty ? nil : "outside Dealer it must do nothing: \(outside)",
                        nested.isEmpty ? nil : "a nested `claude -p` (sdk-cli) must not notify: \(nested)",
                        optedOut.isEmpty ? nil : "DEALER_CLAUDE_HOOKS=0 must do nothing: \(optedOut)")

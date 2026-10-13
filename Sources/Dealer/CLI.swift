@@ -35,7 +35,7 @@ enum CLI {
       resize [-t T] [--axis width|height] (--to 0.3|30% | --by +5|-3|+10%)
       rename [-t T] [--tab | --workspace] [TITLE]  empty title follows the terminal again
       color [-t T] [--tab | --workspace] COLOR|none  swatch name or number, or #rrggbb
-      notify [-t T] [--state unread|done|waiting|failed|none] [--title T] [--body B] [--source S]
+      notify [-t T] [--state unread|done|waiting|failed|none] [--title T] [--body B]
       close [-t T]
       run [-t T | --here] [--split | --tab] [--size 12|30%] [--keep] [--quiet] [--focus] [--title T] [--cwd DIR] CMD...
                                                  run CMD in a job pane (focus stays) in the workspace
@@ -178,7 +178,9 @@ enum CLI {
             case "--pane": a["level"] = "pane"
             case "--state": a["state"] = try val()
             case "--body": a["body"] = try val()
-            case "--source": a["source"] = try val()
+            // Internal, undocumented: only Dealer's Claude Code hook script passes it, to label its
+            // calls in the notification log (#56). Not part of the CLI users should learn.
+            case "--internal-log-source": a["source"] = try val()
             case "--leaks": a["leaks"] = true
             default:
                 // Negative numbers are values (`resize --by -3` is written `--by=-3` or `--by -3`).
