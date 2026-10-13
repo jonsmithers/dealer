@@ -240,6 +240,31 @@ Sources:
 - `dealer notify` from inside the pane (the control socket/CLI, #5). Each shell gets
   `DEALER_PANE_ID`, so `dealer notify` targets its own pane by default.
 
+A mark is skipped while you're looking at the pane (it's focused, its window is key and Dealer is
+active), and a source that only raises (bell, OSC, command finished) never lowers a stronger state.
+The macOS notification is skipped while Dealer is active and the pane's window is key, even if
+the pane is in another tab or workspace of that window.
+
+**Why didn't Dealer notify me?** Set `[notifications] log = true` in [settings.toml](#settings) (live,
+no restart). Dealer then appends one line per decision to `/tmp/dealer-notifications.log`: each
+input (hook event, `dealer notify`, `dealer run` result, bell, OSC notification, command finished),
+whether the pane's mark was set or *skipped*, whether a notification was posted or *suppressed*, and
+the reason for every "no". It also logs clicks, what cleared a mark (focus, ⌘⇧U, a click, the window
+becoming key) and the notification permission status. Lines name the pane by the ID `dealer list`
+shows, plus its workspace and tab:
+
+```
+2026-10-12T21:29:58.015-04:00 claude:stop attention:set pane=2 ws="api" tab="claude" reason="none → done" title="Claude Code" body="Finished"
+2026-10-12T21:29:58.016-04:00 claude:stop notification:suppressed pane=2 ws="api" tab="claude" reason="app active and the pane's window is key (not the focused pane, but its window); the mark shows in the window" title="Claude Code" body="Finished"
+2026-10-12T21:29:57.998-04:00 bell attention:skipped pane=3 ws="api" tab="build" reason="wanted unread: already waiting, which outranks it (this source only raises); no notification"
+```
+
+Titles and bodies are truncated to 120 characters; no terminal contents or environment. Past ~5 MB
+the file is renamed to `.1` (one old file kept). macOS deletes `/tmp` files untouched for about
+3 days. `dealer diagnose` says whether the log is on and how big it is. Claude hook calls the plugin
+filters out itself (outside a Dealer pane, nested `claude -p`, `DEALER_CLAUDE_HOOKS=0`) never reach
+Dealer, so they aren't logged.
+
 ### Claude Code hooks (automatic)
 
 Every `claude` started in a Dealer pane reports *waiting* and *done* with no setup. That
@@ -353,6 +378,9 @@ palette = ["#e06c75", "#98c379", "#61afef"]   # replaces the preset swatches
 placement = "split"      # or "tab" (a background tab next to yours)
 size = 12                # job split height: rows, "30%" or "0.3"
 close_on_success = true  # failed jobs always stay open
+
+[notifications]
+log = false              # log every attention/notification decision to /tmp/dealer-notifications.log
 ```
 
 - Changes apply live: Dealer watches the file (editors that save by replacing it work too).

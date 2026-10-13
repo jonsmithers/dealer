@@ -16,6 +16,9 @@ a few seconds. Attach the file to a GitHub issue (for example #43).
   CPU count, and app and system uptime.
 - **Process memory:** `phys_footprint` (what Activity Monitor shows) and its peak, resident and
   virtual size, the thread count, and the number of open file descriptors.
+- **Notification log:** whether `[notifications] log` is on, its path (`/tmp/dealer-notifications.log`)
+  and size. Only the line about the log goes in the report, never the log's contents. `dealer diagnose`
+  also prints this line to stderr.
 - **Objects:** live counts of windows, workspaces, decks, tabs, panes, their views, and libghostty
   surfaces, next to how many the open windows actually hold. A count above that is a leak.
 - **Panes:** one line per pane, numbered in tree order: its window, workspace, deck and tab

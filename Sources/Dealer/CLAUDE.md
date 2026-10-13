@@ -385,6 +385,20 @@
   escapes, `\r` = Enter). `ghostty_surface_text` is a *paste* (bracketed), so a newline in it
   won't run a command.
 
+## Notification decision log (`NotificationLog.swift`, #56)
+
+- `[notifications] log` (read live) appends one line per attention/notification decision via
+  `NotificationLog.decision(pane:event:outcome:reason:title:body:)`, a no-op when off. Lines are
+  built on main; the append and rotation (`maxBytes`, renamed to `.1`) run on a serial queue.
+- **Every new path that sets, skips, clears or posts must log, and every "no" needs a reason.**
+  `setAttention` takes an `event:` label (`bell`, `notify`, `claude:<event>`, `job-done(status=N)`)
+  and logs set/skipped itself; `post` logs posted/suppressed; `clearAttention(_:cause:)` and
+  `reveal(_:cause:)` name what cleared it (`NotificationLog.clearCause` carries the reveal's cause
+  into `didFocus`). Only logging was added: the decisions themselves are unchanged.
+- The self-test writes to a temp path (`NotificationLog.path`), never `/tmp/dealer-notifications.log`.
+  `SelfTestNotificationLog.swift` checks the lines; keep its fragments in sync with log wording.
+- Privacy: no environment values or terminal contents; titles/bodies truncated (`fieldLimit`).
+
 ## Automatic Claude Code hooks (`ClaudeHooks.swift`, `Resources/claude-plugin/dealer`)
 
 - Hooks reach Claude through a bundled **plugin named in `CLAUDE_CODE_PLUGIN_DIRS`**, set by

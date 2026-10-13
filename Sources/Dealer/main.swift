@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Settings.start()
+        NotificationLog.start()
         // Before any pane exists, so every shell gets DEALER_SOCKET; and before ghostty_init,
         // because it setenvs DEALER_SOCKET and libghostty snapshots the environment at init.
         ControlServer.shared.start()

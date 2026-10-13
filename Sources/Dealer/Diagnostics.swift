@@ -210,6 +210,7 @@ enum Diagnostics {
         }
         lines.append("windows on screen (NSApp.windows, visible): \(NSApp.windows.filter(\.isVisible).count) of \(NSApp.windows.count)")
         lines.append("dealer run jobs tracked: \(ControlJobs.jobs.count)")
+        lines.append("notification log: \(notificationLogSummary)")
         return lines
     }
 
@@ -292,7 +293,7 @@ extension Diagnostics {
     static func control(_ args: [String: Any]) throws -> [String: Any] {
         do {
             let url = try capture(Options(leaks: args["leaks"] as? Bool ?? false))
-            return ["path": url.path]
+            return ["path": url.path, "notification_log": notificationLogSummary]
         } catch {
             throw ControlHandler.Failure(message: "could not write diagnostics: \(error.localizedDescription)")
         }
@@ -301,4 +302,21 @@ extension Diagnostics {
 
 extension AppDelegate {
     @objc func captureDiagnostics(_ sender: Any?) { Diagnostics.captureFromMenu() }
+}
+
+extension Diagnostics {
+    /// Whether `[notifications] log` is on, where the log is, and how big (#56). `dealer diagnose`
+    /// prints it too, so the path is easy to find.
+    static var notificationLogSummary: String {
+        let path = NotificationLog.path
+        func size(_ p: String) -> String? {
+            ((try? FileManager.default.attributesOfItem(atPath: p)[.size] as? Int) ?? nil)
+                .map { ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .file) }
+        }
+        NotificationLog.flush()
+        let current = size(path).map { "\(path), \($0)" } ?? "\(path) (no file)"
+        let old = size(path + ".1").map { "; previous \(path).1, \($0)" } ?? ""
+        return (NotificationLog.isEnabled ? "on ([notifications] log = true), " : "off (set [notifications] log = true to record), ")
+            + current + old
+    }
 }

@@ -175,8 +175,11 @@ enum ControlJobs {
             throw ControlHandler.Failure(message: "job-done must run inside a job pane")
         }
         let status = ControlHandler.int(args["status"]) ?? 1
+        let event = "job-done(status=\(status))"
         guard let job = jobs[id], job.status == nil else {
             // Not a job, or one that already reported (the tail retyped by hand): keep the shell.
+            NotificationLog.decision(pane: pane, event: event, outcome: "ignored",
+                                     reason: jobs[id] == nil ? "not a dealer run job pane" : "this job already reported")
             return ["close": false, "status": status]
         }
         jobs[id]?.status = status
@@ -187,7 +190,11 @@ enum ControlJobs {
                 // The job pane is going, so the caller gets the mark. setAttention skips it while
                 // the user is looking at the caller; the closing pane is the signal then.
                 if job.notify, let origin = job.origin, let o = ControlHandler.locate(origin) {
-                    o.wc.setAttention(.done, on: origin, title: title, body: body)
+                    o.wc.setAttention(.done, on: origin, title: title, body: body, event: event)
+                } else {
+                    NotificationLog.decision(pane: job.origin, event: event, outcome: "attention:skipped",
+                                             reason: job.notify ? "the pane that ran `dealer run` is gone; no mark, no notification"
+                                                                : "--quiet: no mark, no notification", title: title, body: body)
                 }
                 // Close it from here, right after replying. The shell doesn't `exit`: besides
                 // putting a non-zero status on kept jobs (#50), ghostty on macOS treats any exit within
@@ -202,10 +209,15 @@ enum ControlJobs {
             retitle(pane, job: job, "DONE \(job.command)", wc)
             // A kept success marks the job pane itself, like a failure (#50): the caller is usually
             // the pane the user is looking at, where a mark (and its notification) is skipped.
-            if job.notify { wc.setAttention(.done, on: pane, title: title, body: body) }
+            if job.notify {
+                wc.setAttention(.done, on: pane, title: title, body: body, event: event)
+            } else {
+                NotificationLog.decision(pane: pane, event: event, outcome: "attention:skipped",
+                                         reason: "--quiet: no mark, no notification", title: title, body: body)
+            }
         } else {
             retitle(pane, job: job, "FAILED (\(status)) \(job.command)", wc)
-            wc.setAttention(.failed, on: pane, title: "✗ \(job.command)", body: "Exited with status \(status)")
+            wc.setAttention(.failed, on: pane, title: "✗ \(job.command)", body: "Exited with status \(status)", event: event)
         }
         return ["close": false, "status": status]
     }

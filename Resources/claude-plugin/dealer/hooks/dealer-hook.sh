@@ -22,5 +22,6 @@ case "${1:-}" in
     *) exit 0 ;;
 esac
 
-"${DEALER_CLI:-dealer}" notify --state "$state" --title "Claude Code" --body "$body" >/dev/null 2>&1
+# --source only labels the call in Dealer's notification log ([notifications] log, #56).
+"${DEALER_CLI:-dealer}" notify --state "$state" --title "Claude Code" --body "$body" --source "claude:$1" >/dev/null 2>&1
 exit 0

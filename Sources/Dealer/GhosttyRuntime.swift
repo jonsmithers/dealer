@@ -208,6 +208,23 @@ final class GhosttyRuntime {
             return true
         }
 
+        // Attention sources: like `run`, but a dropped event is logged (#56): the pane is gone, or its view has no
+        // window controller (a restored workspace that hasn't been shown yet).
+        let mark: (String, @escaping (TerminalWindowController, Pane) -> Void) -> Bool = { event, body in
+            DispatchQueue.main.async {
+                guard let pane = view.pane else {
+                    return NotificationLog.decision(pane: nil, event: event, outcome: "attention:skipped",
+                                                    reason: "the terminal has no pane any more")
+                }
+                guard let wc = view.window?.windowController as? TerminalWindowController else {
+                    return NotificationLog.decision(pane: pane, event: event, outcome: "attention:skipped",
+                                                    reason: "the pane's view isn't in a window yet (a workspace not shown since launch?); no mark, no notification")
+                }
+                body(wc, pane)
+            }
+            return true
+        }
+
         switch action.tag {
         case GHOSTTY_ACTION_RELOAD_CONFIG:
             // The `reload_config` keybind. Dealer has one config for every surface, so a surface's
@@ -274,30 +291,33 @@ final class GhosttyRuntime {
         // Attention sources (see Attention.swift). Each marks the pane unless the user is looking at it.
         case GHOSTTY_ACTION_RING_BELL:
             NSSound.beep()
-            return run { wc in
-                guard let pane = view.pane else { return }
-                wc.setAttention(.unread, on: pane, raiseOnly: true)
-            }
+            return mark("bell") { wc, pane in wc.setAttention(.unread, on: pane, raiseOnly: true, event: "bell") }
 
         case GHOSTTY_ACTION_DESKTOP_NOTIFICATION:
             // OSC 9 / OSC 99 / OSC 777.
             let n = action.action.desktop_notification
             let title = n.title.map { String(cString: $0) }
             let body = n.body.map { String(cString: $0) }
-            return run { wc in
-                guard let pane = view.pane else { return }
-                wc.setAttention(.unread, on: pane, raiseOnly: true, title: title, body: body)
+            return mark("osc-notification") { wc, pane in
+                wc.setAttention(.unread, on: pane, raiseOnly: true, title: title, body: body, event: "osc-notification")
             }
 
         case GHOSTTY_ACTION_COMMAND_FINISHED:
             // Needs shell integration. See TerminalWindowController.commandFinished (Attention.swift).
             let f = action.action.command_finished
             let exit = Int(f.exit_code), duration = f.duration
-            guard TerminalWindowController.commandFinishedAttention(exitCode: exit, durationNs: duration) != nil else { return false }
-            return run { wc in
-                guard let pane = view.pane else { return }
-                wc.commandFinished(pane, exitCode: exit, durationNs: duration)
+            let event = "command-finished(exit=\(exit),\(TerminalWindowController.seconds(duration)))"
+            guard TerminalWindowController.commandFinishedAttention(exitCode: exit, durationNs: duration) != nil else {
+                if NotificationLog.isEnabled {
+                    let why = exit > 0 ? "a failure, but [attention] failed_commands is off"
+                                       : "a success under 10 s marks nothing"
+                    DispatchQueue.main.async {
+                        NotificationLog.decision(pane: view.pane, event: event, outcome: "ignored", reason: why)
+                    }
+                }
+                return false
             }
+            return mark(event) { wc, pane in wc.commandFinished(pane, exitCode: exit, durationNs: duration) }
 
         case GHOSTTY_ACTION_NEW_TAB:
             return run { $0.newTab(nil) }

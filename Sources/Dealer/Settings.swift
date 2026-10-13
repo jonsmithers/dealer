@@ -62,6 +62,7 @@ enum Settings {
         "jobs.placement": .oneOf(["split", "tab"]),
         "jobs.size": .size,
         "jobs.close_on_success": .bool,
+        "notifications.log": .bool,
     ]
 
     /// Pre-#10 UserDefaults keys, read only when the file doesn't set the setting.
@@ -286,6 +287,10 @@ enum Settings {
 
     /// `[jobs] close_on_success` (#21): close a job's pane when its command succeeds. Default true.
     static var jobCloseOnSuccess: Bool { bool("jobs.close_on_success") ?? true }
+
+    /// `[notifications] log` (#56): append every attention/notification decision, with the reason
+    /// for each "no", to `NotificationLog.path` (/tmp/dealer-notifications.log). Default false. Read live.
+    static var notificationLog: Bool { bool("notifications.log") ?? false }
 
     static func isSizeSpec(_ s: String) -> Bool {
         let t = s.trimmingCharacters(in: .whitespaces)

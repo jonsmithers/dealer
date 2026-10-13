@@ -38,6 +38,11 @@ enum ControlHandler {
             }
             return ["ok": true, "result": result]
         } catch let f as Failure {
+            if cmd == "notify" || cmd == "job-done" {
+                // An error reply the hook script throws away: the log is the only trace (#56).
+                NotificationLog.decision(pane: nil, event: cmd == "notify" ? notifyEvent(args) : cmd, outcome: "error",
+                                         reason: f.message + (ctx.caller.map { " (caller pane \($0))" } ?? ""))
+            }
             return ["ok": false, "error": f.message]
         } catch {
             return ["ok": false, "error": "\(error)"]
@@ -679,8 +684,15 @@ enum ControlHandler {
         let state = args["state"] as? String ?? "unread"
         let title = args["title"] as? String
         let body = args["body"] as? String
-        try ControlNotify.post(pane: pane, in: loc.wc, state: state, title: title, body: body)
+        try ControlNotify.post(pane: pane, in: loc.wc, state: state, title: title, body: body, event: notifyEvent(args))
         return ["pane": pane.id]
+    }
+
+    /// `notify`, or `--source`'s label (the Claude hook sends `claude:<event>`), kept to one short word.
+    static func notifyEvent(_ args: [String: Any]) -> String {
+        guard let s = args["source"] as? String, !s.isEmpty else { return "notify" }
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: ":-_."))
+        return String(String(s.unicodeScalars.filter(allowed.contains)).prefix(40))
     }
 
     // MARK: - close

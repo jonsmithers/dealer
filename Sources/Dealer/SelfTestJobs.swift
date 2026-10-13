@@ -205,7 +205,7 @@ extension TerminalWindowController {
         }) {
             j0AfterClose = pane("j0")?.attention
             j0Looked = pane("j0").map { self.isLookingAt($0) } ?? false
-            pane("j0").map { self.clearAttention($0) }
+            pane("j0").map { self.clearAttention($0, cause: "self-test") }
             created(call("run", ["command": "true", "cwd": tmp, "close": false, "placement": "split", "size": "20%"],
                          caller: "j0"), "jk")
         }

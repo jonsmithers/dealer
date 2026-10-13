@@ -86,18 +86,35 @@ extension TerminalWindowController {
 
     /// Marks a pane. `raiseOnly` keeps a stronger existing state (a bell doesn't downgrade
     /// "waiting" to "unread"); explicit `dealer notify` calls set the state exactly.
-    func setAttention(_ a: Attention, on pane: Pane, raiseOnly: Bool = false, title: String? = nil, body: String? = nil) {
-        guard locate(pane) != nil else { return }
-        if a != .none && isLookingAt(pane) { return }
+    /// `event` names the source in the notification log (#56): `bell`, `notify`, `claude:stop`, ….
+    func setAttention(_ a: Attention, on pane: Pane, raiseOnly: Bool = false, title: String? = nil, body: String? = nil,
+                      event: String = "attention") {
+        func skipped(_ why: String) {
+            NotificationLog.decision(pane: pane, event: event, outcome: "attention:skipped",
+                                     reason: "wanted \(a.name): \(why); no notification", title: title, body: body)
+        }
+        guard locate(pane) != nil else { return skipped("the pane isn't in this window") }
+        if a != .none && isLookingAt(pane) {
+            return skipped("you're looking at it (focused pane, \(NotificationLog.context(self)))")
+        }
         let new = raiseOnly ? max(pane.attention, a) : a
-        guard new != pane.attention else { return }
+        guard new != pane.attention else {
+            return skipped(new == a ? "already \(a.name)"
+                           : "already \(pane.attention.name), which outranks it (this source only raises)")
+        }
+        let old = pane.attention
         pane.attention = new
+        NotificationLog.decision(pane: pane, event: event, outcome: new == .none ? "attention:cleared" : "attention:set",
+                                 reason: "\(old.name) → \(new.name)", title: title, body: body)
         refreshChrome()
-        if new > .none { AttentionNotifier.shared.post(for: pane, in: self, state: new, title: title, body: body) }
+        if new > .none { AttentionNotifier.shared.post(for: pane, in: self, state: new, title: title, body: body, event: event) }
     }
 
-    func clearAttention(_ pane: Pane) {
+    /// `cause` says what cleared it, for the notification log.
+    func clearAttention(_ pane: Pane, cause: String) {
         guard pane.attention != .none else { return }
+        NotificationLog.decision(pane: pane, event: cause, outcome: "attention:cleared",
+                                 reason: "\(pane.attention.name) → none (\(NotificationLog.context(self)))")
         pane.attention = .none
         refreshChrome()
     }
@@ -125,24 +142,35 @@ extension TerminalWindowController {
     func commandFinished(_ pane: Pane, exitCode: Int, durationNs: UInt64) {
         guard let a = Self.commandFinishedAttention(exitCode: exitCode, durationNs: durationNs) else { return }
         let body = exitCode >= 0 ? "Exited with status \(exitCode)" : nil
-        setAttention(a, on: pane, raiseOnly: true, title: a == .failed ? "Command failed" : "Command finished", body: body)
+        setAttention(a, on: pane, raiseOnly: true, title: a == .failed ? "Command failed" : "Command finished", body: body,
+                     event: "command-finished(exit=\(exitCode),\(Self.seconds(durationNs)))")
     }
 
+    /// "12.3s", for log lines.
+    static func seconds(_ ns: UInt64) -> String { String(format: "%.1fs", Double(ns) / 1e9) }
+
     @objc func jumpToNextUnread(_ sender: Any?) {
-        guard let (wc, pane) = Self.nextUnread(after: focusedPane) else { return NSSound.beep() }
-        wc.reveal(pane)
+        guard let (wc, pane) = Self.nextUnread(after: focusedPane) else {
+            NotificationLog.decision(pane: nil, event: "jump-to-next-unread", outcome: "ignored", reason: "no pane needs attention")
+            return NSSound.beep()
+        }
+        wc.reveal(pane, cause: "jump-to-next-unread")
     }
 
     /// Brings the pane's window forward and focuses it; focusing clears its attention.
-    func reveal(_ pane: Pane) {
+    /// `cause` names who asked, for the notification log.
+    func reveal(_ pane: Pane, cause: String) {
         AttentionFade.noteReveal()  // the clear below fades after a short hold (#34)
+        // The focus below may clear it (didFocus) before clearAttention does; log it as ours.
+        NotificationLog.clearCause = cause
+        defer { NotificationLog.clearCause = nil }
         window?.makeKeyAndOrderFront(nil)
         focus(pane)
-        clearAttention(pane)
+        clearAttention(pane, cause: cause)
     }
 
     @objc func windowDidBecomeKey(_ notification: Notification) {
-        if let p = focusedPane { clearAttention(p) }
+        if let p = focusedPane { clearAttention(p, cause: "window-became-key") }
     }
 }
 
@@ -157,27 +185,96 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private var authorized = false
+    /// What the launch-time authorization request answered (the only thing `post` checks).
+    private var launchAnswer = "not requested yet"
+    /// The latest `UNNotificationSettings.authorizationStatus`, re-read on each app activation and
+    /// logged when it changes (#56). Logging only: `post` still goes by the launch answer.
+    private var status: String?
+
+    /// For the notification log's header and suppress reasons.
+    var authorizationDescription: String {
+        if Bundle.main.bundleIdentifier == nil { return "none (unbundled)" }
+        if SelfTest.enabled { return "not requested (self-test)" }
+        return "launch request \(launchAnswer), current status \(status ?? "unknown")"
+    }
 
     func start() {
         guard let center, !SelfTest.enabled else { return }
         center.delegate = self
-        center.requestAuthorization(options: [.alert, .sound]) { ok, _ in
-            DispatchQueue.main.async { self.authorized = ok }
+        center.requestAuthorization(options: [.alert, .sound]) { ok, error in
+            DispatchQueue.main.async {
+                self.authorized = ok
+                self.launchAnswer = ok ? "granted" : "refused" + (error.map { " (\($0.localizedDescription))" } ?? "")
+                NotificationLog.decision(pane: nil, event: "authorization", outcome: ok ? "granted" : "refused",
+                                         reason: "launch request \(self.launchAnswer)")
+                self.refreshStatus()
+            }
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
+                                               queue: .main) { [weak self] _ in self?.refreshStatus() }
+    }
+
+    func refreshStatus() {
+        guard let center, !SelfTest.enabled, NotificationLog.isEnabled else { return }
+        center.getNotificationSettings { settings in
+            let s = Self.describe(settings.authorizationStatus)
+            DispatchQueue.main.async {
+                guard s != self.status else { return }
+                let before = self.status
+                self.status = s
+                let stale = s == "authorized" && !self.authorized
+                    ? "; Dealer still treats notifications as not allowed until it relaunches" : ""
+                NotificationLog.decision(pane: nil, event: "authorization", outcome: "status",
+                                         reason: "\(before ?? "first read") → \(s)\(stale)")
+            }
         }
     }
 
-    func post(for pane: Pane, in wc: TerminalWindowController, state: Attention, title: String?, body: String?) {
-        guard !SelfTest.enabled else { return }
+    static func describe(_ s: UNAuthorizationStatus) -> String {
+        switch s {
+        case .notDetermined: return "not determined"
+        case .denied: return "denied"
+        case .authorized: return "authorized"
+        case .provisional: return "provisional"
+        @unknown default: return "unknown (\(s.rawValue))"
+        }
+    }
+
+    func post(for pane: Pane, in wc: TerminalWindowController, state: Attention, title: String?, body: String?,
+              event: String = "attention") {
+        let shownTitle = title ?? (state == .failed ? "Failed" : state == .waiting ? "Waiting for input" : state == .done ? "Finished" : "Terminal")
+        func log(_ outcome: String, _ why: String) {
+            NotificationLog.decision(pane: pane, event: event, outcome: outcome, reason: why, title: shownTitle, body: body)
+        }
         // Only interrupt when the user isn't already looking at this window.
-        if NSApp.isActive && (wc.window?.isKeyWindow ?? false) { return }
-        NSApp.requestUserAttention(.informationalRequest)
-        guard let center, authorized else { return }
+        if NSApp.isActive && (wc.window?.isKeyWindow ?? false) {
+            let which = pane === wc.focusedPane ? "the focused pane" : "not the focused pane, but its window"
+            return log("notification:suppressed", "app active and the pane's window is key (\(which)); the mark shows in the window")
+        }
+        if !SelfTest.enabled { NSApp.requestUserAttention(.informationalRequest) }
+        if Bundle.main.bundleIdentifier == nil {
+            return log("notification:suppressed", "unbundled (no bundle identifier, so no macOS notifications)"
+                       + (SelfTest.enabled ? "" : "; dock bounce only"))
+        }
+        guard !SelfTest.enabled else { return log("notification:suppressed", "self-test mode") }
+        guard let center else { return }
+        guard authorized else {
+            return log("notification:suppressed", "not authorized (\(authorizationDescription)); dock bounce only")
+        }
         let content = UNMutableNotificationContent()
-        content.title = title ?? (state == .failed ? "Failed" : state == .waiting ? "Waiting for input" : state == .done ? "Finished" : "Terminal")
+        content.title = shownTitle
         content.subtitle = pane.title
         content.body = body ?? ""
         content.userInfo = ["pane": pane.id]
-        center.add(UNNotificationRequest(identifier: "pane-\(pane.id)", content: content, trigger: nil))
+        let id = "pane-\(pane.id)"
+        center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { error in
+            guard let error else { return }
+            DispatchQueue.main.async { [weak pane] in
+                NotificationLog.decision(pane: pane, event: event, outcome: "notification:error",
+                                         reason: "UNUserNotificationCenter refused it: \(error.localizedDescription)")
+            }
+        }
+        log("notification:posted", "id \(id), replacing any earlier one for this pane")
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
@@ -185,13 +282,25 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
         let id = response.notification.request.content.userInfo["pane"] as? Int
         DispatchQueue.main.async {
             NSApp.activate(ignoringOtherApps: true)
-            if let id, let (wc, pane) = Pane.with(id: id) { wc.reveal(pane) }
+            if let id, let (wc, pane) = Pane.with(id: id) {
+                NotificationLog.decision(pane: pane, event: "notification-click", outcome: "notification:clicked",
+                                         reason: "revealing the pane (attention \(pane.attention.name))")
+                wc.reveal(pane, cause: "notification-click")
+            } else {
+                NotificationLog.decision(pane: nil, event: "notification-click", outcome: "notification:clicked",
+                                         reason: id.map { "pane \($0) no longer exists; nothing to reveal" } ?? "no pane id in the notification")
+            }
             done()
         }
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                 withCompletionHandler done: @escaping (UNNotificationPresentationOptions) -> Void) {
+        let id = notification.request.content.userInfo["pane"] as? Int
+        DispatchQueue.main.async {
+            NotificationLog.decision(pane: id.flatMap { Pane.with(id: $0)?.1 }, event: "notification", outcome: "notification:presented",
+                                     reason: "shown as a banner while Dealer is frontmost")
+        }
         done([.banner, .sound])
     }
 }

@@ -49,3 +49,11 @@
 # size = 12
 # Close the job's pane when the command succeeds. A failed job always stays open.
 # close_on_success = true
+
+[notifications]
+# Log every attention and notification decision to /tmp/dealer-notifications.log, one line
+# each, with the reason whenever Dealer didn't mark a pane or didn't post a notification.
+# For answering "why didn't Dealer notify me?". Titles and bodies are logged, truncated; no
+# terminal contents. Capped at ~5 MB (the previous file is kept as .1). macOS clears /tmp
+# files untouched for ~3 days. `dealer diagnose` shows whether it's on and its size.
+# log = false

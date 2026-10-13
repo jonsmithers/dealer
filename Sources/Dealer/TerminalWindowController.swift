@@ -619,7 +619,16 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         // Attention.swift: focusing a pane reads it. Re-focusing the pane that already has focus
         // (finishChange after a background change, e.g. a `dealer run` job closing) only counts
         // when the user is looking, so a mark set while they're away survives it.
-        if changed || isLookingAt(pane) { pane.attention = .none }
+        if changed || isLookingAt(pane) {
+            if pane.attention != .none {
+                NotificationLog.decision(pane: pane, event: NotificationLog.clearCause ?? "focus", outcome: "attention:cleared",
+                                         reason: "\(pane.attention.name) → none (\(changed ? "focus moved to the pane" : "re-focused while you were looking"); \(NotificationLog.context(self)))")
+            }
+            pane.attention = .none
+        } else if pane.attention != .none {
+            NotificationLog.decision(pane: pane, event: "focus", outcome: "attention:kept",
+                                     reason: "\(pane.attention.name) kept: re-focused while you weren't looking (\(NotificationLog.context(self)))")
+        }
         if changed && loc.workspace.selection != nil {
             loc.workspace.selection = nil
             updateSelectionHighlight()
