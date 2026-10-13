@@ -445,8 +445,7 @@ normal: each pane's renderer takes tens of MB, even in a background tab.
 
 Quitting saves the full window → deck → tab → pane tree (sizes, working directories,
 tab names, focus) to `~/Library/Application Support/Dealer/session.json`; the next launch
-restores it. Closing the last window by hand starts fresh next time. Sessions from the old
-MyTerm location are copied over on first launch.
+restores it. Closing the last window by hand starts fresh next time.
 
 ## Self-test
 

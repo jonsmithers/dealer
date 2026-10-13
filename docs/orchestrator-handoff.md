@@ -74,7 +74,7 @@ Route follow-ups to whoever has the context:
 - **icon**: app icon, bundle.sh, Launch Services / Notification Center (#22, #30).
 - **edge-split**: controller layout/promote sizing (#31), live ghostty config reload + chrome
   re-theming via `Theme.didChange` (#33).
-- **rename**: the MyTerm→Dealer rename, build scripts, the Ghostty pin and its enforcement
+- **rename**: the Dealer rename, build scripts, the Ghostty pin and its enforcement
   (`check-ghostty.sh`, launch banner) (#3, #20, #35).
 - **selftest-env**: Ghostty resource lookup and pinned shell integration for the self-test,
   `Confirmation.skip` plus the per-step modal guard, and the sleeping-display finding (#38, #39, #40).

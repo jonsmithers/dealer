@@ -64,27 +64,7 @@ struct SessionSnapshot: Codable {
         return dir.appendingPathComponent("session.json")
     }
 
-    /// Where the app kept its session before it was renamed from MyTerm to Dealer.
-    static var legacyURL: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("MyTerm", isDirectory: true)
-            .appendingPathComponent("session.json")
-    }
-
-    /// One-time migration: copy (never move) the legacy session file when the new one is missing.
-    static func migrateLegacy(from old: URL = legacyURL, to new: URL = url) {
-        let fm = FileManager.default
-        guard !fm.fileExists(atPath: new.path), fm.fileExists(atPath: old.path) else { return }
-        do {
-            try fm.createDirectory(at: new.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try fm.copyItem(at: old, to: new)
-        } catch {
-            NSLog("Dealer: failed to migrate legacy session: \(error)")
-        }
-    }
-
     static func load() -> SessionSnapshot? {
-        migrateLegacy()
         guard let data = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(SessionSnapshot.self, from: data)
     }

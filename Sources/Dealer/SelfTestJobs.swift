@@ -87,7 +87,7 @@ extension TerminalWindowController {
             env["DEALER_SOCKET"] = socket
             env["DEALER_PANE_ID"] = "\(ids[caller] ?? 0)"
             env["PWD"] = dir
-            for k in ["DEALER_SELFTEST", "MYTERM_SELFTEST"] { env.removeValue(forKey: k) }
+            env.removeValue(forKey: "DEALER_SELFTEST")
             p.environment = env
             let out = Pipe(), err = Pipe()
             p.standardOutput = out
@@ -237,7 +237,7 @@ extension TerminalWindowController {
             env["DEALER_SOCKET"] = socket
             env["DEALER_PANE_ID"] = "\(ids["j0"]!)"
             env["PWD"] = tmp
-            for k in ["DEALER_SELFTEST", "MYTERM_SELFTEST"] { env.removeValue(forKey: k) }
+            env.removeValue(forKey: "DEALER_SELFTEST")
             p.environment = env
             let out = Pipe()
             p.standardOutput = out

@@ -4,10 +4,9 @@ import AppKit
 /// controller, asserting the resulting tree after every step. Set it to `quit` to exit afterwards.
 /// Session files are neither read nor written in this mode.
 enum SelfTest {
-    /// Reads `DEALER_<name>`, falling back to the pre-rename `MYTERM_<name>`.
+    /// Reads `DEALER_<name>`.
     static func env(_ name: String) -> String? {
-        let e = ProcessInfo.processInfo.environment
-        return e["DEALER_" + name] ?? e["MYTERM_" + name]
+        ProcessInfo.processInfo.environment["DEALER_" + name]
     }
     static var enabled: Bool { env("SELFTEST") != nil }
     static var quitWhenDone: Bool { env("SELFTEST") == "quit" }

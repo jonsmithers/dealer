@@ -3,7 +3,7 @@
 macOS terminal: Swift/AppKit shell around **libghostty** (Ghostty's embedding C API, `ghostty.h`),
 implementing the "Panes and Decks" layout. The design spec is `~/Downloads/Panes and Decks.html`;
 use its vocabulary (pane, deck, promote, fold, move to tab), not "split with/without tabs".
-Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
+The GitHub repo is `jonsmithers/dealer`.
 
 ## Building
 
@@ -99,9 +99,6 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
 - **Don't clobber the user's session.** A normal launch restores, and on quit overwrites,
   `~/Library/Application Support/Dealer/session.json`. Self-test mode neither reads nor writes it.
   If you do a normal launch for testing, back up that file first and restore it afterwards.
-  Don't "restore" by deleting the Dealer file: if it's missing on load, `SessionSnapshot.migrateLegacy`
-  copies in the stale pre-rename `Application Support/MyTerm/session.json`. That legacy file is only
-  ever read, never written.
 - **Don't touch the user's settings file** (`~/.config/dealer/settings.toml`, or under
   `$XDG_CONFIG_HOME`). Self-test mode already uses a temp config home. For a normal launch against
   a test file, set `XDG_CONFIG_HOME` to a temp dir (ghostty reads its config from there too).
@@ -263,8 +260,5 @@ Formerly called MyTerm (the GitHub repo is `jonsmithers/dealer`).
   which honors ghostty's `split-`/`tab-`/`window-inherit-working-directory` (workspaces map to
   `window`). Any new creation path should go through it; `dealer create` deliberately uses its
   target's cwd instead, and session restore its saved cwd.
-- `DEALER_*` env vars read through `SelfTest.env` fall back to the pre-rename `MYTERM_*` spelling,
-  so code that strips an env var for a child process must strip both (see `SelfTestCLI.swift`).
-  New variables such as `DEALER_PANE_ID` don't get the fallback.
 
 See `Sources/Dealer/CLAUDE.md` for code invariants.

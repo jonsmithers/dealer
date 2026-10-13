@@ -201,7 +201,6 @@ extension TerminalWindowController {
                 env["DEALER_SOCKET"] = socket
                 env["DEALER_PANE_ID"] = "\(ids["c0"]!)"
                 env.removeValue(forKey: "DEALER_SELFTEST")
-                env.removeValue(forKey: "MYTERM_SELFTEST")
                 p.environment = env
                 let out = Pipe(), err = Pipe()
                 p.standardOutput = out
