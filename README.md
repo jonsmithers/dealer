@@ -1,10 +1,8 @@
-<img src="docs/icon.png" width="128" height="128" alt="Dealer app icon" align="right">
+<p align="center">
+  <img src="docs/icon.png" width="128" height="128" alt="Dealer app icon">
+</p>
 
-# Dealer
-
-> **Disclaimer:** Dealer is 100% vibe-coded. I (Jon) don't know Swift, and I won't be able to
-> maintain it properly: I don't trust coding agents to keep a codebase healthy over time, so
-> expect the codebase to get out of hand.
+<h1 align="center">Dealer</h1>
 
 A small macOS terminal built on **libghostty** (Ghostty's embedding API) and Swift/AppKit,
 implementing the *Panes and Decks* layout model:
@@ -22,6 +20,11 @@ A **workspace** owns a set of decks; a window has one or more and shows one at a
 owned by a tab. Splitting always makes panes; **promote** turns a pane into a deck, **fold**
 turns it back. Closing the last deck of a workspace closes the workspace, and closing the last
 workspace closes the window.
+
+> [!NOTE]
+> Dealer is written in Swift. But Jon (the human who prompted Claude) doesn't
+> know Swift. It's all vibe-coded 🙈. Please do not expect him to be a
+> competent steward of this codebase. It's all Claude's fault.
 
 ## Demos
 
