@@ -22,7 +22,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     private var zoom: (pane: WeakRef<Pane>, level: Int)?
 
     let contentView = WindowContentView()
-    /// The workspace switcher in the titlebar row (WorkspaceBar.swift).
+    /// The sidebar workspace switcher, a left column below the titlebar row (WorkspaceSidebar.swift).
     let workspaceSidebar = WorkspaceSidebarView()
     /// The top-bar pill switcher, shown instead of the sidebar when `workspaceSwitcher = top` (#8).
     let workspaceBar = WorkspaceBarView()

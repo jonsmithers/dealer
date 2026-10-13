@@ -153,7 +153,7 @@ final class ColorPanelSession: NSObject {
 }
 
 extension TerminalWindowController {
-    /// Shows only on the workspace's sidebar row (#15).
+    /// Shows only on the workspace's switcher entry: its sidebar row or top-bar pill (#15, #18).
     func setColor(_ color: NSColor?, workspace ws: Workspace) {
         ws.color = color
         refreshChrome()

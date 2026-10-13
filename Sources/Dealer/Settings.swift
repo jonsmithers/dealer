@@ -49,7 +49,7 @@ enum Settings {
     }
 
     /// Every key the file may contain, by dotted name. Unknown keys are reported and ignored.
-    /// #9 adds its `[colors]` keys here (plus accessors below); nothing else needs to change.
+    /// A new setting needs an entry here plus an accessor below.
     static let schema: [String: Kind] = [
         "agent.command": .string,
         "agent.inject_hooks": .bool,

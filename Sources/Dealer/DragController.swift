@@ -23,7 +23,7 @@ final class DragController {
         case paneCenter(Pane)
         case tabStrip(Deck, Int)
         case windowEdge(Side)
-        /// A row in the workspace sidebar; `nil` is its "New Workspace" row.
+        /// A workspace switcher entry (sidebar row or top-bar pill); `nil` is its "New Workspace" entry.
         case workspace(Workspace?)
     }
 

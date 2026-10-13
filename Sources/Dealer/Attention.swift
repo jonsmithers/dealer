@@ -305,7 +305,7 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
     }
 }
 
-// MARK: - Drawing (visuals #2 owns the styling; these only read `attention`)
+// MARK: - Drawing (these only read `attention`)
 
 extension PaneView {
     private static let ringName = "dealer.attentionRing"

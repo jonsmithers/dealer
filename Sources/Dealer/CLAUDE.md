@@ -333,7 +333,7 @@
 
 ## Attention and agent status (`Attention.swift`, `AgentStatus.swift`, `AgentLaunch.swift`)
 
-- `setAttention(_:on:raiseOnly:title:body:)` is the only writer of `Pane.attention` besides
+- `setAttention(_:on:raiseOnly:title:body:event:)` is the only writer of `Pane.attention` besides
   `didFocus`, which clears it (so does `windowDidBecomeKey`, in Attention.swift). `didFocus` clears
   only on a real focus change or when the user is looking (`isLookingAt`): `finishChange` re-focuses
   the already-focused pane after any background change (e.g. a `dealer run` job pane closing), and

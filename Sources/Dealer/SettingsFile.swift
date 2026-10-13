@@ -27,7 +27,7 @@ enum SettingsFile {
 
     [attention]
     # Mark a pane failed (red) when a shell command exits non-zero while you're not looking at it.
-    # Needs shell integration (Ghostty's, which Dealer borrows from an installed Ghostty.app).
+    # Needs shell integration (Ghostty's, which Dealer bundles).
     # failed_commands = true
 
     [workspaces]
