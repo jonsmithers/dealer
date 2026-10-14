@@ -56,6 +56,7 @@ final class WorkspaceBarView: FlippedView, WorkspaceDropTargets, ThemeApplying {
             b.title = ws.displayName
             b.isActive = ws === c.activeWorkspace
             b.attention = ws.attention
+            b.isRunning = ws.isWorking  // AgentStatus.swift
             b.color = ws.color
             b.isHidden = quiet
         }
@@ -117,6 +118,18 @@ final class WorkspaceButton: FlippedView {
         }
     }
     let attentionFade = AttentionFadeState()
+    /// True while an agent in this workspace is working (RunningSpinner.swift): a turning asterisk
+    /// in front of the number. Unlike a tab, a pill is sized to its content, so it widens by the
+    /// spinner's slot, the way it already does for the attention dot.
+    var isRunning = false {
+        didSet {
+            guard isRunning != oldValue else { return }
+            if spinner.onChange == nil { spinner.onChange = { [weak self] in self?.needsDisplay = true } }
+            spinner.set(isRunning)
+            superview?.needsLayout = true
+        }
+    }
+    let spinner = RunningSpinnerState()
     /// The workspace's color (#9): a dot before the number plus a faint tint.
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true; superview?.needsLayout = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
@@ -161,8 +174,12 @@ final class WorkspaceButton: FlippedView {
 
     var idealWidth: CGFloat {
         if isAddButton { return 24 }
-        return Self.padding * 2 + chipWidth + numberWidth + ceil((title as NSString).size(withAttributes: titleAttrs).width) + dotWidth
+        return Self.padding * 2 + chipWidth + spinner.leading + numberWidth
+            + ceil((title as NSString).size(withAttributes: titleAttrs).width) + dotWidth
     }
+
+    /// The spinner's box, after the colour chip (self-test hook).
+    var spinnerBox: CGRect { RunningSpinner.box(in: bounds, x: Self.padding + chipWidth) }
 
     override var mouseDownCanMoveWindow: Bool { false }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -199,6 +216,12 @@ final class WorkspaceButton: FlippedView {
         }
 
         var x = Self.padding + chipWidth
+        if spinner.isRunning {
+            // In the name's own colour: colours and outlines on chrome mean attention.
+            RunningSpinner.draw(in: spinnerBox, color: titleAttrs[.foregroundColor] as! NSColor,
+                                phase: RunningSpinner.phase())
+            x += RunningSpinner.slot
+        }
         if !number.isEmpty {
             let font = numberAttrs[.font] as! NSFont
             let h = ceil(font.ascender - font.descender)

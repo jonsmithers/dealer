@@ -356,6 +356,7 @@ final class TabStripView: FlippedView {
             b.isActive = i == deck.activeIndex
             b.accent = showsDeckColor ? deck.color : nil
             b.attention = tab.attention
+            b.isRunning = tab.isWorking  // AgentStatus.swift
             b.color = tab.color
             b.toolTip = tab.focusTarget?.statusLine  // AgentStatus.swift
         }
@@ -498,19 +499,33 @@ final class TabButton: FlippedView {
         }
     }
     let attentionFade = AttentionFadeState()
+    /// True while an agent in this tab is working (RunningSpinner.swift): a turning asterisk in
+    /// front of the title. The tab's width doesn't change with it — the title just gets the slot
+    /// less — so a strip doesn't reflow every time an agent starts or stops.
+    var isRunning = false {
+        didSet {
+            if spinner.onChange == nil { spinner.onChange = { [weak self] in self?.needsDisplay = true } }
+            spinner.set(isRunning)
+        }
+    }
+    let spinner = RunningSpinnerState()
     private var hovering = false { didSet { needsDisplay = true } }
     private var hoveringClose = false { didSet { if hoveringClose != oldValue { needsDisplay = true } } }
     /// The × sits in the trailing slot (`Theme.Metrics.tabTrailingSlot`), 3pt from the edge.
     var closeRect: CGRect { CGRect(x: bounds.width - 19, y: (bounds.height - 16) / 2, width: 16, height: 16) }
     /// Everything but the title (#46): leading pad plus the trailing ×/dot slot.
     static var chromeWidth: CGFloat { Theme.Metrics.tabLeadingPad + Theme.Metrics.tabTrailingSlot }
-    /// Where the title is drawn (also read by the self-test).
+    /// Where the title is drawn (also read by the self-test). While an agent works, it starts after
+    /// the spinner's slot and is that much narrower.
     var titleRect: CGRect {
         let font = Theme.Fonts.tabActive
         let h = ceil(font.ascender - font.descender)
-        let lead = Theme.Metrics.tabLeadingPad
-        return CGRect(x: lead, y: (bounds.height - h) / 2, width: max(bounds.width - Self.chromeWidth, 0), height: h)
+        let lead = Theme.Metrics.tabLeadingPad + spinner.leading
+        return CGRect(x: lead, y: (bounds.height - h) / 2,
+                      width: max(bounds.width - Self.chromeWidth - spinner.leading, 0), height: h)
     }
+    /// The spinner's box, in the leading pad (also read by the self-test).
+    var spinnerBox: CGRect { RunningSpinner.box(in: bounds, x: Theme.Metrics.tabLeadingPad) }
     private var showsClose: Bool { hovering }
 
     override init(frame: NSRect) {
@@ -567,6 +582,10 @@ final class TabButton: FlippedView {
         ]
         // The trailing slot is always reserved, so the title stays put when the × appears (#46).
         (title as NSString).draw(in: titleRect, withAttributes: attrs)
+        if spinner.isRunning {
+            // In the title's own colour: colours and outlines on chrome mean attention.
+            RunningSpinner.draw(in: spinnerBox, color: attrs[.foregroundColor] as! NSColor, phase: RunningSpinner.phase())
+        }
 
         if showsClose {
             if hoveringClose {

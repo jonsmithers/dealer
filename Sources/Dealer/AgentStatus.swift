@@ -17,6 +17,11 @@ extension Pane {
         }
     }
 
+    /// Whether an agent is working in this pane right now: the state the chrome spins for
+    /// (RunningSpinner.swift). Reads `agentState`, not `isReportingProgress`, so a pane waiting on
+    /// a permission prompt — where Claude keeps OSC 9;4 progress set — doesn't count as working.
+    var isWorking: Bool { agentState == .running }
+
     /// e.g. `waiting · ~/git/dealer · main`. Empty parts are left out.
     var statusLine: String {
         var parts: [String] = []
@@ -36,6 +41,16 @@ extension Pane {
         let comps = p.split(separator: "/", omittingEmptySubsequences: false)
         return comps.count > 4 ? "…/" + comps.suffix(2).joined(separator: "/") : p
     }
+}
+
+// A tab or workspace is working when any pane inside it is, the way attention rolls up
+// (Attention.swift). Computed, never stored: the switcher entries pick it up in `refreshChrome()`.
+extension Tab {
+    var isWorking: Bool { panes.contains(where: \.isWorking) }
+}
+
+extension Workspace {
+    var isWorking: Bool { decks.contains { $0.tabs.contains(where: \.isWorking) } }
 }
 
 /// Cheap git branch lookup: reads `.git/HEAD` directly (worktrees included), no subprocess.

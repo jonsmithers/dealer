@@ -385,11 +385,38 @@
   sits on the element's outer edge. The self-test samples the top edge's centre pixel
   (`PixelProbe.isWaitingOutlined`), so don't inset the outline or draw it in a sublayer.
 - "running" is `Pane.isReportingProgress` (OSC 9;4 from `GHOSTTY_ACTION_PROGRESS_REPORT`), not a
-  process check; attention outranks it in `agentState`. `GitInfo.lookup` is main-thread only and
+  process check; attention outranks it in `agentState`. `Pane.isWorking` is that rolled up
+  (`agentState == .running`, so a *waiting* pane doesn't count even though Claude keeps progress set
+  while a dialog is open), and `Tab.isWorking` / `Workspace.isWorking` are the max over their panes,
+  computed like attention's roll-up. `GitInfo.lookup` is main-thread only and
   caches for 3s; it reads `.git/HEAD` (following a worktree's `gitdir:` file) with no subprocess.
 - `SurfaceView.typeText` writes raw pty bytes through ghostty's `text:` binding action (Zig string
   escapes, `\r` = Enter). `ghostty_surface_text` is a *paste* (bracketed), so a newline in it
   won't run a command.
+
+## The working spinner (`RunningSpinner.swift`)
+
+- The only continual animation in the chrome: a turning asterisk (Claude Code's own `·✢✳✶✻✽`
+  cycle, drawn as vectors so glyph metrics can't make the chrome jitter) in the leading slot of a
+  tab button, sidebar row or pill whose `isWorking` says an agent is working there.
+- **It is never a colour.** It draws in the element's own title colour, because colours and
+  outlines on chrome mean attention (#7, #9). It is orthogonal to attention and sits on the
+  opposite side of the element from the dot, so the two never collide; a *waiting* pane doesn't
+  spin (`isWorking` reads `agentState`).
+- Elements own a `RunningSpinnerState`, fed `set(_:)` on every refresh (the `isRunning` properties,
+  set from `reload()` like `attention`), and draw through `RunningSpinner.draw` only — one drawer,
+  like `AttentionStyle`. A tab keeps its width and gives the slot to its title (a strip must not
+  reflow whenever an agent starts or stops); a pill, which is sized to its content, grows by
+  `RunningSpinner.slot`, as it already does for the attention dot.
+- `SpinnerTicker` is one timer in the common run-loop modes for every spinning element, running
+  only while something spins. Unlike `AttentionFader` it holds its states **weakly**: a fade ends
+  and unregisters itself, but a spin has no end, so a strong reference would keep a closed pane's
+  button, its state and the timer alive forever (#43). Keep it weak, and keep the
+  "closed workspace leaves no registration" steps.
+- Switches: `RunningSpinner.animating` is off in self-test mode (on for demos), like
+  `AttentionFade.enabled`, and Reduce Motion leaves a standing asterisk and no timer
+  (`RunningSpinner.spins`). `phaseOverride` renders a chosen frame for pixel checks.
+  Tests: `SelfTestSpinner.swift` (`DEALER_SELFTEST_ONLY=spinner:`, self-contained).
 
 ## Notification decision log (`NotificationLog.swift`, #56)
 

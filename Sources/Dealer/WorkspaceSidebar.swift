@@ -50,6 +50,7 @@ final class WorkspaceSidebarView: FlippedView, ThemeApplying {
             r.detail = (ws.validFocusedPane ?? ws.decks.first?.activeTab?.focusTarget)?.statusLine ?? ""
             r.isActive = ws === c.activeWorkspace
             r.attention = ws.attention
+            r.isRunning = ws.isWorking  // AgentStatus.swift
             r.color = ws.color
         }
         needsLayout = true
@@ -111,6 +112,15 @@ final class WorkspaceRow: FlippedView {
         }
     }
     let attentionFade = AttentionFadeState()
+    /// True while an agent in this workspace is working (RunningSpinner.swift): a turning asterisk
+    /// between the number and the name.
+    var isRunning = false {
+        didSet {
+            if spinner.onChange == nil { spinner.onChange = { [weak self] in self?.needsDisplay = true } }
+            spinner.set(isRunning)
+        }
+    }
+    let spinner = RunningSpinnerState()
     /// The workspace's color (#9): a chip at the left edge plus a faint tint.
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
@@ -127,6 +137,25 @@ final class WorkspaceRow: FlippedView {
         return CGRect(x: 5.5 - w / 2, y: 5, width: w, height: bounds.height - 10)
     }
     private static let dotSize: CGFloat = 6
+    /// The faint ⌃N number's column, in front of the name.
+    private static let numberColumn: CGFloat = 16
+
+    /// Top and height of the title line: centred in the row, or above the status line when there is
+    /// one. Shared by `draw` and `spinnerBox`.
+    private var titleMetrics: (y: CGFloat, height: CGFloat) {
+        let font = titleAttrs[.font] as! NSFont
+        let h = ceil(font.ascender - font.descender)
+        guard !detail.isEmpty, !isAddRow else { return ((bounds.height - h) / 2, h) }
+        let detailFont = Theme.Fonts.paneBar
+        return ((bounds.height - h - ceil(detailFont.ascender - detailFont.descender) - 1) / 2, h)
+    }
+
+    /// The spinner's box, between the number and the name, on the title line (self-test hook).
+    var spinnerBox: CGRect {
+        let m = titleMetrics
+        return RunningSpinner.box(in: CGRect(x: 0, y: m.y, width: 0, height: m.height),
+                                  x: Self.padding + Self.numberColumn)
+    }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -179,13 +208,10 @@ final class WorkspaceRow: FlippedView {
             else { ColorStyle.drawChip(color, in: Self.chipRect(in: bounds)) }
         }
 
-        let titleFont = titleAttrs[.font] as! NSFont
-        let titleH = ceil(titleFont.ascender - titleFont.descender)
+        let (titleY, titleH) = titleMetrics
         let detailFont = Theme.Fonts.paneBar
         let detailH = ceil(detailFont.ascender - detailFont.descender)
         let hasDetail = !detail.isEmpty && !isAddRow
-        let titleY = hasDetail ? (bounds.height - titleH - detailH - 1) / 2 : (bounds.height - titleH) / 2
-        let numberColumn: CGFloat = 16
         var x = Self.padding
 
         if isAddRow {
@@ -204,7 +230,13 @@ final class WorkspaceRow: FlippedView {
             let nh = ceil(nf.ascender - nf.descender)
             (number as NSString).draw(at: CGPoint(x: x, y: titleY + (titleH - nh) / 2), withAttributes: numberAttrs)
         }
-        x += numberColumn
+        x += Self.numberColumn
+        if spinner.isRunning && !isAddRow {
+            // In the name's own colour: colours and outlines on chrome mean attention.
+            RunningSpinner.draw(in: spinnerBox, color: titleAttrs[.foregroundColor] as! NSColor,
+                                phase: RunningSpinner.phase())
+            x += RunningSpinner.slot
+        }
 
         let dot = attentionFade.shown > .none && !isAddRow
         let right = bounds.width - Self.padding - (dot ? Self.dotSize + 6 : 0)
