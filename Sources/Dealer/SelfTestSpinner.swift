@@ -1,6 +1,6 @@
 import AppKit
 
-// MARK: - Self-test section: the "an agent is working here" spinner (RunningSpinner.swift)
+// MARK: - Self-test section: the working spinner (#64, RunningSpinner.swift)
 
 extension TerminalWindowController {
     /// A pane reporting OSC 9;4 progress spins its tab button and its workspace's switcher entry

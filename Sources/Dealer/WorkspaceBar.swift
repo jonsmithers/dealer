@@ -118,7 +118,7 @@ final class WorkspaceButton: FlippedView {
         }
     }
     let attentionFade = AttentionFadeState()
-    /// True while an agent in this workspace is working (RunningSpinner.swift): a turning asterisk
+    /// True while an agent in this workspace is working (#64, RunningSpinner.swift): a turning asterisk
     /// in front of the number. Unlike a tab, a pill is sized to its content, so it widens by the
     /// spinner's slot, the way it already does for the attention dot.
     var isRunning = false {

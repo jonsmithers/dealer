@@ -499,7 +499,7 @@ final class TabButton: FlippedView {
         }
     }
     let attentionFade = AttentionFadeState()
-    /// True while an agent in this tab is working (RunningSpinner.swift): a turning asterisk in
+    /// True while an agent in this tab is working (#64, RunningSpinner.swift): a turning asterisk in
     /// front of the title. The tab's width doesn't change with it — the title just gets the slot
     /// less — so a strip doesn't reflow every time an agent starts or stops.
     var isRunning = false {

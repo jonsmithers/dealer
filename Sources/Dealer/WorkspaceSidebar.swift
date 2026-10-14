@@ -112,7 +112,7 @@ final class WorkspaceRow: FlippedView {
         }
     }
     let attentionFade = AttentionFadeState()
-    /// True while an agent in this workspace is working (RunningSpinner.swift): a turning asterisk
+    /// True while an agent in this workspace is working (#64, RunningSpinner.swift): a turning asterisk
     /// between the number and the name.
     var isRunning = false {
         didSet {

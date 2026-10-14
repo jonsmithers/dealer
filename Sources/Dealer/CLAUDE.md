@@ -394,7 +394,7 @@
   escapes, `\r` = Enter). `ghostty_surface_text` is a *paste* (bracketed), so a newline in it
   won't run a command.
 
-## The working spinner (`RunningSpinner.swift`)
+## The working spinner (`RunningSpinner.swift`, #64)
 
 - The only continual animation in the chrome: a turning asterisk (Claude Code's own `·✢✳✶✻✽`
   cycle, drawn as vectors so glyph metrics can't make the chrome jitter) in the leading slot of a

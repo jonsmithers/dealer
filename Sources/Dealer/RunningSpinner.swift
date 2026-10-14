@@ -1,6 +1,6 @@
 import AppKit
 
-// MARK: - "An agent is working here"
+// MARK: - "An agent is working here" (#64)
 //
 // A continual animation on every tab button and workspace switcher entry (sidebar row or top-bar
 // pill) that holds a pane whose `agentState` is `.running` — OSC 9;4 progress, which Claude Code
