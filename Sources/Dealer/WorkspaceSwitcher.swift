@@ -32,7 +32,7 @@ enum SelectionStyle {
 
     static func drawFill(in bounds: CGRect, cornerRadius: CGFloat) {
         let r = bounds.insetBy(dx: inset, dy: inset), radius = max(cornerRadius - inset, 0)
-        Theme.workspaceSelection.setFill()
+        Theme.fill(Theme.workspaceSelection).setFill()
         NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius).fill()
     }
 

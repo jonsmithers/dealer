@@ -30,6 +30,9 @@ enum Theme {
     /// (e.g. blue = 4, bright blue = 12). Empty until `load`. Not used for drawing yet (#23).
     private(set) static var ansi: [NSColor] = []
 
+    /// `background-opacity` and `background-blur` (#67), read together through `transparency`.
+    private(set) static var transparency = Transparency()
+
     /// True when the terminal background is dark. Picks the AppKit appearance too.
     static var isDark: Bool { background.luminance < 0.25 }
 
@@ -97,6 +100,16 @@ enum Theme {
         NSColor(srgbRed: 0xf2 / 255, green: 0x8f / 255, blue: 0xb0 / 255, alpha: 1),
         NSColor(srgbRed: 0x6f / 255, green: 0xd3 / 255, blue: 0xd6 / 255, alpha: 1),
     ]
+
+    /// Chrome fills (strips, bars, sidebar, gaps, the titlebar row) go through this (#67): at the
+    /// window's translucency they take `background-opacity` as alpha, so the window reads as one
+    /// translucent surface the way Ghostty's own titlebar follows its background. Opaque (the
+    /// default) returns `c` itself, so nothing changes. Never use it for text, outlines, dots,
+    /// glyphs or the spinner, which stay opaque.
+    static func fill(_ c: NSColor) -> NSColor {
+        let a = transparency.chromeAlpha
+        return a >= 1 ? c : c.withAlphaComponent(c.alphaComponent * a)
+    }
 
     // MARK: Metrics
 
@@ -188,12 +201,63 @@ enum Theme {
         }
         divider = color(config, "split-divider-color")
             ?? background.mixed(with: .black, isDark ? 0.4 : 0.1)
+        transparency = Transparency(config)
     }
 
     private static func color(_ config: ghostty_config_t, _ key: String) -> NSColor? {
         var c = ghostty_config_color_s()
         guard ghostty_config_get(config, &c, key, UInt(key.utf8.count)) else { return nil }
         return NSColor(srgbRed: CGFloat(c.r) / 255, green: CGFloat(c.g) / 255, blue: CGFloat(c.b) / 255, alpha: 1)
+    }
+}
+
+/// The window's translucency (#67): ghostty's `background-opacity` and `background-blur`. The one
+/// place drawers and the window ask, through `Theme.transparency` and `Theme.fill`.
+struct Transparency: Equatable {
+    /// `background-blur`. ghostty hands it to the C API as an `Int16` (`BackgroundBlur.cval` at the
+    /// pin): 0 off, a positive radius (`true` = 20), and the sentinels -1/-2 for the two glass
+    /// styles. Upstream calls those sentinels temporary, so recheck them on a pin bump.
+    enum Blur: Equatable {
+        case off
+        case radius(Int)
+        case glassRegular
+        case glassClear
+
+        init(cval: Int16) {
+            switch cval {
+            case -1: self = .glassRegular
+            case -2: self = .glassClear
+            case let r where r > 0: self = .radius(Int(r))
+            default: self = .off
+            }
+        }
+
+        var isGlass: Bool { self == .glassRegular || self == .glassClear }
+    }
+
+    /// `background-opacity`, clamped to 0…1. 1 is ghostty's default.
+    var opacity: CGFloat = 1
+    var blur: Blur = .off
+
+    /// Ghostty's rule (`TerminalWindow.syncAppearance`): the window is non-opaque when the
+    /// background is translucent or a glass style is set.
+    var isTranslucent: Bool { opacity < 1 || blur.isGlass }
+    /// Alpha for chrome fills: the background's own opacity while translucent, else 1.
+    var chromeAlpha: CGFloat { isTranslucent ? opacity : 1 }
+    /// The radius blur used for the glass styles until Dealer draws glass (ghostty's `background-blur = true`).
+    static let glassFallbackRadius = 20
+
+    init() {}
+    init(opacity: CGFloat, blur: Blur) { self.opacity = min(max(opacity, 0), 1); self.blur = blur }
+
+    init(_ config: ghostty_config_t) {
+        var o: Double = 1
+        let ok = "background-opacity"
+        _ = ghostty_config_get(config, &o, ok, UInt(ok.utf8.count))
+        var b: Int16 = 0
+        let bk = "background-blur"
+        _ = ghostty_config_get(config, &b, bk, UInt(bk.utf8.count))
+        self.init(opacity: CGFloat(o), blur: Blur(cval: b))
     }
 }
 

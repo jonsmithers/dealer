@@ -304,6 +304,15 @@
     diagnostics is refused on reload (the old one stays) and listed in the settings banner.
   - Reload work hops to main with `CFRunLoopPerformBlock` in default mode, not the main queue,
     for the same reason as `ControlServer.onMain`.
+- **Transparency (#67, `WindowTransparency.swift`).** `Theme.transparency` is the one read of
+  `background-opacity`/`background-blur` (glass = the C API's -1/-2 sentinels; recheck on a pin
+  bump). Translucent windows: chrome *fills* go through `Theme.fill(_:)` (alpha = opacity; the
+  color itself when opaque, so opacity 1 renders byte for byte as before); text, outlines, dots,
+  glyphs and the spinner never do. Nothing opaque may sit under a terminal: the content view's fill
+  moves to `WindowBackdropView`'s chrome view, which cuts the deck cards out, the deck card and
+  `PaneView` drop their backgrounds, and pane `DividerView`s paint their own gap
+  (`paintsGap`). A new chrome fill uses `Theme.fill`; a new view under the panes must stay clear
+  while translucent. `SelfTestTransparency.swift` (`DEALER_SELFTEST_ONLY=transparency:`).
 - Pane gaps are 1pt (`Theme.Metrics.paneGap`); the visible line is the deck card's background
   (`Theme.divider`) showing through. `DividerView.hitFrame` widens the grab area past the gap onto
   the neighbouring panes, so `syncDividers` keeps dividers above every Pane/Deck view. Adding a pane

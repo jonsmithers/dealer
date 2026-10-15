@@ -207,7 +207,7 @@ final class WorkspaceRow: FlippedView {
         if selected {
             SelectionStyle.drawFill(in: bounds, cornerRadius: radius)
         } else if hovering {
-            Theme.hover.setFill()
+            Theme.fill(Theme.hover).setFill()
             NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).fill()
         }
         if !isAddRow {
@@ -342,7 +342,7 @@ final class SidebarToggleButton: FlippedView {
 
     override func draw(_ dirtyRect: NSRect) {
         if hovering {
-            Theme.hover.setFill()
+            Theme.fill(Theme.hover).setFill()
             NSBezierPath(roundedRect: bounds, xRadius: Theme.Metrics.tabRadius, yRadius: Theme.Metrics.tabRadius).fill()
         }
         let color = hovering || isOn ? Theme.text : Theme.textMuted

@@ -58,7 +58,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
-        window.backgroundColor = Palette.window
+        window.backgroundColor = Palette.window  // applyTransparency() below may clear it (#67)
         window.appearance = Theme.appearance
         window.titleVisibility = .hidden
         window.minSize = NSSize(width: 480, height: 320)
@@ -71,6 +71,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         observeSettings()
         observeTheme()
         observeCaffeinate()
+        applyTransparency()
 
         if let snapshot {
             restore(snapshot)
@@ -105,6 +106,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     func showAndFocus() {
         showWindow(nil)
+        applyBlur()  // #67: the window server's blur needs a visible window
         layoutNow()
         if let p = focusedPane ?? focusedDeck?.activeTab?.focusTarget { focus(p) }
     }
@@ -812,7 +814,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         }
 
         var pool = paneDividers[ObjectIdentifier(deck)] ?? []
-        syncDividers(&pool, in: dv.content, specs: dividers.map { d in
+        syncDividers(&pool, in: dv.content, paintsGap: true, specs: dividers.map { d in
             (d.frame, d.node.axis, { [weak self, weak node = d.node, rect = d.splitRect] p in
                 guard let node else { return }
                 node.ratio = Self.ratio(for: p, in: rect, axis: node.axis, gap: Self.paneGap)
@@ -877,7 +879,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// Reuses divider views so one being dragged survives the relayout it triggers.
-    private func syncDividers(_ pool: inout [DividerView], in parent: NSView, specs: [(CGRect, Axis, (CGPoint) -> Void)]) {
+    private func syncDividers(_ pool: inout [DividerView], in parent: NSView, paintsGap: Bool = false, specs: [(CGRect, Axis, (CGPoint) -> Void)]) {
         while pool.count < specs.count { pool.append(DividerView()) }
         // Hit areas overlap the panes beside a thin gap, so dividers must stay above them.
         let firstDivider = parent.subviews.firstIndex { $0 is DividerView }
@@ -893,6 +895,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
                     parent.window?.invalidateCursorRects(for: dv)
                 }
                 dv.onDrag = onDrag
+                dv.paintsGap = paintsGap
             } else {
                 dv.onDrag = nil  // a spare must not keep its last split alive
                 dv.removeFromSuperview()

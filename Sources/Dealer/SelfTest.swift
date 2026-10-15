@@ -341,6 +341,7 @@ extension TerminalWindowController {
         dragSettleSelfTestSteps(kit)
         edgeSplitSelfTestSteps(kit)
         reloadSelfTestSteps(kit)
+        transparencySelfTestSteps(kit)
         ghosttyVersionSelfTestSteps(kit)
         ghosttyResourcesSelfTestSteps(kit)
         modalsSelfTestSteps(kit)

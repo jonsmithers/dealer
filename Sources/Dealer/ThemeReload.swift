@@ -22,8 +22,8 @@ extension TerminalWindowController {
     /// workspaces that were never shown, and the switchers and banner while they're detached.
     /// Only colors change; surfaces and frames are untouched.
     func applyTheme() {
-        window?.backgroundColor = Theme.chrome
         window?.appearance = Theme.appearance
+        applyTransparency()  // #67: opacity, blur and glass; sets the window's background
         contentView.applyThemeRecursively()
         // Anything not under the content view right now: decks of workspaces that were never
         // shown, panes never laid out, and the switchers or banner while detached.

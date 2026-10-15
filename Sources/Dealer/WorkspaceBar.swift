@@ -197,7 +197,7 @@ final class WorkspaceButton: FlippedView {
         if selected {
             SelectionStyle.drawFill(in: bounds, cornerRadius: radius)
         } else if hovering {
-            Theme.hover.setFill()
+            Theme.fill(Theme.hover).setFill()
             NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).fill()
         }
         if !isAddButton {

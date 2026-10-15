@@ -48,7 +48,9 @@ final class PaneView: FlippedView, ThemeApplying {
     deinit { LiveObjects.remove(.paneView) }
 
     func applyTheme() {
-        layer?.backgroundColor = Theme.background.cgColor
+        // Translucent (#67): the terminal paints its own background at `background-opacity` (or
+        // none, over glass); an opaque one here would show through it.
+        layer?.backgroundColor = Theme.transparency.isTranslucent ? nil : Theme.background.cgColor
         veil.layer?.backgroundColor = Theme.unfocusedFill.cgColor
         // The veil's strength comes from the config too (`unfocused-split-opacity`).
         veil.alphaValue = dimsWhenUnfocused && !isFocusedPane ? Theme.unfocusedAlpha : 0
@@ -135,7 +137,7 @@ final class PaneBarView: FlippedView, ThemeApplying {
     }
 
     func applyTheme() {
-        layer?.backgroundColor = Theme.paneBar.cgColor
+        layer?.backgroundColor = Theme.fill(Theme.paneBar).cgColor
     }
 
     override func mouseEntered(with event: NSEvent) { hovering = true }
@@ -268,7 +270,10 @@ final class DeckView: FlippedView, ThemeApplying {
     deinit { LiveObjects.remove(.deckView) }
 
     func applyTheme() {
-        content.layer?.backgroundColor = Theme.divider.cgColor
+        // Opaque, the card's background is the pane gaps' color showing between the panes. Translucent
+        // (#67), it would sit under every terminal too, so the card is clear and each pane divider
+        // paints its own gap (`DividerView.paintsGap`).
+        content.layer?.backgroundColor = Theme.transparency.isTranslucent ? nil : Theme.divider.cgColor
         content.layer?.borderColor = Theme.hairline.cgColor
     }
 
@@ -477,7 +482,7 @@ final class HoverButton: NSButton, ThemeApplying {
 
     private func updateLook() {
         contentTintColor = hovering ? Theme.text : Theme.textFaint
-        layer?.backgroundColor = (hovering ? Theme.hover : .clear).cgColor
+        layer?.backgroundColor = (hovering ? Theme.fill(Theme.hover) : .clear).cgColor
     }
 }
 
@@ -557,10 +562,10 @@ final class TabButton: FlippedView {
         let r = bounds
         let radius = Theme.Metrics.tabRadius
         if isActive {
-            Theme.surface.setFill()
+            Theme.fill(Theme.surface).setFill()
             NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius).fill()
         } else if hovering {
-            Theme.hover.setFill()
+            Theme.fill(Theme.hover).setFill()
             NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius).fill()
         }
         // #9: a tab color tints the button and replaces the deck accent in the underline, which
@@ -644,9 +649,44 @@ final class TabButton: FlippedView {
 /// Invisible grab handle over the gap between two panes or decks. The gap itself is the
 /// visible line; the controller makes this view a little wider than the gap so a 1pt
 /// hairline is still easy to grab.
-final class DividerView: NSView {
+final class DividerView: NSView, ThemeApplying {
     var onDrag: ((CGPoint) -> Void)?
-    var axis: Axis = .row
+    var axis: Axis = .row { didSet { if axis != oldValue { needsLayout = true } } }
+    /// A pane divider paints its gap while the window is translucent (#67), since the deck card
+    /// behind the panes is clear then. Deck dividers never do: their gap is the window's chrome.
+    var paintsGap = false { didSet { if paintsGap != oldValue { applyTheme() } } }
+    private var gapLayer: CALayer?
+
+    func applyTheme() {
+        let show = paintsGap && Theme.transparency.isTranslucent
+        if show, gapLayer == nil {
+            wantsLayer = true
+            let l = CALayer()
+            l.name = "dealer.gapFill"
+            l.actions = ["frame": NSNull(), "bounds": NSNull(), "position": NSNull(), "backgroundColor": NSNull()]
+            layer?.addSublayer(l)
+            gapLayer = l
+        }
+        gapLayer?.isHidden = !show
+        gapLayer?.backgroundColor = Theme.fill(Theme.divider).cgColor
+        needsLayout = true
+    }
+
+    /// The visible gap inside the hit frame (`hitFrame` widened it by `dividerSlop`).
+    var gapRect: CGRect {
+        let slop = Theme.Metrics.dividerSlop
+        return axis == .row ? bounds.insetBy(dx: slop, dy: 0) : bounds.insetBy(dx: 0, dy: slop)
+    }
+
+    override func layout() {
+        super.layout()
+        gapLayer?.frame = gapRect
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        needsLayout = true
+    }
 
     /// Frame for a divider covering `gap`, widened to a comfortable grab size.
     static func hitFrame(for gap: CGRect, axis: Axis) -> CGRect {
@@ -786,14 +826,19 @@ final class WindowContentView: FlippedView, ThemeApplying {
     let dropHighlight = HighlightView()
     let selectionHighlight = HighlightView()
     let ghost = GhostView()
+    /// Behind everything (#67): the translucent chrome fill and the glass (WindowTransparency.swift).
+    let backdrop = WindowBackdropView()
 
     override init(frame: NSRect) {
         super.init(frame: frame)
+        addSubview(backdrop)
         applyTheme()
     }
 
     func applyTheme() {
-        layer?.backgroundColor = Theme.chrome.cgColor
+        // Translucent (#67), the chrome is drawn by `backdrop` instead, around the deck cards.
+        layer?.backgroundColor = Theme.transparency.isTranslucent ? nil : Theme.chrome.cgColor
+        backdrop.applyTheme()
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -801,6 +846,7 @@ final class WindowContentView: FlippedView, ThemeApplying {
     override func layout() {
         super.layout()
         controller?.layoutWindow()
+        layoutBackdrop()
     }
 
     /// Keeps overlays above deck views after the layout pass adds subviews.
