@@ -137,7 +137,7 @@ final class WorkspaceButton: FlippedView {
     private var reordering = false
 
     private static let padding: CGFloat = 9
-    private static let dotSize: CGFloat = 6
+    private static var dotSize: CGFloat { Theme.Metrics.switcherDotSize }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -178,6 +178,11 @@ final class WorkspaceButton: FlippedView {
             + ceil((title as NSString).size(withAttributes: titleAttrs).width) + dotWidth
     }
 
+    /// The attention dot, at the pill's right end (also read by the self-test).
+    var attentionDotRect: CGRect {
+        let d = Self.dotSize
+        return CGRect(x: bounds.width - Self.padding - d, y: (bounds.height - d) / 2, width: d, height: d)
+    }
     /// The spinner's box, after the colour chip (self-test hook).
     var spinnerBox: CGRect { RunningSpinner.box(in: bounds, x: Self.padding + chipWidth) }
 
@@ -243,9 +248,8 @@ final class WorkspaceButton: FlippedView {
         }
         if attentionFade.shown > .none {
             // #7 owns the look: waiting outlines the pill, done/unread get a muted dot (Attention.swift).
-            let d = Self.dotSize
             AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: Theme.Metrics.tabRadius,
-                                dotRect: CGRect(x: bounds.width - Self.padding - d, y: (bounds.height - d) / 2, width: d, height: d), alpha: attentionFade.alpha)
+                                dotRect: attentionDotRect, alpha: attentionFade.alpha)
         }
     }
 

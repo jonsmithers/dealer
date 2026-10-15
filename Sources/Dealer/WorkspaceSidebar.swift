@@ -138,7 +138,7 @@ final class WorkspaceRow: FlippedView {
         let w = Theme.Metrics.workspaceBarWidth
         return CGRect(x: 5.5 - w / 2, y: 5, width: w, height: bounds.height - 10)
     }
-    private static let dotSize: CGFloat = 6
+    private static var dotSize: CGFloat { Theme.Metrics.switcherDotSize }
     /// The faint ⌃N number's column, in front of the name.
     private static let numberColumn: CGFloat = 16
 
@@ -150,6 +150,12 @@ final class WorkspaceRow: FlippedView {
         guard !detail.isEmpty, !isAddRow else { return ((bounds.height - h) / 2, h) }
         let detailFont = Theme.Fonts.paneBar
         return ((bounds.height - h - ceil(detailFont.ascender - detailFont.descender) - 1) / 2, h)
+    }
+
+    /// The attention dot, at the right end of the title line (also read by the self-test).
+    var attentionDotRect: CGRect {
+        let m = titleMetrics, d = Self.dotSize
+        return CGRect(x: bounds.width - Self.padding - d, y: m.y + (m.height - d) / 2, width: d, height: d)
     }
 
     /// The spinner's box, between the number and the name, on the title line (self-test hook).
@@ -253,9 +259,8 @@ final class WorkspaceRow: FlippedView {
         }
         if dot {
             // #7: waiting outlines the whole row; done/unread get a muted dot only (Attention.swift).
-            let d = Self.dotSize
             AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: Theme.Metrics.tabRadius,
-                                dotRect: CGRect(x: bounds.width - Self.padding - d, y: titleY + (titleH - d) / 2, width: d, height: d), alpha: attentionFade.alpha)
+                                dotRect: attentionDotRect, alpha: attentionFade.alpha)
         }
     }
 

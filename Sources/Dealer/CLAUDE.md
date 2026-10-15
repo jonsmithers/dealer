@@ -352,6 +352,10 @@
   failures (ControlJobs), `dealer notify --state failed`, the plugin's StopFailure hook (unless
   `[agent] errors_as_failed = false`, exported as `DEALER_CLAUDE_ERROR_STATE`), and COMMAND_FINISHED
   with a non-zero exit (`commandFinishedAttention`, `[attention] failed_commands`).
+- The waiting dot carries a knocked-out `?` (`AttentionStyle.drawQuestion`, #65), the only thing that
+  tells it from an outlined *done* (#61), which stays a bare dot. Dots are 8pt on tabs, rows and
+  pills (`Theme.Metrics.switcherDotSize`) so both glyphs read at 1x; `SelfTestWaitingGlyph.swift`
+  checks the `?` the way #48 checks the `!`.
 - Shell-driven events (ghostty actions, socket requests from a shell) reach `setAttention` through
   `DispatchQueue.main.async`. A `SelfTest.waitUntil` in the same step sees them (the runner starts
   steps from a timer, #47).

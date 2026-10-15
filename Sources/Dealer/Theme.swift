@@ -118,6 +118,9 @@ enum Theme {
         static let sidebarWidth: CGFloat = 200
         static let sidebarRowHeight: CGFloat = 28
         static let sidebarRowDetailHeight: CGFloat = 40
+        /// The attention dot on sidebar rows and pills: 8pt like a tab's (was 6), so the waiting `?`
+        /// and the failed `!` stay legible at 1x (#65).
+        static let switcherDotSize: CGFloat = 8
         /// The selected workspace's bar at the left edge of its sidebar row or pill (#52), in the
         /// workspace's color or `Theme.text`. Unselected colored rows keep a 3pt chip.
         static let workspaceBarWidth: CGFloat = 5

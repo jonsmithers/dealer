@@ -395,7 +395,38 @@ enum AttentionStyle {
             color.setFill()
             NSBezierPath(ovalIn: dotRect).fill()
             if attention == .failed { drawBang(in: dotRect, alpha: alpha) }
+            if attention == .waiting { drawQuestion(in: dotRect, alpha: alpha) }
         }
+    }
+
+    /// A `?` knocked out of the waiting dot (#65), drawn like the `!`: since #61 an outlined *done*
+    /// has the same blue as *waiting*, and the `?` is what says "this one needs an answer". A hook
+    /// (stroked arc and stem, round caps) and the `!`'s point, in the chrome color. *done* stays a
+    /// bare dot.
+    static func drawQuestion(in r: CGRect, alpha: CGFloat = 1) {
+        let q = questionGeometry(in: r)
+        let hook = NSBezierPath()
+        // Flipped views: angle 180° is the bowl's left, 270° its top, 360°+40° just right of bottom.
+        hook.appendArc(withCenter: q.center, radius: q.radius, startAngle: 180, endAngle: 400, clockwise: false)
+        hook.line(to: q.stemEnd)
+        hook.lineWidth = q.width
+        hook.lineCapStyle = .round
+        hook.lineJoinStyle = .round
+        Theme.chrome.withAlphaComponent(alpha).set()
+        hook.stroke()
+        NSBezierPath(ovalIn: q.point).fill()
+    }
+
+    /// The `?`'s parts in a dot of rect `r` (the self-test samples them, #65): the bowl's centre and
+    /// radius (its stroke centreline), the stroke width (the `!`'s bar width), where the stem ends,
+    /// and the point (the `!`'s point). Flipped views: y grows downward.
+    static func questionGeometry(in r: CGRect) -> (center: CGPoint, radius: CGFloat, width: CGFloat, stemEnd: CGPoint, point: CGRect) {
+        let w = max(r.width * 0.18, 1)
+        let center = CGPoint(x: r.midX, y: r.minY + r.height * 0.34)
+        // The stem's round cap ends at 58% of the height, where the `!`'s bar ends, leaving the same
+        // gap above the point.
+        return (center, r.height * 0.17, w, CGPoint(x: r.midX, y: r.minY + r.height * 0.58 - w / 2),
+                CGRect(x: r.midX - w / 2, y: r.minY + r.height * 0.68, width: w, height: w))
     }
 
     /// A `!` knocked out of the failed dot: a bar and a point, as vector shapes so it stays crisp
