@@ -201,7 +201,7 @@ enum Theme {
         }
         divider = color(config, "split-divider-color")
             ?? background.mixed(with: .black, isDark ? 0.4 : 0.1)
-        transparency = Transparency(config)
+        transparency = Transparency.ignoresConfig ? Transparency() : Transparency(config)
     }
 
     private static func color(_ config: ghostty_config_t, _ key: String) -> NSColor? {
@@ -250,6 +250,11 @@ struct Transparency: Equatable {
         if #available(macOS 26.0, *) { return !Self.forceGlassFallback }
         return false
     }
+    /// One switch for the self-test (like `Confirmation.autoAccept`): the user's own ghostty config
+    /// (which the self-test loads on purpose, for its colors) never makes the test windows
+    /// translucent, so pixel checks don't depend on their `background-opacity`/`background-blur`.
+    /// Only a test config (`GhosttyRuntime.configFileOverride`, as `SelfTestTransparency` uses) does.
+    static var ignoresConfig: Bool { SelfTest.enabled && GhosttyRuntime.configFileOverride == nil }
     /// The radius blur used for glass where glass can't show (ghostty's `background-blur = true`).
     static let glassFallbackRadius = 20
     /// Self-test only: behave as if glass were unavailable, to check the fallback on macOS 26.

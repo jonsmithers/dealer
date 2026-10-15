@@ -108,11 +108,13 @@ enum PixelProbe {
         return NSColor(colorSpace: rep.colorSpace, components: &c, count: c.count).usingColorSpace(.sRGB)
     }
 
-    /// Largest per-channel difference in sRGB (`.infinity` if either is missing).
+    /// Largest per-channel difference in sRGB, alpha included (`.infinity` if either is missing).
+    /// Alpha counts since #67: a chrome fill drawn translucent matched its opaque color on RGB alone,
+    /// so the sidebar/pill selection steps passed with the window translucent.
     static func distance(_ a: NSColor?, _ b: NSColor?) -> CGFloat {
         guard let a = a?.usingColorSpace(.sRGB), let b = b?.usingColorSpace(.sRGB) else { return .infinity }
         return max(abs(a.redComponent - b.redComponent), abs(a.greenComponent - b.greenComponent),
-                   abs(a.blueComponent - b.blueComponent))
+                   abs(a.blueComponent - b.blueComponent), abs(a.alphaComponent - b.alphaComponent))
     }
 
     static func matches(_ a: NSColor?, _ b: NSColor?, tolerance: CGFloat = tolerance) -> Bool {

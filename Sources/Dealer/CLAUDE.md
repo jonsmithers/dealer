@@ -280,7 +280,7 @@
   take the best pixel in the shape's rect (`samples(_:in:)`, as `bangProblem` does) rather than
   one point. `atEachScale` reruns a check at 2x and 1x so 1x regressions show on Retina-only
   machines; the `pixels:` steps and the failed-dot steps use it.
-- Compare with `PixelProbe.matches` (tolerance 2/255) against the exact expected color, e.g.
+- Compare with `PixelProbe.matches` (tolerance 2/255, alpha included) against the exact expected color, e.g.
   `Theme.attentionWaiting`. Reads are exact for solid fills. Don't loosen the tolerance to make a
   check pass; that hid the bug above. The `pixels:` steps fail first if the probe regresses.
   `Theme.withBackground(_:_:)` checks light/dark variants of draw-time colors on a detached view.

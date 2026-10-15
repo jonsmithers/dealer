@@ -165,6 +165,11 @@ The GitHub repo is `jonsmithers/dealer`.
   directory set `DEALER_GHOSTTY_RESOURCES_DIR=<dir>`; set it empty to run without integration.
   The self-test still loads your real ghostty config (only Dealer's settings use a temp home), so
   a ghostty config problem, such as a theme that can't be resolved, can show up in banner steps.
+  Its `background-opacity` and `background-blur` are ignored, though (`Transparency.ignoresConfig`,
+  one switch: self-test mode without `configFileOverride`), so a translucent user config can't
+  change pixel checks; `SelfTestTransparency.swift` sets its own through `configFileOverride`. To
+  look at transparency by eye, use a normal launch with a temp `XDG_CONFIG_HOME` (and back up the
+  session). `PixelProbe.matches` compares alpha too.
 - To try the CLI against a dev build: run `DEALER_SELFTEST=1 .build/debug/Dealer` (it listens on
   `$TMPDIR/dealer-selftest-<pid>.sock`), then
   `DEALER_SOCKET=$TMPDIR/dealer-selftest-<pid>.sock .build/debug/Dealer list`. Inside a Dealer pane,

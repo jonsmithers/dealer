@@ -139,6 +139,16 @@ extension TerminalWindowController {
             return [PixelProbe.pixels(dv.strip), activeRow().flatMap { PixelProbe.pixels($0) }, PixelProbe.pixels(paneA().view.bar)]
         }
 
+        t.step("transparency: the user's own config never makes the self-test translucent", nil, {
+            all(GhosttyRuntime.configFileOverride == nil ? nil : "expected the user's config to be loaded",
+                Transparency.ignoresConfig ? nil : "the self-test should ignore the config's opacity and blur",
+                read(Transparency()), self.window?.isOpaque == true ? nil : "the window should be opaque",
+                self.contentView.backdrop.isHidden ? nil : "the backdrop should be hidden")
+        }) {
+            GhosttyRuntime.configFileOverride = nil
+            GhosttyRuntime.shared.reloadConfig()
+            self.layoutNow()
+        }
         t.step("transparency: without background-opacity the window stays opaque, chrome as before", nil, {
             all(read(Transparency()), windowIs(opaque: true), chromePixels(alpha: 1), noGlass(),
                 { let c = Theme.chrome; return Theme.fill(c) === c }() ? nil : "Theme.fill must hand back the color itself when opaque")
