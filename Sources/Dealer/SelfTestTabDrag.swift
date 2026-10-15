@@ -35,6 +35,8 @@ extension TerminalWindowController {
             t.named(focusedPane, a)
             newTab(in: ws.decks[0])
             t.named(focusedPane, b)
+            // Titles independent of the cwd, so tab widths (and drop points) don't vary by checkout.
+            for (i, tab) in ws.decks[0].tabs.enumerated() { tab.customTitle = "drag test \(i == 0 ? "a" : "b")" }
             layoutNow()
             return (a, b)
         }
@@ -62,6 +64,15 @@ extension TerminalWindowController {
             }
             if let down = ev(.leftMouseDown, from) { b.mouseDown(with: down) }
             layoutNow()
+        }
+        /// `p` moved right, if needed, out of DragController's left edge band (where a drop promotes
+        /// instead), but kept in the left half of `button` so the drop still inserts before it. A
+        /// tab sized to a short title (its pane's cwd, e.g. a worktree named "blur") has its whole
+        /// left half inside the band, so the test's tabs get fixed titles wide enough for this.
+        func clearOfEdgeBand(_ p: CGPoint, before button: NSView) -> CGPoint {
+            let minX = deckArea.minX + DragController.edgeBand + 3
+            let mid = button.convert(CGPoint(x: button.bounds.midX, y: 0), to: nil).x
+            return CGPoint(x: min(max(p.x, minX), mid - 2), y: p.y)
         }
         func state() -> String { describeWorkspaces(name: t.name) }
         /// `deck` holds one tab whose panes are `panes`, in order.
@@ -103,7 +114,7 @@ extension TerminalWindowController {
             }) {
                 names = fresh()
                 guard let ba = button(names.a) else { return }
-                dragTab(names.b, to: point(ba, 0.3, 0.75))
+                dragTab(names.b, to: clearOfEdgeBand(point(ba, 0.3, 0.75), before: ba))
             }
             t.step("tab drag (\(mode)): a drag that goes nowhere leaves the tab selected where it was", nil, {
                 guard let d = deck(names.a), let tb = tab(names.b) else { return "the tabs are gone" }
