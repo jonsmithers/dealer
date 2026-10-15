@@ -54,6 +54,7 @@ extension TerminalWindowController {
             self.newTab(in: deck)
             t.named(self.focusedPane, "mb")
             live = t.pane("mb").surface.surface != nil
+            _ = t.pane("mb").surface.waitForShell()  // a fresh pane (#62)
             t.pane("mb").surface.typeText("sleep 30\r")
         }
 

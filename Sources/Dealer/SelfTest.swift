@@ -72,6 +72,25 @@ enum SelfTest {
     }
 }
 
+extension SurfaceView {
+    /// Waits until this pane's shell runs what's typed into it (#62), before a step types into a
+    /// fresh pane. Types a sentinel echo and waits for its output, retyping it every 2 s in case a
+    /// line typed while the shell was still starting was lost. The arithmetic keeps the typed line
+    /// itself from matching. False on timeout or without a surface (locked screen).
+    func waitForShell(timeout: TimeInterval = 15) -> Bool {
+        guard surface != nil else { return false }
+        let token = "dealer-ready-\(Int.random(in: 1000...9999))"
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            perform("text:" + ControlHandler.escapeForBinding(" echo \(token)-$((6*7))\r"))
+            if SelfTest.waitUntil(timeout: max(0.1, min(2, deadline.timeIntervalSinceNow)), { screenText.contains("\(token)-42") }) {
+                return true
+            }
+        }
+        return false
+    }
+}
+
 /// Lets a feature's self-test section (in its own file) add steps to the shared run.
 struct SelfTestKit {
     /// (title, expected `describeTree` or nil, extra check returning a problem or nil, action)

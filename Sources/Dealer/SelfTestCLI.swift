@@ -253,6 +253,7 @@ extension TerminalWindowController {
             created(call("create", ["type": "tab", "target": "\(ids["c0"] ?? 0)", "focus": false]), "ctb")
             guard let tab = self.locate(t.pane("ctb"))?.tab else { return }
             if live {
+                _ = t.pane("ctb").surface.waitForShell()  // a fresh pane (#62)
                 t.pane("ctb").surface.typeText("sleep 30\r")
                 closeTabBusy = SelfTest.waitUntil(timeout: 15) { t.pane("ctb").surface.needsConfirmQuit }
             } else {

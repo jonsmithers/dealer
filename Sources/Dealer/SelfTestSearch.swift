@@ -47,7 +47,8 @@ extension TerminalWindowController {
             pane = self.focusedPane
             t.named(pane, "find")
             guard let pane, live else { return }
-            // Output with three matches; the typed line itself has none ("zq%s").
+            // Output with three matches; the typed line itself has none ("zq%s"). A fresh pane (#62).
+            _ = pane.surface.waitForShell()
             pane.surface.perform("text:" + ControlHandler.escapeForBinding("printf 'zq%s\\n' 49x 49x 49x\r"))
             problem = self.pressMenuKeyForTest("f", .command, keyCode: kVK_ANSI_F, surface: pane.surface)
                 ? nil : "⌘F matched no enabled item: \(Self.menuKeyFailure)"

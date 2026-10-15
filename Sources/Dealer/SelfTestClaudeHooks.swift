@@ -91,14 +91,21 @@ extension TerminalWindowController {
         // Claude Code does with CLAUDE_CODE_PLUGIN_DIRS: runs the plugin's PermissionRequest hook,
         // which calls the real `dealer` CLI over the real socket.
         var target: Pane?
+        var shellReady = false
         t.step("claude hooks: a plain `claude` typed in a pane marks it waiting (stub claude, real shell + socket)", nil, {
             guard let target else {
                 // Locked screen: ghostty can't create surfaces, so there's no shell to type into.
                 print("      (skipped the typed-claude round trip: ghostty couldn't create terminal surfaces here)")
                 return nil
             }
-            SelfTest.waitUntil(timeout: 10) { target.attention == .waiting }
-            return target.attention == .waiting ? nil : "pane attention is \(target.attention.name), expected waiting"
+            // 20 s like other shell steps: under a loaded full run the stub, the hook script and a
+            // cold start of the dealer CLI all come after the shell (#62).
+            SelfTest.waitUntil(timeout: 20) { target.attention == .waiting }
+            guard target.attention != .waiting else { return nil }
+            // Say what the pane shows, so a failure tells a lost line from a hook that never arrived.
+            return "pane attention is \(target.attention.name), expected waiting"
+                + (shellReady ? "" : " (its shell never echoed back before `claude` was typed)")
+                + "; the pane's last lines: \(String(target.surface.screenText.suffix(400)).debugDescription)"
         }) {
             // A fresh pane beside the focused one, then focus goes back, so the target isn't the
             // pane the user is looking at (setAttention ignores that one).
@@ -119,6 +126,9 @@ extension TerminalWindowController {
             """
             try? stub.write(toFile: stubDir + "/claude", atomically: true, encoding: .utf8)
             chmod(stubDir + "/claude", 0o755)
+            // #62: in a full run, a line typed into a brand-new pane before its shell was ready
+            // sometimes never ran. Wait until the shell echoes back first.
+            shellReady = target.surface.waitForShell()
             target.surface.typeText("PATH='\(stubDir)':\"$PATH\" command claude\r")
         }
         t.step("claude hooks: a parent terminal's (cmux) and Claude session's identity don't reach pane shells", nil, {

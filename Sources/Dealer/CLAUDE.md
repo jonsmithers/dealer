@@ -260,6 +260,9 @@
     queue: ghostty's actions (`wakeup_cb` → `DispatchQueue.main.async` → `ghostty_app_tick`),
     `onClose`/`onTitle`, and `setAttention` from shell-driven events all arrive inside it. The
     helper also ticks ghostty each slice. The `runner:` step asserts this.
+  - Before typing into a pane created in the same step, call `surface.waitForShell()` (SelfTest.swift,
+    #62): it types a sentinel echo until the shell answers. A line typed into a shell that is still
+    starting was sometimes lost in loaded full runs.
   - Panes in an inactive workspace aren't laid out, and their shells reported no foreground
     process in testing; activate the workspace before checking one.
 - **Pixel checks go through `PixelProbe` only** (SelfTestPixels.swift): `sample(_:at:)`, `pixels` (raw bytes for "renders identically"),
