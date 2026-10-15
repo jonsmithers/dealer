@@ -244,8 +244,16 @@ struct Transparency: Equatable {
     var isTranslucent: Bool { opacity < 1 || blur.isGlass }
     /// Alpha for chrome fills: the background's own opacity while translucent, else 1.
     var chromeAlpha: CGFloat { isTranslucent ? opacity : 1 }
-    /// The radius blur used for the glass styles until Dealer draws glass (ghostty's `background-blur = true`).
+    /// Glass shows only on macOS 26+; older systems fall back to a radius blur (`glassFallbackRadius`).
+    var showsGlass: Bool {
+        guard blur.isGlass else { return false }
+        if #available(macOS 26.0, *) { return !Self.forceGlassFallback }
+        return false
+    }
+    /// The radius blur used for glass where glass can't show (ghostty's `background-blur = true`).
     static let glassFallbackRadius = 20
+    /// Self-test only: behave as if glass were unavailable, to check the fallback on macOS 26.
+    static var forceGlassFallback = false
 
     init() {}
     init(opacity: CGFloat, blur: Blur) { self.opacity = min(max(opacity, 0), 1); self.blur = blur }

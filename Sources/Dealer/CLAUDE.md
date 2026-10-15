@@ -313,6 +313,11 @@
   `PaneView` drop their backgrounds, and pane `DividerView`s paint their own gap
   (`paintsGap`). A new chrome fill uses `Theme.fill`; a new view under the panes must stay clear
   while translucent. `SelfTestTransparency.swift` (`DEALER_SELFTEST_ONLY=transparency:`).
+  Glass (macOS 26+, `#if compiler(>=6.2)`): an `NSGlassEffectView` at the bottom of the backdrop,
+  under its chrome view, tinted with the background at its opacity (Ghostty's
+  `TerminalViewContainer`); `applyTheme` attaches or removes it synchronously on every reload.
+  Elsewhere glass falls back to a radius-20 blur (`WindowBlur`, since ghostty's blur call would
+  pass the -1/-2 sentinels to the window server).
 - Pane gaps are 1pt (`Theme.Metrics.paneGap`); the visible line is the deck card's background
   (`Theme.divider`) showing through. `DividerView.hitFrame` widens the grab area past the gap onto
   the neighbouring panes, so `syncDividers` keeps dividers above every Pane/Deck view. Adding a pane

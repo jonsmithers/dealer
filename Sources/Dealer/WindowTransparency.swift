@@ -11,12 +11,13 @@ import GhosttyKit
 // - the chrome (strips, bars, sidebar, deck and pane gaps, titlebar row) is drawn at the same alpha
 //   (`Theme.fill`). The window's chrome fill is `WindowBackdropView`'s shape, with holes where the
 //   deck cards are, so it never stacks under a terminal;
-// - a radius blur comes from the window server (`ghostty_set_window_background_blur`). The glass
-//   styles get a plain radius blur for now (libghostty already leaves their background clear).
+// - a radius blur comes from the window server (`ghostty_set_window_background_blur`), and glass
+//   from an `NSGlassEffectView` at the bottom of the backdrop (macOS 26+), tinted like Ghostty's
+//   (`TerminalViewContainer.swift` at the pin).
 
 extension TerminalWindowController {
     /// Applies `Theme.transparency` to this window. Runs from `init` and from every theme reload
-    /// (⌘⇧,), so switching between opaque and translucent works on open windows.
+    /// (⌘⇧,), so switching between opaque, radius and glass works on open windows.
     func applyTransparency() {
         guard let window else { return }
         let t = Theme.transparency
@@ -29,7 +30,7 @@ extension TerminalWindowController {
             window.isOpaque = true
             window.backgroundColor = Theme.chrome
         }
-        contentView.applyTheme()  // its own fill, and the backdrop's
+        contentView.applyTheme()  // its own fill, and the backdrop's shape and glass
         contentView.layoutBackdrop()
         applyBlur()
     }
@@ -47,8 +48,8 @@ extension TerminalWindowController {
             ghostty_set_window_background_blur(app, Unmanaged.passUnretained(window).toOpaque())
         case .glassRegular, .glassClear:
             // ghostty passes the glass sentinels (-1/-2) straight to the window server, so set the
-            // radius ourselves: a plain blur until Dealer draws glass.
-            WindowBlur.set(window, radius: Transparency.glassFallbackRadius)
+            // radius ourselves: none under glass, a plain blur where glass can't show.
+            WindowBlur.set(window, radius: t.showsGlass ? 0 : Transparency.glassFallbackRadius)
         }
     }
 }
@@ -89,8 +90,11 @@ extension WindowContentView {
 
 /// The bottom of a window's content view (#67), hidden while the window is opaque. Translucent,
 /// `chrome` draws the chrome fill everywhere but the deck cards (a terminal shows its own
-/// translucent background, never the chrome under it).
+/// translucent background, or the glass, never the chrome under it); in glass mode the glass view
+/// sits under that, so the chrome is drawn over glass at the same alpha.
 final class WindowBackdropView: FlippedView, ThemeApplying {
+    /// The glass (`NSGlassEffectView`, macOS 26+) in glass mode, else nil.
+    private(set) var glassView: NSView?
     /// The chrome fill with the deck cards cut out.
     let chrome = ChromeFillView()
 
@@ -107,12 +111,56 @@ final class WindowBackdropView: FlippedView, ThemeApplying {
     func applyTheme() {
         let t = Theme.transparency
         isHidden = !t.isTranslucent
+        updateGlass(t)
         chrome.needsDisplay = true
     }
 
     func layoutChrome(holes: [CGRect]) {
         chrome.frame = bounds
         chrome.holes = holes
+        glassView?.frame = bounds
+        if let g = glassView { configureGlassCorner(g) }
+    }
+
+    // MARK: Glass
+
+    private func updateGlass(_ t: Transparency) {
+        #if compiler(>=6.2)
+        if #available(macOS 26.0, *), t.showsGlass {
+            // Attached synchronously, like Ghostty's first attach, so a new window never shows a
+            // frame without it.
+            let g = (glassView as? NSGlassEffectView) ?? {
+                let v = NSGlassEffectView(frame: bounds)
+                v.autoresizingMask = [.width, .height]
+                addSubview(v, positioned: .below, relativeTo: chrome)
+                glassView = v
+                return v
+            }()
+            g.style = t.blur == .glassClear ? .clear : .regular
+            // Ghostty draws the background color at `background-opacity` over the glass
+            // (`model.color.glassEffect(…)`); the tint is AppKit's equivalent.
+            g.tintColor = Theme.background.withAlphaComponent(t.opacity)
+            configureGlassCorner(g)
+            return
+        }
+        #endif
+        glassView?.removeFromSuperview()
+        glassView = nil
+    }
+
+    private func configureGlassCorner(_ g: NSView) {
+        #if compiler(>=6.2)
+        guard #available(macOS 26.0, *), let g = g as? NSGlassEffectView else { return }
+        // The window's own corner radius (private, as Ghostty reads it), so the glass meets the frame.
+        if let w = window, w.responds(to: Selector(("_cornerRadius"))), let r = w.value(forKey: "_cornerRadius") as? CGFloat {
+            g.cornerRadius = r
+        }
+        #endif
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let g = glassView { configureGlassCorner(g) }
     }
 }
 

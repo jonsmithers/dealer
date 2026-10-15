@@ -1,15 +1,15 @@
 import AppKit
 import GhosttyKit
 
-// MARK: - Self-test section: background-opacity, background-blur (#67, WindowTransparency.swift)
+// MARK: - Self-test section: background-opacity, background-blur and glass (#67, WindowTransparency.swift)
 
 extension TerminalWindowController {
     /// ghostty's `background-opacity` / `background-blur` from a temp config (through
     /// `GhosttyRuntime.configFileOverride` and ⌘⇧,'s reload path): the `Theme.transparency` read,
     /// the window's opacity and background, the chrome drawn at the background's alpha around holes
-    /// for the deck cards (PixelProbe on chrome views; terminals are Metal), and the way back to
-    /// opaque rendering byte for byte as before. The blur itself is the window server's:
-    /// screenshots only.
+    /// for the deck cards (PixelProbe on chrome views; terminals are Metal and render blank), the
+    /// glass view in glass mode on macOS 26, and the way back to opaque rendering byte for byte as
+    /// before. The blur itself and the glass's look are the window server's: screenshots only.
     /// Self-contained (`DEALER_SELFTEST_ONLY=transparency:`); restores the launch config.
     func transparencySelfTestSteps(_ t: SelfTestKit) {
         func all(_ problems: String?...) -> String? {
@@ -108,6 +108,26 @@ extension TerminalWindowController {
                        paneDividers().isEmpty ? "the split should have a divider" : nil,
                        paneDividers().allSatisfy { gapLayer($0).map { !$0.isHidden } ?? false } ? nil : "every pane divider should paint its gap")
         }
+        func glass() -> NSView? { contentView.backdrop.glassView }
+        func noGlass() -> String? { glass() == nil ? nil : "no glass view expected" }
+        func glassIs(clear: Bool) -> String? {
+            #if compiler(>=6.2)
+            guard #available(macOS 26.0, *) else {
+                return all(noGlass(), Theme.transparency.showsGlass ? "glass can't show before macOS 26" : nil,
+                           blurRadius() == Transparency.glassFallbackRadius ? nil : "the fallback radius blur should be set")
+            }
+            guard let g = glass() as? NSGlassEffectView else { return "a glass view should be attached" }
+            return all(g.superview === contentView.backdrop ? nil : "the glass should live in the backdrop",
+                       g.frame == contentView.backdrop.bounds ? nil : "the glass should cover the window, \(g.frame) vs \(contentView.backdrop.bounds)",
+                       contentView.backdrop.subviews.firstIndex(of: g)! < contentView.backdrop.subviews.firstIndex(of: contentView.backdrop.chrome)!
+                           ? nil : "the glass should be under the chrome fill",
+                       g.style == (clear ? .clear : .regular) ? nil : "the glass style should be \(clear ? "clear" : "regular")",
+                       expect("glass tint", g.tintColor, Theme.background.withAlphaComponent(Theme.transparency.opacity)),
+                       blurRadius() == 0 ? nil : "no radius blur under glass, got \(blurRadius().map(String.init) ?? "none")")
+            #else
+            return noGlass()
+            #endif
+        }
         func blurRadius() -> Int? { window.flatMap { WindowBlur.lastRadius[$0.windowNumber] } }
         func read(_ want: Transparency) -> String? {
             Theme.transparency == want ? nil : "Theme.transparency should be \(want), got \(Theme.transparency)"
@@ -120,7 +140,7 @@ extension TerminalWindowController {
         }
 
         t.step("transparency: without background-opacity the window stays opaque, chrome as before", nil, {
-            all(read(Transparency()), windowIs(opaque: true), chromePixels(alpha: 1),
+            all(read(Transparency()), windowIs(opaque: true), chromePixels(alpha: 1), noGlass(),
                 { let c = Theme.chrome; return Theme.fill(c) === c }() ? nil : "Theme.fill must hand back the color itself when opaque")
         }) {
             load("")
@@ -135,7 +155,7 @@ extension TerminalWindowController {
             opaqueBytes = chromeBytes()
         }
         t.step("transparency: background-opacity = 0.85 makes the window translucent, chrome at 0.85", nil, {
-            all(read(Transparency(opacity: 0.85, blur: .off)), windowIs(opaque: false), chromePixels(alpha: 0.85), cardIsHole())
+            all(read(Transparency(opacity: 0.85, blur: .off)), windowIs(opaque: false), chromePixels(alpha: 0.85), cardIsHole(), noGlass())
         }) {
             load("background-opacity = 0.85\n")
         }
@@ -162,17 +182,40 @@ extension TerminalWindowController {
         }) {
             load("background-opacity = 0.85\nbackground-blur = 7\n")
         }
-        t.step("transparency: the glass styles get a radius-20 blur for now, the window translucent", nil, {
-            all(read(Transparency(opacity: 0.85, blur: .glassRegular)), windowIs(opaque: false), chromePixels(alpha: 0.85), cardIsHole(),
-                blurRadius() == Transparency.glassFallbackRadius ? nil : "the blur radius should be \(Transparency.glassFallbackRadius), got \(blurRadius().map(String.init) ?? "none")")
+        t.step("transparency: macos-glass-regular attaches a regular glass view under the chrome", nil, {
+            all(read(Transparency(opacity: 0.85, blur: .glassRegular)), windowIs(opaque: false), glassIs(clear: false),
+                chromePixels(alpha: 0.85), cardIsHole())
         }) {
             load("background-opacity = 0.85\nbackground-blur = macos-glass-regular\n")
         }
-        t.step("transparency: reloading back to no opacity renders as before, byte for byte", nil, {
+        var firstGlass: NSView?
+        t.step("transparency: macos-glass-clear switches the same glass view to clear", nil, {
+            all(read(Transparency(opacity: 0.85, blur: .glassClear)), glassIs(clear: true),
+                firstGlass == nil || glass() === firstGlass ? nil : "the glass view should be reused")
+        }) {
+            firstGlass = glass()
+            load("background-opacity = 0.85\nbackground-blur = macos-glass-clear\n")
+        }
+        t.step("transparency: glass alone (opacity 1) still makes the window non-opaque, chrome opaque", nil, {
+            all(read(Transparency(opacity: 1, blur: .glassClear)), windowIs(opaque: false), chromePixels(alpha: 1))
+        }) {
+            load("background-blur = macos-glass-clear\n")
+        }
+        t.step("transparency: where glass can't show, glass falls back to a radius-20 blur", nil, {
+            all(noGlass(), Theme.transparency.showsGlass ? "glass shouldn't show in the fallback" : nil,
+                blurRadius() == Transparency.glassFallbackRadius ? nil : "the fallback blur radius should be \(Transparency.glassFallbackRadius), got \(blurRadius().map(String.init) ?? "none")",
+                windowIs(opaque: false))
+        }) {
+            Transparency.forceGlassFallback = true
+            load("background-opacity = 0.85\nbackground-blur = macos-glass-regular\n")
+        }
+        t.step("transparency: reloading back to no opacity removes the glass and renders as before, byte for byte", nil, {
             let now = chromeBytes()
-            return all(read(Transparency()), windowIs(opaque: true), chromePixels(alpha: 1),
+            return all(read(Transparency()), windowIs(opaque: true), noGlass(), chromePixels(alpha: 1),
                        now.count == 3 && !now.contains(nil) && now == opaqueBytes ? nil : "the strip, sidebar row and pane bar should render exactly as before")
         }) {
+            Transparency.forceGlassFallback = false
+            load("background-opacity = 0.85\nbackground-blur = macos-glass-regular\n")
             load("")
         }
         t.step("transparency: clean up (back to the launch config)", nil, {

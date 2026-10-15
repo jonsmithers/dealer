@@ -120,7 +120,8 @@ Your normal Ghostty config (`~/.config/ghostty/config`) is loaded, and window ch
 colors from your Ghostty theme (background/foreground, `unfocused-split-*`, `split-divider-color`).
 `background-opacity` below 1 makes the window translucent, chrome included (tab strips, bars,
 sidebar and gaps take the same opacity; text and outlines stay solid), and `background-blur`
-blurs what's behind it.
+blurs what's behind it. On macOS 26, `background-blur = macos-glass-regular` or
+`macos-glass-clear` puts Liquid Glass behind the window (older macOS gets a plain blur instead).
 After editing it, **⌘⇧,** (Dealer › Reload Configuration) applies the change live, as in Ghostty:
 terminals and chrome re-theme without restarting anything (see [Settings](#settings)).
 
