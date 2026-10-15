@@ -48,7 +48,7 @@ final class SurfaceView: NSView, NSTextInputClient {
         defer { cCommand.map { free($0) } }
         cfg.command = UnsafePointer(cCommand ?? nil)
 
-        let make: () -> ghostty_surface_t? = { [self] in
+        let make: () -> ghostty_surface_t? = {
             envVars.withUnsafeMutableBufferPointer { buf in
                 cfg.env_vars = buf.count > 0 ? buf.baseAddress : nil
                 return ghostty_surface_new(GhosttyRuntime.shared.app, &cfg)

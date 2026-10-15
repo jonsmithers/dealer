@@ -48,10 +48,18 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
-codesign --force --sign - "$APP" >/dev/null 2>&1 || true
+# Fail loudly if signing fails (#70): an unsigned bundle loses its TCC and notification identity.
+# Only codesign's expected "replacing existing signature" note (ld already ad-hoc signs arm64) is hidden.
+if ! CS_OUT=$(codesign --force --sign - "$APP" 2>&1); then
+  printf '%s\n' "$CS_OUT" | grep -v 'replacing existing signature' >&2
+  echo "error: codesign failed for $APP" >&2
+  exit 1
+fi
 # Re-register this bundle with Launch Services now, so its icon is on record before the app first
 # asks for notification permission (#30). Notification Center caches the icon per bundle ID; a
 # bundle first seen without an icon showed a white square. Scoped to this one bundle.
 LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
-[ -x "$LSREGISTER" ] && "$LSREGISTER" -f "$APP" >/dev/null 2>&1 || true
+if [ -x "$LSREGISTER" ] && ! "$LSREGISTER" -f "$APP" >/dev/null 2>&1; then
+  echo "warning: lsregister -f $APP failed; Notification Center may show a stale icon" >&2
+fi
 echo "$APP"

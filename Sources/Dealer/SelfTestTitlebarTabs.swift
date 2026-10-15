@@ -39,7 +39,7 @@ extension TerminalWindowController {
             let strips = self.titlebarStripDecks.map { ("strip of \(t.name($0.activeTab!.focusTarget!))", $0.view.strip.frame) }
             var problems: [String] = []
             for (i, (name, f)) in strips.enumerated() {
-                for (k, r) in keepOut + strips.enumerated().filter { $0.offset != i }.map(\.element) where f.intersects(r) {
+                for (k, r) in keepOut + strips.enumerated().filter({ $0.offset != i }).map(\.element) where f.intersects(r) {
                     problems.append("\(name) overlaps \(k)")
                 }
             }
