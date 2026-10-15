@@ -237,7 +237,7 @@ immediately. With macOS **Reduce Motion** on, there's no fade (the hold stays).
 |---|---|---|---|
 | **failed** | a `dealer run` job exits non-zero; a Claude turn ends in an API error (`[agent] errors_as_failed`, default on); a shell command exits non-zero (`[attention] failed_commands`, default on); `dealer notify --state failed` | red outline | not configurable |
 | **waiting** | a Claude permission prompt, question or plan approval; an MCP server asking for input; `dealer notify --state waiting` | blue outline | not configurable |
-| **done** | Claude finishes a turn; a `dealer run` job succeeds (marks the job pane with `--keep`, else the pane you ran it from); `dealer notify --state done` | blue outline | `done = "outline"` (default) or `"dot"` |
+| **done** | Claude finishes a turn; a `dealer run` job succeeds (marks the job pane, which lingers before it closes; never your own pane); `dealer notify --state done` | blue outline | `done = "outline"` (default) or `"dot"` |
 | **unread** | the bell; a desktop notification (OSC 9, 99 or 777) from any program; a shell command that succeeded after running 10 s or more; `dealer notify` with no `--state` | grey dot | `unread = "dot"` (default) or `"outline"` |
 
 Most urgent first: failed > waiting > done > unread, whatever the looks.
@@ -400,6 +400,7 @@ failed_commands = true   # a shell command exiting non-zero marks the pane faile
 placement = "split"      # or "tab" (a background tab next to yours)
 size = 12                # job split height: rows, "30%" or "0.3"
 close_on_success = true  # failed jobs always stay open
+linger = 5               # seconds a succeeded job's pane stays, marked done, before it closes
 
 [notifications]
 log = false              # log every attention/notification decision to /tmp/dealer-notifications.log
@@ -442,8 +443,9 @@ Environment variables:
   per `[jobs] placement`. If no workspace fits, it gets a new workspace named after the directory.
   stderr says which happened.
 - **Title:** `RUN <cmd>`.
-- **Success:** the job pane closes and your pane gets the *done* mark, plus a macOS notification
-  if Dealer isn't in front. With `--keep` the job pane stays, titled `DONE <cmd>`, and gets the mark.
+- **Success:** the job pane is titled `DONE <cmd>` and gets the *done* mark, plus a macOS
+  notification if Dealer isn't in front. It lingers for `[jobs] linger` seconds (default 5), then
+  closes. With `--keep` it stays. Your own pane is never marked.
 - **Failure:** it stays open as a shell, titled `FAILED (status) <cmd>` and marked *failed*, so ⌘⇧U
   takes you there.
 

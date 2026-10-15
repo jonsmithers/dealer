@@ -36,7 +36,7 @@ enum SettingsFile {
     #   waiting  Claude permission prompt or question; MCP input request;  blue outline  not configurable
     #            `dealer notify --state waiting`
     #   done     Claude finishes a turn; `dealer run` succeeds (the job    blue outline  done = "outline" | "dot"
-    #            pane with --keep, else the pane you ran it from);
+    #            pane, never the pane you ran it from);
     #            `dealer notify --state done`
     #   unread   bell; desktop notification (OSC 9, 99, 777) from any      dot           unread = "dot" | "outline"
     #            program; shell command that succeeded after 10 s or more;
@@ -77,6 +77,9 @@ enum SettingsFile {
     # size = 12
     # Close the job's pane when the command succeeds. A failed job always stays open.
     # close_on_success = true
+    # Seconds a succeeded job's pane stays, marked done and titled DONE, before it closes
+    # (0 closes it at once). Focusing it doesn't keep it; use `dealer run --keep` for that.
+    # linger = 5
 
     [notifications]
     # Log every attention and notification decision to /tmp/dealer-notifications.log, one line

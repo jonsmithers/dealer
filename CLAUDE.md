@@ -240,11 +240,16 @@ The GitHub repo is `jonsmithers/dealer`.
   change. New commands go in `ControlHandler`, call the same controller methods the menus use, get
   a step in `SelfTestCLI.swift`, and are documented in `docs/cli.md`.
 - `dealer run` (#21, `ControlJobs.swift`) types the command into a normal interactive shell with
-  the tail `; "$DEALER_CLI" job-done $?`, and keeps the outcome policy (close on success,
-  stay and mark failed on failure) in Dealer, not in user shell functions. Don't switch it to the
+  the tail `; "$DEALER_CLI" job-done $?`, and keeps the outcome policy in Dealer, not in user
+  shell functions: on success mark the job pane done, retitle it `DONE`, linger `[jobs] linger`
+  seconds (default 5) and close it; on failure keep it, marked failed. **Only the job pane is ever
+  marked, never the caller** (#63, the user's call; #50 had marked the caller on a closing success). Don't switch it to the
   surface `command` (aliases and the failed-job prompt would be lost), and don't detect the end
   with ghostty's COMMAND_FINISHED (it fires for every command and needs shell integration).
-  - On success Dealer removes the pane itself; the shell never `exit`s. ghostty on macOS keeps a
+  - On success Dealer removes the pane itself after the linger (a run-loop timer in
+    `ControlJobs.closeAfterLinger`, never a shell `sleep`, which would keep the pane busy). The
+    close re-locates the pane and is a no-op if it's gone; focus or typing doesn't cancel it. The
+    shell never `exit`s. ghostty on macOS keeps a
     shell that exits within `abnormal-command-exit-runtime` (250 ms) open as "abnormal", so a
     quick job's `exit` alone never closes it. Any pane-closing feature that relies on a fast shell
     exit has the same trap.

@@ -26,12 +26,17 @@ enum Settings {
         /// A pane size like `dealer create --size`: rows/columns (an integer, or a string of
         /// digits), a percentage ("30%") or a fraction ("0.3").
         case size
+        /// A duration in seconds, ≥ 0: an integer or a float.
+        case seconds
 
         func validate(_ v: TOML.Value) -> String? {
             switch (self, v) {
             case (.string, .string), (.bool, .bool): return nil
             case (.size, .integer(let n)): return n > 0 ? nil : "must be a positive number of rows"
             case (.size, .string(let s)): return Settings.isSizeSpec(s) ? nil : "must be rows (12), a percentage (\"30%\") or a fraction (\"0.3\")"
+            case (.seconds, .integer(let n)): return n >= 0 ? nil : "must be 0 or more seconds"
+            case (.seconds, .float(let d)): return d >= 0 && d.isFinite ? nil : "must be 0 or more seconds"
+            case (.seconds, _): return "must be a number of seconds (5, 0.5 or 0), not \(v.typeName)"
             case (.size, _): return "must be rows (12), a percentage (\"30%\") or a fraction (\"0.3\"), not \(v.typeName)"
             case (.oneOf(let options), .string(let s)):
                 return options.contains(s) ? nil : "must be one of \(options.map { "\"\($0)\"" }.joined(separator: ", "))"
@@ -64,6 +69,7 @@ enum Settings {
         "jobs.placement": .oneOf(["split", "tab"]),
         "jobs.size": .size,
         "jobs.close_on_success": .bool,
+        "jobs.linger": .seconds,
         "notifications.log": .bool,
     ]
 
@@ -296,6 +302,16 @@ enum Settings {
 
     /// `[jobs] close_on_success` (#21): close a job's pane when its command succeeds. Default true.
     static var jobCloseOnSuccess: Bool { bool("jobs.close_on_success") ?? true }
+
+    /// `[jobs] linger` (#63): seconds a succeeded job's pane stays (marked done, titled DONE)
+    /// before Dealer closes it; 0 closes at once. Default 5. Read when the job reports.
+    static var jobLinger: TimeInterval {
+        switch values["jobs.linger"] {
+        case .integer(let n)?: return TimeInterval(n)
+        case .float(let d)?: return d
+        default: return 5
+        }
+    }
 
     /// `[notifications] log` (#56): append every attention/notification decision, with the reason
     /// for each "no", to `NotificationLog.path` (/tmp/dealer-notifications.log). Default false. Read live.

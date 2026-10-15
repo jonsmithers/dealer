@@ -16,8 +16,6 @@ import AppKit
 enum ControlJobs {
     struct Job {
         let command: String
-        /// The pane `dealer run` was called from; it gets the "done" mark when a success closes the job pane.
-        weak var origin: Pane?
         let notify: Bool
         let closeOnSuccess: Bool
         /// The job's tab when it was placed as a tab (its title follows the outcome).
@@ -31,6 +29,9 @@ enum ControlJobs {
     private(set) static var jobs: [Int: Job] = [:]
 
     static func job(for pane: Pane) -> Job? { jobs[pane.id] }
+
+    /// Succeeded jobs whose delayed close hasn't run yet (the self-test waits for 0).
+    private(set) static var lingering = 0
 
     static func run(_ args: [String: Any], _ ctx: ControlHandler.Context) throws -> [String: Any] {
         typealias F = ControlHandler.Failure
@@ -80,7 +81,7 @@ enum ControlJobs {
                 var info = r.info
                 if let ws = wc.locate(pane)?.workspace { info["workspace"] = ws.id; info["name"] = ws.displayName }
                 route = info
-                return try start(pane, command: command, origin: here.focusPane ?? anchor, tab: wc.locate(pane)?.tab,
+                return try start(pane, command: command, tab: wc.locate(pane)?.tab,
                                  cwd: c, args: args, wc: wc, focus: focus, route: route)
             }
         }
@@ -101,14 +102,14 @@ enum ControlJobs {
             throw F(message: "bad placement '\(placement)' (expected split or tab)")
         }
         // The caller's pane gets the success mark, even when the job was routed elsewhere.
-        return try start(pane, command: command, origin: here.focusPane ?? anchor, tab: tab, cwd: cwd, args: args,
+        return try start(pane, command: command, tab: tab, cwd: cwd, args: args,
                          wc: wc, focus: focus, route: route)
     }
 
-    private static func start(_ pane: Pane, command: String, origin: Pane, tab: Tab?, cwd: String?, args: [String: Any],
+    private static func start(_ pane: Pane, command: String, tab: Tab?, cwd: String?, args: [String: Any],
                               wc: TerminalWindowController, focus: Bool, route: [String: Any]?) throws -> [String: Any] {
         jobs = jobs.filter { ControlHandler.pane(id: $0.key) != nil }
-        jobs[pane.id] = Job(command: command, origin: origin, notify: args["notify"] as? Bool ?? true,
+        jobs[pane.id] = Job(command: command, notify: args["notify"] as? Bool ?? true,
                             closeOnSuccess: args["close"] as? Bool ?? Settings.jobCloseOnSuccess, tab: tab, cwd: cwd)
         if let s = pane.surface.surface {
             pane.surface.perform("text:" + ControlHandler.escapeForBinding(" \(command); \"$DEALER_CLI\" job-done $?"))
@@ -186,40 +187,43 @@ enum ControlJobs {
         let wc = loc.wc
         if status == 0 {
             let title = "✓ \(job.command)", body = "Finished in \(pane.pwd.map(short) ?? "job")"
-            if job.closeOnSuccess {
-                // The job pane is going, so the caller gets the mark. setAttention skips it while
-                // the user is looking at the caller; the closing pane is the signal then.
-                if job.notify, let origin = job.origin, let o = ControlHandler.locate(origin) {
-                    o.wc.setAttention(.done, on: origin, title: title, body: body, event: event)
-                } else {
-                    NotificationLog.decision(pane: job.origin, event: event, outcome: "attention:skipped",
-                                             reason: job.notify ? "the pane that ran `dealer run` is gone; no mark, no notification"
-                                                                : "--quiet: no mark, no notification", title: title, body: body)
-                }
-                // Close it from here, right after replying. The shell doesn't `exit`: besides
-                // putting a non-zero status on kept jobs (#50), ghostty on macOS treats any exit within
-                // abnormal-command-exit-runtime (250 ms) of the shell starting as abnormal and keeps
-                // the surface open, so a quick job (`dealer run true`) would never close. Default
-                // mode, like ControlServer.onMain.
-                RunLoop.main.perform(inModes: [.default]) { [weak pane, weak wc] in
-                    if let pane, let wc { wc.remove(pane) }
-                }
-                return ["close": true, "status": status]
-            }
+            // Every outcome marks the job pane, never the pane `dealer run` was called from (#63:
+            // marking the caller was never wanted). A succeeded job that closes first lingers,
+            // titled DONE and marked done, so the success can be seen.
             retitle(pane, job: job, "DONE \(job.command)", wc)
-            // A kept success marks the job pane itself, like a failure (#50): the caller is usually
-            // the pane the user is looking at, where a mark (and its notification) is skipped.
             if job.notify {
                 wc.setAttention(.done, on: pane, title: title, body: body, event: event)
             } else {
                 NotificationLog.decision(pane: pane, event: event, outcome: "attention:skipped",
                                          reason: "--quiet: no mark, no notification", title: title, body: body)
             }
+            if job.closeOnSuccess {
+                closeAfterLinger(pane, seconds: Settings.jobLinger)
+                return ["close": true, "status": status]
+            }
         } else {
             retitle(pane, job: job, "FAILED (\(status)) \(job.command)", wc)
             wc.setAttention(.failed, on: pane, title: "✗ \(job.command)", body: "Exited with status \(status)", event: event)
         }
         return ["close": false, "status": status]
+    }
+
+    /// Closes a succeeded job's pane after `seconds` (0: right after replying). The shell never
+    /// `exit`s: besides putting a non-zero status on kept jobs (#50), ghostty on macOS keeps a shell
+    /// that exits within abnormal-command-exit-runtime (250 ms) of starting open as "abnormal", so a
+    /// quick job (`dealer run true`) would never close. Focus or typing doesn't cancel it (#63); the
+    /// pane is looked up again when the time comes, since it may have moved or closed meanwhile.
+    /// Runs in default mode, like ControlServer.onMain.
+    private static func closeAfterLinger(_ pane: Pane, seconds: TimeInterval) {
+        lingering += 1
+        let close = { [weak pane] in
+            lingering -= 1
+            guard let pane, let wc = ControlHandler.locate(pane)?.wc else { return }
+            wc.remove(pane)
+        }
+        guard seconds > 0 else { return RunLoop.main.perform(inModes: [.default], block: close) }
+        let timer = Timer(timeInterval: seconds, repeats: false) { _ in close() }
+        RunLoop.main.add(timer, forMode: .default)
     }
 
     private static func retitle(_ pane: Pane, job: Job, _ title: String, _ wc: TerminalWindowController) {

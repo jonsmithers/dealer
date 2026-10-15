@@ -57,8 +57,7 @@ extension TerminalWindowController {
                 return SelfTest.waitUntil(timeout: 20, cond) ? nil : "the job's shell never reported back (status \(status))"
             }
             print("      (no live shell: reporting job-done \(status) through the handler; the typed tail wasn't exercised)")
-            let r = call("job-done", ["status": status], caller: job)
-            if status == 0, r?["close"] as? Bool == true, let p = pane(job) { self.remove(p) }
+            call("job-done", ["status": status], caller: job)
             return cond() ? nil : "state after job-done \(status) is wrong"
         }
         /// `[jobs] size` defaults to 12 rows (needs a live surface for cell metrics).
@@ -179,33 +178,31 @@ extension TerminalWindowController {
         }) {
             // The directory exists only if an earlier section made it (not under DEALER_SELFTEST_ONLY).
             try? FileManager.default.createDirectory(at: Settings.fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? "[jobs]\nplacement = \"tab\"\n".write(to: Settings.fileURL, atomically: true, encoding: .utf8)
+            // A short linger (#63) keeps the run fast; the linger steps below set their own.
+            try? "[jobs]\nplacement = \"tab\"\nlinger = 0.3\n".write(to: Settings.fileURL, atomically: true, encoding: .utf8)
             Settings.reload(force: true)
             created(call("run", ["command": "true", "cwd": tmp], caller: "j0"), "jb")
         }
-        t.step("jobs: a successful job reports success and marks the caller done", nil, {
-            all(outcome("jb", status: 0) { pane("jb").flatMap { ControlJobs.job(for: $0)?.status } == 0 || pane("jb") == nil },
-                marked("j0", .done), focused("j0"))
+        // #63: a success marks the job pane, titled DONE, which lingers ([jobs] linger) and then
+        // closes. The caller is never marked.
+        t.step("jobs: a successful job lingers, titled DONE and marked done; the caller isn't marked", nil, {
+            all(outcome("jb", status: 0) { pane("jb").flatMap { ControlJobs.job(for: $0)?.status } == 0 },
+                eq(pane("jb")?.customTitle, "DONE true", "lingering job's title"),
+                marked("jb", .done), eq(pane("j0")?.attention, Attention.none, "caller attention"), focused("j0"))
         }) {}
-        // Dealer closes a successful job's pane itself (the shell doesn't `exit`), on the main queue
-        // right after replying to job-done.
-        var j0AfterClose: Attention?
-        var j0Looked = false
-        t.step("jobs: ...and Dealer closes its pane", nil, {
-            SelfTest.waitUntil(timeout: 10) { pane("jb") == nil } ? nil : "jb's pane should have closed"
+        // Dealer closes a successful job's pane itself (the shell doesn't `exit`), after the linger.
+        t.step("jobs: ...and Dealer closes its pane after the linger", nil, {
+            all(SelfTest.waitUntil(timeout: 10) { pane("jb") == nil } ? nil : "jb's pane should have closed",
+                eq(pane("j0")?.attention, Attention.none, "caller attention"))
         }) {}
         // #50: a kept success marks the job pane, which stays and is out of focus. It used to mark
         // the caller, which the user is usually still looking at, so nothing showed and no
         // notification was posted. The caller stays focused (and, in front, looked at) here.
         t.step("jobs: --keep: a successful job stays and marks its own pane done, not the caller", nil, {
-            all(j0Looked || j0AfterClose == .done ? nil : "j0's done mark should survive the job pane closing, is \(j0AfterClose?.name ?? "nil")",
-                outcome("jk", status: 0) { pane("jk")?.customTitle == "DONE true" },
+            all(outcome("jk", status: 0) { pane("jk")?.customTitle == "DONE true" },
                 eq(pane("jk")?.attention, Attention.done, "kept job's attention"),
                 eq(pane("j0")?.attention, Attention.none, "caller attention"), focused("j0"))
         }) {
-            j0AfterClose = pane("j0")?.attention
-            j0Looked = pane("j0").map { self.isLookingAt($0) } ?? false
-            pane("j0").map { self.clearAttention($0, cause: "self-test") }
             created(call("run", ["command": "true", "cwd": tmp, "close": false, "placement": "split", "size": "20%"],
                          caller: "j0"), "jk")
         }
@@ -218,6 +215,49 @@ extension TerminalWindowController {
             pane("jk").map { self.remove($0) }
             created(call("run", ["command": "true", "cwd": tmp, "close": false, "notify": false, "placement": "split", "size": "20%"],
                          caller: "j0"), "jc")
+        }
+        // #63's linger, driven through the handler so the timing doesn't depend on a shell: the job
+        // runs `sleep 30`, and its job-done is reported for it.
+        func lingerJob(_ name: String, linger: String) {
+            try? "[jobs]\nlinger = \(linger)\n".write(to: Settings.fileURL, atomically: true, encoding: .utf8)
+            Settings.reload(force: true)
+            created(call("run", ["command": "sleep 30", "cwd": tmp, "placement": "split", "size": "20%"], caller: "j0"), name)
+            call("job-done", ["status": 0], caller: name)
+        }
+        var shownWhileLingering: String?
+        t.step("jobs: linger: the job pane stays visible, DONE and marked done, until the linger ends, then closes", nil, {
+            all(shownWhileLingering,
+                SelfTest.waitUntil(timeout: 10) { pane("jl") == nil && ControlJobs.lingering == 0 } ? nil : "jl should close after its linger",
+                eq(pane("j0")?.attention, Attention.none, "caller attention"))
+        }) {
+            lingerJob("jl", linger: "0.3")
+            guard let p = pane("jl") else { shownWhileLingering = "jl wasn't created"; return }
+            self.layoutNow()
+            shownWhileLingering = all(eq(Settings.jobLinger, 0.3, "linger setting"), eq(p.customTitle, "DONE sleep 30", "title"),
+                                      marked("jl", .done), p.view.window != nil && !p.view.isHiddenOrHasHiddenAncestor ? nil : "jl should be visible",
+                                      ControlJobs.lingering == 1 ? nil : "one close should be pending, \(ControlJobs.lingering) are")
+        }
+        t.step("jobs: linger = 0 closes a succeeded job's pane at once", nil, {
+            all(SelfTest.waitUntil(timeout: 0.5) { pane("j00") == nil } ? nil : "j00 should close right after job-done",
+                eq(Settings.jobLinger, 0, "linger setting"))
+        }) {
+            lingerJob("j00", linger: "0")
+        }
+        t.step("jobs: linger: focusing the pane doesn't keep it, a moved pane still closes, and one closed meanwhile is fine", nil, {
+            all(SelfTest.waitUntil(timeout: 10) { pane("jf") == nil && ControlJobs.lingering == 0 } ? nil : "jf (focused, then moved to a new tab) should still close",
+                pane("jx") == nil ? nil : "jx was closed by hand",
+                pane("j0") != nil ? nil : "the caller must survive")
+        }) {
+            lingerJob("jf", linger: "0.4")
+            lingerJob("jx", linger: "0.4")
+            if let x = pane("jx") { self.remove(x) }  // closed during the linger: the delayed close is a no-op
+            if let f = pane("jf"), let l = self.locate(f) {
+                self.focus(f)
+                self.moveToNewTab(l.node, deck: l.deck, index: l.deck.tabs.count)
+            }
+            if let j0 = pane("j0") { self.focus(j0) }
+            try? "[jobs]\nlinger = 0.3\n".write(to: Settings.fileURL, atomically: true, encoding: .utf8)
+            Settings.reload(force: true)
         }
         t.step("jobs: bad requests fail; job-done outside a job keeps the shell", nil, {
             let empty = ControlHandler.handle(["cmd": "run", "args": ["command": "  "]])
