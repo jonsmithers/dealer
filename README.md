@@ -125,6 +125,12 @@ blurs what's behind it. On macOS 26, `background-blur = macos-glass-regular` or
 After editing it, **⌘⇧,** (Dealer › Reload Configuration) applies the change live, as in Ghostty:
 terminals and chrome re-theme without restarting anything (see [Settings](#settings)).
 
+**Clipboard access by programs** (OSC 52, and kitty's clipboard protocol) follows Ghostty's
+`clipboard-read` and `clipboard-write` settings: `allow`, `deny` or `ask`. Like Ghostty, reading
+defaults to **ask** and writing to **allow**. With `ask`, Dealer asks in a sheet on the pane's
+window, naming the pane, and only once that window is in front; Deny sends the program nothing.
+`deny` never asks. Your own ⌘C/⌘V aren't affected. ⌘⇧, applies a change.
+
 New splits, tabs, workspaces and windows start in the focused pane's current directory, as its
 shell reports it (Ghostty's shell integration; without it, the directory the pane started in).
 Ghostty's `split-inherit-working-directory`, `tab-inherit-working-directory` and

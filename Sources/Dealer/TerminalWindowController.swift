@@ -194,15 +194,18 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         return pane
     }
 
-    func confirm(_ message: String, info: String, then action: @escaping () -> Void) {
+    /// Asks in a sheet on this window; `otherwise` runs on Cancel. The self-test auto-accepts
+    /// (`Confirmation.skip`).
+    func confirm(_ message: String, info: String, accept: String = "Close", cancel: String = "Cancel",
+                 then action: @escaping () -> Void, otherwise: (() -> Void)? = nil) {
         guard let window, !Confirmation.skip(message, info) else { return action() }
         let alert = NSAlert()
         alert.messageText = message
         alert.informativeText = info
-        alert.addButton(withTitle: "Close")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: accept)
+        alert.addButton(withTitle: cancel)
         alert.beginSheetModal(for: window) { resp in
-            if resp == .alertFirstButtonReturn { action() }
+            if resp == .alertFirstButtonReturn { action() } else { otherwise?() }
         }
     }
 

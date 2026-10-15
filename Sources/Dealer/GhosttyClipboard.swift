@@ -7,15 +7,30 @@ import UniformTypeIdentifiers
 /// ghostty-org/ghostty (at the pinned commit). Reads are MIME based: libghostty asks for
 /// representations (text/plain for a paste, others for OSC 52/kitty reads) and may ask for the
 /// list of available types. Only the standard pasteboard is served (no selection clipboard).
+///
+/// Ghostty's `clipboard-read` / `clipboard-write` (allow, deny, ask; defaults ask and allow) are
+/// enforced by libghostty itself (#55): `deny` never reaches these callbacks, `allow` completes
+/// without asking, and `ask` comes back as `confirm_read_clipboard_cb` (reads) or a write with
+/// `confirm` set. Dealer only supplies the question: a sheet through
+/// `TerminalWindowController.confirm`, naming the pane, shown once the pane's window is key (as
+/// Ghostty.app defers it until focused). Cancel denies, as Ghostty does. A pasted text that trips
+/// `clipboard-paste-protection` arrives the same way but is accepted as before (Dealer has never
+/// asked on paste).
 enum GhosttyClipboard {
     struct Content { let mime: String; let data: Data }
+
+    /// The pasteboard OSC 52 reads and writes use. The self-test swaps in a private one.
+    static var pasteboard: NSPasteboard = .general
+    /// Whether a window counts as key for showing a confirmation. The self-test overrides it (a
+    /// self-test run usually isn't the active app, so it has no key window).
+    static var isKey: (NSWindow) -> Bool = { $0.isKeyWindow }
 
     static func read(_ ud: UnsafeMutableRawPointer?, location: ghostty_clipboard_e,
                      state: UnsafeMutableRawPointer?, mimes: UnsafePointer<UnsafePointer<CChar>?>?,
                      mimesLen: Int, list: Bool) -> ghostty_clipboard_read_result_e {
         guard let surface = SurfaceView.from(ud)?.surface,
               location == GHOSTTY_CLIPBOARD_STANDARD else { return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED }
-        let pb = NSPasteboard.general
+        let pb = pasteboard
         var contents: [Content] = []
         var seen = Set<String>()
         for i in 0..<(mimes == nil ? 0 : mimesLen) {
@@ -30,11 +45,11 @@ enum GhosttyClipboard {
         return GHOSTTY_CLIPBOARD_READ_STARTED
     }
 
-    /// No confirmation UI: accept what libghostty would hand over (Dealer's behavior since the
-    /// start; Ghostty.app shows a dialog here).
+    /// `clipboard-read = ask` (or kitty read, or a protected paste): ask, then complete with what
+    /// libghostty offered, or deny. The payload is copied: the question can wait for focus.
     static func confirmRead(_ ud: UnsafeMutableRawPointer?, confirm: UnsafePointer<ghostty_clipboard_confirm_s>?,
-                            state: UnsafeMutableRawPointer?) {
-        guard let surface = SurfaceView.from(ud)?.surface else { return }
+                            state: UnsafeMutableRawPointer?, request: ghostty_clipboard_request_e) {
+        guard let view = SurfaceView.from(ud), let surface = view.surface else { return }
         guard let c = confirm?.pointee else { ghostty_surface_deny_clipboard_request(surface, state); return }
         var reps: [Content] = []
         for i in 0..<(c.contents == nil ? 0 : c.contents_len) {
@@ -46,12 +61,24 @@ enum GhosttyClipboard {
         for i in 0..<(c.available == nil ? 0 : c.available_len) {
             if let p = c.available?[i] { avail.append(String(cString: p)) }
         }
-        complete(surface, contents: reps, available: avail, state: state, confirmed: true)
+        let accept = { [weak view] in
+            guard let s = view?.surface else { return }
+            complete(s, contents: reps, available: avail, state: state, confirmed: true)
+        }
+        // A paste that trips clipboard-paste-protection: Dealer has never asked there (#55 is about
+        // programs reading the clipboard).
+        if request == GHOSTTY_CLIPBOARD_REQUEST_PASTE { return onMain(accept) }
+        let writing = request == GHOSTTY_CLIPBOARD_REQUEST_OSC_52_WRITE || request == GHOSTTY_CLIPBOARD_REQUEST_KITTY_WRITE
+        onMain {
+            ask(view, reading: !writing, then: accept, otherwise: { [weak view] in
+                if let s = view?.surface { ghostty_surface_deny_clipboard_request(s, state) }
+            })
+        }
     }
 
-    /// Writes every representation (the confirm flag is ignored, as before: no dialog).
-    static func write(location: ghostty_clipboard_e, content: UnsafePointer<ghostty_clipboard_content_s>?, len: Int,
-                      to pb: NSPasteboard = .general) {
+    /// Writes every representation; with `confirm` (`clipboard-write = ask`) only after the user agrees.
+    static func write(_ ud: UnsafeMutableRawPointer?, location: ghostty_clipboard_e,
+                      content: UnsafePointer<ghostty_clipboard_content_s>?, len: Int, confirm: Bool) {
         guard location == GHOSTTY_CLIPBOARD_STANDARD, let content, len > 0 else { return }
         let items: [(NSPasteboard.PasteboardType, Data)] = (0..<len).compactMap { i in
             let c = content[i]
@@ -60,9 +87,70 @@ enum GhosttyClipboard {
             return (type, data)
         }
         guard !items.isEmpty else { return }
-        pb.declareTypes(items.map(\.0), owner: nil)
-        for (type, data) in items { pb.setData(data, forType: type) }
+        let store = {
+            let pb = pasteboard
+            pb.declareTypes(items.map(\.0), owner: nil)
+            for (type, data) in items { pb.setData(data, forType: type) }
+        }
+        guard confirm else { return onMain(store) }
+        let view = SurfaceView.from(ud)
+        onMain { ask(view, reading: false, then: store, otherwise: {}) }
     }
+
+    /// Writes `items` to `pb`, unconditionally (the self-test's direct entry).
+    static func write(location: ghostty_clipboard_e, content: UnsafePointer<ghostty_clipboard_content_s>?, len: Int,
+                      to pb: NSPasteboard) {
+        let saved = pasteboard
+        pasteboard = pb
+        defer { pasteboard = saved }
+        write(nil, location: location, content: content, len: len, confirm: false)
+    }
+
+    private static func onMain(_ body: @escaping () -> Void) {
+        if Thread.isMainThread { body() } else { DispatchQueue.main.async(execute: body) }
+    }
+
+    /// The question, on the pane's window once it's key. No window (the pane is gone): denied.
+    static func ask(_ view: SurfaceView?, reading: Bool, then accept: @escaping () -> Void, otherwise deny: @escaping () -> Void) {
+        guard let view, let pane = view.pane, let window = view.window,
+              let wc = window.windowController as? TerminalWindowController else { return deny() }
+        guard isKey(window) else {
+            pendingByWindow[ObjectIdentifier(window), default: []].append { [weak view] in
+                ask(view, reading: reading, then: accept, otherwise: deny)
+            }
+            observeKey(window)
+            return
+        }
+        let loc = wc.locate(pane)
+        let place = loc.map { " (\($0.workspace.displayName) · \($0.tab.title))" } ?? ""
+        let message = reading ? "Let “\(pane.title)” read the clipboard?" : "Let “\(pane.title)” change the clipboard?"
+        let info = (reading
+            ? "A program in this pane\(place) asked for the clipboard's contents. Ghostty's clipboard-read is set to ask."
+            : "A program in this pane\(place) wants to replace the clipboard's contents. Ghostty's clipboard-write is set to ask.")
+        wc.confirm(message, info: info, accept: "Allow", cancel: "Deny", then: accept, otherwise: deny)
+    }
+
+    /// Questions waiting for their window to become key, oldest first.
+    private static var pendingByWindow: [ObjectIdentifier: [() -> Void]] = [:]
+    private static var keyObservers: [ObjectIdentifier: NSObjectProtocol] = [:]
+
+    private static func observeKey(_ window: NSWindow) {
+        let id = ObjectIdentifier(window)
+        guard keyObservers[id] == nil else { return }
+        keyObservers[id] = NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window,
+                                                                  queue: .main) { _ in
+            MainActor.assumeIsolated { flushPending(id) }
+        }
+    }
+
+    private static func flushPending(_ id: ObjectIdentifier) {
+        if let o = keyObservers.removeValue(forKey: id) { NotificationCenter.default.removeObserver(o) }
+        let waiting = pendingByWindow.removeValue(forKey: id) ?? []
+        waiting.forEach { $0() }
+    }
+
+    /// Self-test only: how many questions wait for a key window.
+    static var pendingCount: Int { pendingByWindow.values.reduce(0) { $0 + $1.count } }
 
     private static func complete(_ surface: ghostty_surface_t, contents: [Content], available: [String],
                                  state: UnsafeMutableRawPointer?, confirmed: Bool = false) {

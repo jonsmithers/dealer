@@ -49,11 +49,11 @@ final class GhosttyRuntime {
             read_clipboard_cb: { ud, loc, state, mimes, mimesLen, list in
                 GhosttyClipboard.read(ud, location: loc, state: state, mimes: mimes, mimesLen: mimesLen, list: list)
             },
-            confirm_read_clipboard_cb: { ud, confirm, state, _ in
-                GhosttyClipboard.confirmRead(ud, confirm: confirm, state: state)
+            confirm_read_clipboard_cb: { ud, confirm, state, request in
+                GhosttyClipboard.confirmRead(ud, confirm: confirm, state: state, request: request)
             },
-            write_clipboard_cb: { _, loc, content, len, _ in
-                GhosttyClipboard.write(location: loc, content: content, len: len)
+            write_clipboard_cb: { ud, loc, content, len, confirm in
+                GhosttyClipboard.write(ud, location: loc, content: content, len: len, confirm: confirm)
             },
             close_surface_cb: { ud, _ in
                 guard let view = SurfaceView.from(ud) else { return }

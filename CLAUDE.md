@@ -203,6 +203,11 @@ The GitHub repo is `jonsmithers/dealer`.
 - Menu shortcuts beat ghostty keybinds: `SurfaceView.performKeyEquivalent` asks the main menu
   first. For example, ⌘⇧P is Promote, not Ghostty's command palette, and ⌃1–9 switch workspaces,
   so programs never see ctrl-digit.
+- Programs' clipboard access (OSC 52, kitty OSC 5522) follows ghostty's `clipboard-read` /
+  `clipboard-write` (#55; defaults read = ask, write = allow). libghostty enforces the policy;
+  `GhosttyClipboard` only asks for `ask`, through `TerminalWindowController.confirm`, naming the
+  pane, deferred until the pane's window is key; Deny calls `ghostty_surface_deny_clipboard_request`.
+  A paste caught by `clipboard-paste-protection` is still accepted without asking (as before #55).
 - Ghostty keybind actions (`new_split`, `goto_tab`, …) are mapped onto our own commands in
   `GhosttyRuntime.handle`, so user configs still work.
 - Keyboard/IME handling is a trimmed port of Ghostty's own
