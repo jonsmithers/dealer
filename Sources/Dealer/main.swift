@@ -133,6 +133,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item("Split Down", #selector(TerminalWindowController.splitDown(_:)), "d", [.command, .shift]),
             item("New Agent Pane", #selector(TerminalWindowController.newAgentPane(_:)), "a", [.command, .option]),
             item("New Agent Pane in Worktree", #selector(TerminalWindowController.newAgentPaneInWorktree(_:)), "a", [.command, .option, .shift]),
+            // ⇧⌘A (#66): uppercase "A" carries the shift, as for ⇧⌘N, so plain ⌘A stays Select All.
+            item("Go to Pane…", #selector(TerminalWindowController.openPanePicker(_:)), "A"),
             .separator(),
             item("Rename Tab…", #selector(TerminalWindowController.renameCurrentTab(_:))),
             item("Close Pane", #selector(TerminalWindowController.closePane(_:)), "w"),

@@ -153,7 +153,13 @@ extension TerminalWindowController {
         }) {
             hiddenCost = nil
             guard let deck = self.focusedDeck else { return }
-            func footprint() -> Double { Double(Diagnostics.memory().footprint) }
+            // GPU memory only when the kernel reports it (task_vm_info's graphics ledger): the shells
+            // the new tabs start add heap noise of a few MB each to the whole footprint.
+            let graphicsLedger = Diagnostics.memory().graphics > 0
+            func footprint() -> Double {
+                let m = Diagnostics.memory()
+                return Double(graphicsLedger ? m.graphics : m.footprint)
+            }
             var tabs: [Tab] = []
             defer { tabs.forEach { self.close(tab: $0) } }
             self.newTab(in: deck)
@@ -184,7 +190,7 @@ extension TerminalWindowController {
             // more hidden panes. Release happens on their render threads.
             _ = SelfTest.waitUntil(timeout: 3) { (footprint() - base) / Double(hidden) < 1.5 * buffer }
             hiddenCost = (max(0, footprint() - base) / Double(hidden), buffer)
-            print(String(format: "      (each hidden pane: %.1f MB; a window-sized buffer: %.1f MB)",
+            print(String(format: "      (each hidden pane: %.1f MB of \(graphicsLedger ? "graphics" : "whole") footprint; a window-sized buffer: %.1f MB)",
                          hiddenCost!.perPane / 1_048_576, buffer / 1_048_576))
         }
     }

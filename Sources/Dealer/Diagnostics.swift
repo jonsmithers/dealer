@@ -130,6 +130,8 @@ enum Diagnostics {
 
     struct Memory {
         var footprint: UInt64 = 0
+        /// The part of `footprint` tagged as graphics (IOSurface, Metal), compressed included.
+        var graphics: UInt64 = 0
         var footprintPeak: UInt64 = 0
         var resident: UInt64 = 0
         var residentPeak: UInt64 = 0
@@ -146,6 +148,7 @@ enum Diagnostics {
         }
         if kr == KERN_SUCCESS {
             m.footprint = info.phys_footprint
+            m.graphics = UInt64(max(0, info.ledger_tag_graphics_footprint + info.ledger_tag_graphics_footprint_compressed))
             m.footprintPeak = UInt64(max(info.ledger_phys_footprint_peak, 0))
             m.resident = info.resident_size
             m.residentPeak = info.resident_size_peak

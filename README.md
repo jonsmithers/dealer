@@ -150,12 +150,21 @@ starts in your `working-directory`. Restored sessions keep each pane's saved dir
 | ⌘B | Show / hide the workspace sidebar (sidebar mode only) |
 | ⌘⇧U | Jump to the next pane that needs attention |
 | ⌥⌘A / ⌥⇧⌘A | New agent pane / in a new git worktree |
+| ⌘⇧A | **Go to Pane**: search panes in every window by title, tab or workspace name, and focus one |
 | ⌘, | Open Dealer's settings file |
 | ⌘⇧, | **Reload Configuration**: the ghostty config (colors, font, …) and settings.toml, live |
 
 These menu shortcuts win over Ghostty keybinds, so a `keybind` in your Ghostty config on one of
 these keys never fires. Ghostty has no default ⌘B binding, but a `keybind = cmd+b=…` of yours is
 shadowed by the sidebar toggle.
+
+**Go to Pane** (⌘⇧A, Shell › Go to Pane…) opens a search over every pane in every window. Type
+part of a pane's title, or of its tab's or workspace's name (the letters in order, not
+necessarily together); title matches come first. Each row shows the title, `workspace · tab`, the
+directory, the window when there's more than one, and the pane's attention dot or working spinner.
+↑/↓ and return pick a pane, which focuses it and brings its window, workspace and tab forward; esc
+or a click outside dismisses. With nothing typed it lists the panes you used most recently first,
+so ⌘⇧A ↩ goes back to the previous pane.
 
 Double-click a tab to rename it; middle-click or hover × to close it. A pane's bar (shown once a tab has two panes) has the same hover ×, which closes the pane like ⌘W.
 

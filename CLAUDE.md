@@ -228,7 +228,8 @@ The GitHub repo is `jonsmithers/dealer`.
   after ⌘⇧U or a notification click) so you see which pane called you (#34). Only those layers
   and drawings animate, never terminal surfaces. Reduce Motion skips the fade.
 - Coding-agent keys: ⌘⇧U Jump to Next Unread, ⌥⌘A New Agent Pane, ⌥⇧⌘A New Agent Pane in
-  Worktree. The agent command comes from `DEALER_AGENT_COMMAND`, then `[agent] command` in
+  Worktree, ⌘⇧A Go to Pane (#66, `PanePicker.swift`: picks focus through `reveal`, like ⌘⇧U; its
+  key is an uppercase "A" so plain ⌘A stays Select All). The agent command comes from `DEALER_AGENT_COMMAND`, then `[agent] command` in
   settings.toml, then the legacy `agentCommand` user default, then `claude`. It is *typed* into the new pane's shell (not the
   surface `command`), so the pane returns to a prompt when the agent exits.
 - `dealer` is the app binary itself: `main.swift` runs it as a socket client (no app launch) when

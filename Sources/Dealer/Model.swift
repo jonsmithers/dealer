@@ -208,6 +208,15 @@ final class Pane {
 
     /// Set by `dealer rename`; wins over the title the shell sets.
     var customTitle: String?
+
+    /// When the pane last took focus, as a process-wide sequence (0: never). The pane picker's
+    /// empty query lists most recent first (#66).
+    private(set) var focusSequence = 0
+    private static var lastFocusSequence = 0
+    func noteFocused() {
+        Pane.lastFocusSequence += 1
+        focusSequence = Pane.lastFocusSequence
+    }
 }
 
 final class Tab {
