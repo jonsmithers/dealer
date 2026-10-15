@@ -296,6 +296,7 @@ extension TerminalWindowController {
         workspaceSelfTestSteps(kit)
         shortcutsSelfTestSteps(kit)
         sidebarSelfTestSteps(kit)
+        sidebarLeafSelfTestSteps(kit)
         switcherSelfTestSteps(kit)
         selectionSelfTestSteps(kit)
         attentionStyleSelfTestSteps(kit)

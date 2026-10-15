@@ -47,7 +47,9 @@ final class WorkspaceSidebarView: FlippedView, ThemeApplying {
             r.workspace = ws
             r.number = i < 9 ? "\(i + 1)" : ""
             r.title = ws.displayName
-            r.detail = (ws.validFocusedPane ?? ws.decks.first?.activeTab?.focusTarget)?.statusLine ?? ""
+            let pane = ws.validFocusedPane ?? ws.decks.first?.activeTab?.focusTarget
+            r.detail = pane?.shortStatusLine ?? ""  // #68: the cwd's name; the tooltip has the path
+            r.toolTip = pane.map(\.statusLine).flatMap { $0.isEmpty ? nil : $0 }
             r.isActive = ws === c.activeWorkspace
             r.attention = ws.attention
             r.isRunning = ws.isWorking  // AgentStatus.swift

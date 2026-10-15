@@ -23,14 +23,27 @@ extension Pane {
     var isWorking: Bool { agentState == .running }
 
     /// e.g. `waiting · ~/git/dealer · main`. Empty parts are left out.
-    var statusLine: String {
+    var statusLine: String { status(path: Self.abbreviate) }
+
+    /// The workspace sidebar row's line (#68): the cwd's name only, e.g. `waiting · dealer · main`.
+    /// The row is narrow, and the branch matters more than the rest of the path.
+    var shortStatusLine: String { status(path: Self.leafName) }
+
+    private func status(path: (String) -> String) -> String {
         var parts: [String] = []
         if agentState != .idle { parts.append(agentState.rawValue) }
         if let pwd {
-            parts.append(Self.abbreviate(pwd))
+            parts.append(path(pwd))
             if let git = GitInfo.lookup(pwd) { parts.append(git.branch) }
         }
         return parts.joined(separator: " · ")
+    }
+
+    /// The last path component, `~` for the home directory.
+    static func leafName(_ path: String) -> String {
+        if path == NSHomeDirectory() { return "~" }
+        let name = (path as NSString).lastPathComponent
+        return name.isEmpty ? path : name
     }
 
     static func abbreviate(_ path: String) -> String {
