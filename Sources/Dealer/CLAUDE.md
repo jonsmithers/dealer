@@ -308,7 +308,7 @@
   `background-opacity`/`background-blur` (glass = the C API's -1/-2 sentinels; recheck on a pin
   bump). Translucent windows: chrome *fills* go through `Theme.fill(_:)` (alpha = opacity; the
   color itself when opaque, so opacity 1 renders byte for byte as before); text, outlines, dots,
-  glyphs and the spinner never do. Nothing opaque may sit under a terminal: the content view's fill
+  glyphs and the spinner never do. Tab buttons are the exception (the user's call): fully opaque, with a solid `Theme.chrome` pill for inactive tabs while translucent. Nothing opaque may sit under a terminal: the content view's fill
   moves to `WindowBackdropView`'s chrome view, which cuts the deck cards out, the deck card and
   `PaneView` drop their backgrounds, and pane `DividerView`s paint their own gap
   (`paintsGap`). A new chrome fill uses `Theme.fill`; a new view under the panes must stay clear

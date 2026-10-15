@@ -561,11 +561,13 @@ final class TabButton: FlippedView {
     override func draw(_ dirtyRect: NSRect) {
         let r = bounds
         let radius = Theme.Metrics.tabRadius
-        if isActive {
-            Theme.fill(Theme.surface).setFill()
-            NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius).fill()
-        } else if hovering {
-            Theme.fill(Theme.hover).setFill()
+        // Tabs stay fully opaque on a translucent window (#67, the user's call: translucent tabs
+        // were hard to tell apart). Inactive tabs then get a solid pill in the strip's own chrome
+        // color, so each reads as a shape; opaque windows draw exactly as before (no pill).
+        let fill: NSColor? = isActive ? Theme.surface : hovering ? Theme.hover
+            : Theme.transparency.isTranslucent ? Theme.chrome : nil
+        if let fill {
+            fill.setFill()
             NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius).fill()
         }
         // #9: a tab color tints the button and replaces the deck accent in the underline, which

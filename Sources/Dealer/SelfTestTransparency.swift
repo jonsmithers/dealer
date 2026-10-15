@@ -60,9 +60,21 @@ extension TerminalWindowController {
             guard let dv = deckView() else { return "test tab is gone" }
             func at(_ c: NSColor) -> NSColor { c.withAlphaComponent(c.alphaComponent * a) }
             var p: [String?] = []
+            // Tabs are the exception: fully opaque at any opacity (#67 follow-up), with a solid
+            // chrome pill for inactive tabs while translucent (none when opaque, as before).
             if let b = dv.strip.buttons.first(where: { $0.isActive }) {
-                p.append(expect("active tab", PixelProbe.sample(b, at: CGPoint(x: 4, y: b.bounds.midY)), at(Theme.surface)))
+                p.append(expect("active tab", PixelProbe.sample(b, at: CGPoint(x: 4, y: b.bounds.midY)), Theme.surface))
             } else { p.append("no active tab button") }
+            if let b = dv.strip.buttons.first(where: { !$0.isActive }) {
+                let pill = Theme.transparency.isTranslucent ? Theme.chrome : NSColor.clear
+                p.append(expect("inactive tab", PixelProbe.sample(b, at: CGPoint(x: 4, y: b.bounds.midY)), pill))
+            } else { p.append("no inactive tab button") }
+            // The strip between two tabs is chrome at the window's alpha.
+            let bs = dv.strip.buttons
+            if bs.count >= 2 {
+                let between = dv.strip.convert(CGPoint(x: (bs[0].frame.maxX + bs[1].frame.minX) / 2, y: dv.strip.bounds.midY), to: contentView)
+                p.append(expect("strip between tabs", PixelProbe.sample(contentView, at: between), at(Theme.chrome)))
+            }
             let past = dv.strip.convert(CGPoint(x: dv.strip.addButton.frame.maxX + 12, y: dv.strip.bounds.midY), to: contentView)
             p.append(expect("strip chrome", PixelProbe.sample(contentView, at: past), at(Theme.chrome)))
             if let row = activeRow() {
