@@ -436,6 +436,8 @@
 - The cup (`CaffeineIconView`) follows `Caffeinate.didChange`. Its width is reserved at the right
   end of the titlebar row (`titlebarTrailingX`) whenever the setting is on, held or not, so strips
   and pills don't reflow as agents start and stop; new titlebar chrome must end before it.
+  Its tooltip is one rect it owns (`addToolTip`, text from `Caffeinate.toolTip()` when shown),
+  never `toolTip =` in layout: re-setting it re-adds the rect and restarts the hover delay.
 - A closed window never lays out again (`isClosed`, set in `windowWillClose`): a notification
   reaching its not-yet-freed controller used to put back the deck views `releaseViews` took out.
   Tests: `SelfTestCaffeinate.swift` (`DEALER_SELFTEST_ONLY=caffeinate:`, self-contained; checks

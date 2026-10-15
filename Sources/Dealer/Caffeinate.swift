@@ -44,7 +44,22 @@ final class Caffeinate {
         return "no agents working, releasing in \(Int(Self.grace.rounded())) s"
     }
 
-    var toolTip: String { "Keeping the display awake: \(label)" }
+    /// When the grace ends, while it runs.
+    private(set) var graceEndsAt: Date?
+
+    /// The cup's tooltip: what the cup means, when it stops, and how to turn it off. Built when
+    /// the tooltip shows (`CaffeineIconView` owns it lazily), so the grace countdown is current.
+    func toolTip(now: Date = Date()) -> String {
+        let off = "Turn this off with [power] caffeinate = false in settings.toml."
+        if working > 0 {
+            let who = working == 1 ? "an agent works" : "\(working) agents work"
+            return "Dealer is keeping your display awake while \(who). It'll sleep normally about "
+                + "\(Int(Self.grace.rounded())) s after \(working == 1 ? "it finishes" : "they finish"). \(off)"
+        }
+        let left = max(Int((graceEndsAt ?? now).timeIntervalSince(now).rounded(.up)), 0)
+        return "Dealer is keeping your display awake for \(left) more second\(left == 1 ? "" : "s"), in case "
+            + "an agent picks up again, then it'll sleep normally. \(off)"
+    }
 
     /// Called once at launch, after `Settings.start()`.
     func start() {
@@ -68,16 +83,19 @@ final class Caffeinate {
         } else if count > 0 {
             graceTimer?.invalidate()
             graceTimer = nil
+            graceEndsAt = nil
             hold()
         } else if isHeld, graceTimer == nil {
             let t = Timer(timeInterval: Self.grace, repeats: false) { [weak self] _ in
                 guard let self else { return }
                 self.graceTimer = nil
+                self.graceEndsAt = nil
                 if self.working == 0 { self.release() }
                 self.post()
             }
             RunLoop.main.add(t, forMode: .common)
             graceTimer = t
+            graceEndsAt = Date().addingTimeInterval(Self.grace)
             hold()  // renames it to the grace label
         }
         if before != (isHeld, assertionName, isInGrace) { post() }
@@ -87,6 +105,7 @@ final class Caffeinate {
     func release() {
         graceTimer?.invalidate()
         graceTimer = nil
+        graceEndsAt = nil
         guard isHeld else { return }
         IOPMAssertionRelease(assertion)
         assertion = IOPMAssertionID(kIOPMNullAssertionID)
@@ -138,7 +157,14 @@ final class Caffeinate {
 /// `cup.and.saucer.fill` at the right end of the titlebar row, shown only while the assertion is
 /// held. No click action: it answers `mouseDownCanMoveWindow` like empty titlebar, so pressing it
 /// drags the window (#27).
-final class CaffeineIconView: FlippedView, ThemeApplying {
+///
+/// The tooltip is one tooltip rect owned by the view (`addToolTip(_:owner:userData:)`), registered
+/// when the size changes and asked for its text only when it shows, never a `toolTip` string
+/// re-set on each layout: setting `toolTip` removes and re-adds the rect, which restarts AppKit's
+/// hover delay, and layout passes come often while agents work (titles change, progress flips).
+final class CaffeineIconView: FlippedView, ThemeApplying, NSViewToolTipOwner {
+    private var toolTipTag: NSView.ToolTipTag?
+
     static var width: CGFloat { Theme.Metrics.caffeineIconWidth }
     static var glyphSize: CGFloat { Theme.Metrics.caffeineGlyphSize }
 
@@ -151,6 +177,23 @@ final class CaffeineIconView: FlippedView, ThemeApplying {
     required init?(coder: NSCoder) { fatalError() }
 
     override var mouseDownCanMoveWindow: Bool { true }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        let changed = newSize != frame.size
+        super.setFrameSize(newSize)
+        if changed || toolTipTag == nil {
+            if let tag = toolTipTag { removeToolTip(tag) }
+            toolTipTag = addToolTip(bounds, owner: self, userData: nil)
+        }
+    }
+
+    /// The live text (`Caffeinate.toolTip`), asked for by AppKit when the tooltip is about to show.
+    func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String {
+        Caffeinate.shared.isHeld ? Caffeinate.shared.toolTip() : ""
+    }
+
+    /// What the tooltip would say now (the self-test reads it).
+    var currentToolTip: String { view(self, stringForToolTip: 0, point: .zero, userData: nil) }
 
     func applyTheme() { needsDisplay = true }
 
@@ -197,7 +240,6 @@ extension TerminalWindowController {
                             width: CaffeineIconView.width, height: h)
         let c = Caffeinate.shared
         icon.isHidden = !c.isHeld
-        icon.toolTip = c.isHeld ? c.toolTip : nil
         icon.needsDisplay = true
     }
 

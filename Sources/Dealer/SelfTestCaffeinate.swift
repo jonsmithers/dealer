@@ -61,14 +61,16 @@ extension TerminalWindowController {
              }].compactMap { $0 }.first
         }
         /// The cup in every window: shown, laid out in the titlebar row at the right end, with the
-        /// tooltip naming N.
+        /// tooltip explaining it (naming N, or the grace countdown).
         func cupsShown(_ label: String) -> [String?] {
             AppDelegate.shared.windowControllers.flatMap { wc -> [String?] in
                 let icon = wc.caffeineIcon, f = icon.frame
                 return [icon.superview === wc.contentView && !icon.isHidden ? nil : "window \(wc.id): the cup isn't showing",
                         f.minY == 0 && abs(f.height - wc.deckArea.minY) < 0.5 ? nil : "window \(wc.id): the cup \(f) isn't in the titlebar row",
                         abs(f.maxX - (wc.contentView.bounds.width - Self.deckGap)) < 0.5 ? nil : "window \(wc.id): the cup \(f) isn't at the right end",
-                        icon.toolTip == "Keeping the display awake: \(label)" ? nil : "window \(wc.id): tooltip is \(icon.toolTip ?? "nil")"]
+                        icon.currentToolTip.contains(label) && icon.currentToolTip.hasSuffix("Turn this off with [power] caffeinate = false in settings.toml.")
+                            ? nil : "window \(wc.id): tooltip is \"\(icon.currentToolTip)\", want it to say \"\(label)\" and how to turn it off",
+                        icon.toolTip == nil ? nil : "window \(wc.id): a static toolTip is set (\(icon.toolTip!)); the tooltip rect's owner gives the text"]
             }
         }
         func cupsHidden() -> String? {
@@ -86,7 +88,9 @@ extension TerminalWindowController {
                 problems.append("\(what): the pill bar \(workspaceBar.frame) overlaps the cup \(f)")
             }
             if let sv = contentView.superview {
-                let hit = contentView.hitTest(contentView.convert(CGPoint(x: f.midX, y: f.midY), to: sv))
+                // From the window's frame view, as AppKit's tooltip and mouse handling hit-test, so a
+                // titlebar view sitting over the content view would show up here.
+                let hit = sv.hitTest(contentView.convert(CGPoint(x: f.midX, y: f.midY), to: nil))
                 if hit !== icon { problems.append("\(what): a press on the cup hits \(hit.map { String(describing: type(of: $0)) } ?? "nothing")") }
             }
             return problems
@@ -110,7 +114,7 @@ extension TerminalWindowController {
                         Caffeinate.shared.isHeld ? nil : "no assertion held",
                         held(expectedName(n)),
                         AppDelegate.shared.windowControllers.count == 2 ? nil : "want 2 windows, have \(AppDelegate.shared.windowControllers.count)"]
-                       + cupsShown("\(n) agent working"))
+                       + cupsShown("Dealer is keeping your display awake while an agent works. It'll sleep normally about \(Int(Caffeinate.grace.rounded())) s after it finishes."))
         }) {
             second = nil
             let before = Set(AppDelegate.shared.windowControllers.map(ObjectIdentifier.init))
@@ -119,7 +123,7 @@ extension TerminalWindowController {
             settings("[power]\ncaffeinate = true\n")
         }
 
-        t.step("caffeinate: the cup draws the symbol in Theme.text, on dark and light themes", nil, {
+        t.step("caffeinate: the cup draws the symbol in Theme.text, on dark and light themes; its tooltip promises the real 30 s grace", nil, {
             var problems: [String] = []
             for (name, bg, fg) in [("dark", NSColor(hex: "#282c34")!, NSColor(hex: "#e7e9ee")!),
                                    ("light", NSColor(hex: "#fafafa")!, NSColor(hex: "#383a42")!)] {
@@ -134,16 +138,25 @@ extension TerminalWindowController {
                     }
                 }
             }
+            // The real grace (30 s), not this test's shortened one, is what the tooltip promises.
+            let saved = Caffeinate.graceOverride
+            Caffeinate.graceOverride = nil
+            let real = Caffeinate.shared.toolTip()
+            Caffeinate.graceOverride = saved
+            if !real.contains("It'll sleep normally about 30 s after it finishes.") { problems.append("with the real grace the tooltip says \"\(real)\"") }
             return all(problems)
         }) {}
 
         t.step("caffeinate: a second working pane renames it to two agents; a waiting pane doesn't count", nil, {
             all([held(expectedName(1)), pane("cf-b")?.isWorking == false ? nil : "cf-b is waiting, not working"]
-                + cupsShown("1 agent working"))
+                + cupsShown("while an agent works"))
         }) {
             created(call("create", ["type": "tab", "focus": false], caller: "cf-a"), "cf-b")
             progress("cf-b", true)
             if let e = held(expectedName(2)) { lastError = "with two working panes: \(e)" }
+            if !self.caffeineIcon.currentToolTip.contains("while 2 agents work. It'll sleep normally about \(Int(Caffeinate.grace.rounded())) s after they finish.") {
+                lastError = "with two working panes the tooltip is \"\(self.caffeineIcon.currentToolTip)\""
+            }
             if let b = pane("cf-b") { self.setAttention(.waiting, on: b) }
             self.refreshChrome()
         }
@@ -153,7 +166,10 @@ extension TerminalWindowController {
             return all([c.isHeld && c.isInGrace ? nil : "should be held in its grace (held \(c.isHeld), grace \(c.isInGrace))",
                         held("Dealer: \(c.label)"),
                         c.label.hasPrefix("no agents working") ? nil : "label is \(c.label)"]
-                       + cupsShown(c.label))
+                       + cupsShown("Dealer is keeping your display awake for ")
+                       + [c.toolTip().contains(" more second") ? nil : "the grace tooltip should count down: \(c.toolTip())",
+                          (1...Int(grace.rounded(.up))).contains { c.toolTip().contains("for \($0) more second") }
+                            ? nil : "the countdown should be within the \(grace) s grace: \(c.toolTip())"])
         }) {
             if let b = pane("cf-b") { self.clearAttention(b, cause: "caffeinate self-test") }
             progress("cf-b", false)
@@ -187,7 +203,7 @@ extension TerminalWindowController {
                 for d in self.titlebarStripDecks where d.view.strip.frame.maxX > self.titlebarTrailingX + 0.5 {
                     problems.append("\(mode): a strip ends at \(d.view.strip.frame.maxX), past the reserve at \(self.titlebarTrailingX)")
                 }
-                problems += cupClear(mode) + cupsShown("1 agent working")
+                problems += cupClear(mode) + cupsShown("while an agent works")
             }
             problems.append(self.caffeineIcon.mouseDownCanMoveWindow ? nil : "the cup has no click action, so a press on it should move the window (#27)")
             return all(problems)

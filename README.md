@@ -373,7 +373,8 @@ The pane bar shows the pane's status on the right: agent state, cwd and git bran
 [settings.toml](#settings) (off by default; applies live), Dealer holds a macOS power assertion
 whenever any tab or workspace in any window shows the turning asterisk, and for 30 s after the
 last one stops, so the screen doesn't sleep under a long agent run. A coffee cup at the right end
-of every window's titlebar shows while it's held; its tooltip says how many agents are working.
+of every window's titlebar shows while it's held; its tooltip explains it: how many agents are
+working, when the display will sleep again, and how to turn it off.
 It's an IOKit assertion (what `caffeinate -d` takes), listed under Dealer in
 `pmset -g assertions`, and gone if Dealer quits or crashes. It doesn't stop a manual lock or
 closing the lid.
