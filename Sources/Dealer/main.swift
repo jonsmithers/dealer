@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Settings.start()
         NotificationLog.start()
+        Caffeinate.shared.start()
         // Before any pane exists, so every shell gets DEALER_SOCKET; and before ghostty_init,
         // because it setenvs DEALER_SOCKET and libghostty snapshots the environment at init.
         ControlServer.shared.start()
@@ -48,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         ControlServer.shared.stop()
+        Caffeinate.shared.release()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
@@ -73,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wc.onClose = { [weak self] wc in
             guard let self else { return }
             self.controllers.removeAll { $0 === wc }
+            Caffeinate.shared.update()  // its working panes are gone (#69)
             // Closing the last window by hand ends the session; quitting keeps it.
             if self.controllers.isEmpty && !self.terminating && !SelfTest.enabled {
                 SessionSnapshot(windows: []).save()

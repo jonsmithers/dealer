@@ -81,3 +81,9 @@
 # terminal contents. Capped at ~5 MB (the previous file is kept as .1). macOS clears /tmp
 # files untouched for ~3 days. `dealer diagnose` shows whether it's on and its size.
 # log = false
+
+[power]
+# Keep the display (and so the Mac) awake while any agent is working: whenever a tab or
+# workspace shows the turning asterisk, and for 30 s after the last one stops. A coffee cup
+# in the titlebar shows while it's on. It doesn't stop a manual lock or closing the lid.
+# caffeinate = false

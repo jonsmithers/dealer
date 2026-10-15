@@ -425,6 +425,22 @@
   (`RunningSpinner.spins`). `phaseOverride` renders a chosen frame for pixel checks.
   Tests: `SelfTestSpinner.swift` (`DEALER_SELFTEST_ONLY=spinner:`, self-contained).
 
+## Keeping the display awake (`Caffeinate.swift`, #69)
+
+- `Caffeinate.shared` is the only owner of the power assertion (`kIOPMAssertPreventUserIdleDisplaySleep`,
+  no child `caffeinate`) and of its grace timer (common run-loop modes). "Working" is the spinner's
+  `Pane.isWorking`, counted over every window's panes in `Caffeinate.countWorking`; never a second
+  definition. It recounts at the spinner's change points (end of `refreshChrome`, `finishChange`,
+  a window closing, `Settings.didChange`), not on a timer, so a new way for `isWorking` to change
+  must end in `refreshChrome()` like the others.
+- The cup (`CaffeineIconView`) follows `Caffeinate.didChange`. Its width is reserved at the right
+  end of the titlebar row (`titlebarTrailingX`) whenever the setting is on, held or not, so strips
+  and pills don't reflow as agents start and stop; new titlebar chrome must end before it.
+- A closed window never lays out again (`isClosed`, set in `windowWillClose`): a notification
+  reaching its not-yet-freed controller used to put back the deck views `releaseViews` took out.
+  Tests: `SelfTestCaffeinate.swift` (`DEALER_SELFTEST_ONLY=caffeinate:`, self-contained; checks
+  IOKit's own list via `Caffeinate.ownAssertionNames`).
+
 ## Notification decision log (`NotificationLog.swift`, #56)
 
 - `[notifications] log` (read live) appends one line per attention/notification decision via

@@ -11,8 +11,9 @@ import AppKit
 //
 // Clear zones: a strip starts after the traffic lights and the sidebar toggle, or in top-bar
 // workspace mode after the pill segment (the pills keep a fixed left segment). The sidebar column
-// isn't a concern because decks never extend over it. A strip clipped below `minWidth` stays in its
-// deck instead.
+// isn't a concern because decks never extend over it. At the right end, `[power] caffeinate` (#69)
+// reserves room for the coffee cup (`titlebarTrailingX`). A strip clipped below `minWidth` stays in
+// its deck instead.
 
 extension TerminalWindowController {
     /// Narrowest titlebar strip worth showing (about two tabs plus "+"); narrower stays in the deck.
@@ -44,12 +45,14 @@ extension TerminalWindowController {
         var upStrips = Set<ObjectIdentifier>()
         if Settings.tabsInTitlebar {
             let clear = titlebarClearX
+            let end = titlebarTrailingX  // the cup's reserve (#69)
             for (deck, r) in frames where abs(r.minY - area.minY) < 0.5 {
                 let x = max(r.minX, clear)
-                guard r.maxX - x >= Self.titlebarStripMinWidth else { continue }
+                let maxX = min(r.maxX, end)
+                guard maxX - x >= Self.titlebarStripMinWidth else { continue }
                 let strip = deck.view.strip
                 if strip.superview !== contentView { contentView.addSubview(strip) }
-                strip.frame = CGRect(x: x, y: 0, width: r.maxX - x, height: area.minY)
+                strip.frame = CGRect(x: x, y: 0, width: maxX - x, height: area.minY)
                 deck.view.stripInTitlebar = true
                 up.insert(ObjectIdentifier(deck))
                 upStrips.insert(ObjectIdentifier(strip))

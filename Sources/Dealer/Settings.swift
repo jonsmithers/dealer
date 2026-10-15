@@ -71,6 +71,7 @@ enum Settings {
         "jobs.close_on_success": .bool,
         "jobs.linger": .seconds,
         "notifications.log": .bool,
+        "power.caffeinate": .bool,
     ]
 
     /// Pre-#10 UserDefaults keys, read only when the file doesn't set the setting.
@@ -316,6 +317,10 @@ enum Settings {
     /// `[notifications] log` (#56): append every attention/notification decision, with the reason
     /// for each "no", to `NotificationLog.path` (/tmp/dealer-notifications.log). Default false. Read live.
     static var notificationLog: Bool { bool("notifications.log") ?? false }
+
+    /// `[power] caffeinate` (#69, Caffeinate.swift): keep the display awake while any agent is
+    /// working (the spinner's condition), plus ~30 s. Default false. Read live.
+    static var caffeinate: Bool { bool("power.caffeinate") ?? false }
 
     static func isSizeSpec(_ s: String) -> Bool {
         let t = s.trimmingCharacters(in: .whitespaces)

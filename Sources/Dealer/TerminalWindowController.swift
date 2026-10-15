@@ -30,6 +30,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     let settingsBanner = SettingsBannerView()
     /// The sidebar toggle in the titlebar row (WorkspaceSidebar.swift).
     let sidebarToggle = SidebarToggleButton()
+    /// The coffee cup at the right of the titlebar row while the display is kept awake (#69).
+    let caffeineIcon = CaffeineIconView()
     /// The user's explicit sidebar choice for this window; `nil` means automatic (shown with 2+
     /// workspaces). Persisted in the session.
     var sidebarPreference: Bool?
@@ -37,6 +39,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     /// Stable for the window's lifetime, for the control socket (`dealer`).
     let id = StableID.next(.window)
     var onClose: ((TerminalWindowController) -> Void)?
+    /// Set in `windowWillClose`; a closed window never lays out again.
+    private(set) var isClosed = false
 
     private var windowDividers: [DividerView] = []
     private var paneDividers: [ObjectIdentifier: [DividerView]] = [:]
@@ -66,6 +70,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         LiveObjects.add(.window)
         observeSettings()
         observeTheme()
+        observeCaffeinate()
 
         if let snapshot {
             restore(snapshot)
@@ -283,6 +288,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         } else if let p = focusedDeck?.activeTab?.focusTarget {
             focus(p)
         }
+        Caffeinate.shared.update()  // a closed or moved pane may have been working (#69)
     }
 
     /// Shows `ws`, hiding (not removing) the other workspaces' decks, and focuses where it was left.
@@ -690,6 +696,10 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     /// Called from WindowContentView.layout().
     func layoutWindow() {
+        // A closed window's controller can still get a settings or caffeinate notification before
+        // it's freed; laying out then would put back the deck views `releaseViews` took out, and
+        // their strips would read freed decks later (#69 hit this).
+        guard !isClosed else { return }
         let area = deckArea
         var frames: [(Deck, CGRect)] = []
         var dividers: [Node<Deck>.Divider] = []
@@ -742,6 +752,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         }
 
         layoutWorkspaceSidebar()
+        layoutCaffeineIcon()
         contentView.raiseOverlays()
         updateSelectionHighlight()
     }
@@ -905,6 +916,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         workspaceBar.reload()
         // The automatic sidebar appears with a second workspace: that changes the deck area.
         if workspaceSidebar.isHidden == isSidebarVisible { contentView.needsLayout = true }
+        Caffeinate.shared.update()  // #69: the spinner's change points are the assertion's
     }
 
     func updateSelectionHighlight() {
@@ -1029,6 +1041,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        isClosed = true
         releaseViews()
         onClose?(self)
     }

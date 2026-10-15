@@ -369,6 +369,15 @@ The pane bar shows the pane's status on the right: agent state, cwd and git bran
   stands still instead of turning.
 - **waiting** / **done**: from attention.
 
+**Keep the display awake while agents work** (#69): with `[power] caffeinate = true` in
+[settings.toml](#settings) (off by default; applies live), Dealer holds a macOS power assertion
+whenever any tab or workspace in any window shows the turning asterisk, and for 30 s after the
+last one stops, so the screen doesn't sleep under a long agent run. A coffee cup at the right end
+of every window's titlebar shows while it's held; its tooltip says how many agents are working.
+It's an IOKit assertion (what `caffeinate -d` takes), listed under Dealer in
+`pmset -g assertions`, and gone if Dealer quits or crashes. It doesn't stop a manual lock or
+closing the lid.
+
 The branch is read from `.git/HEAD`, and worktrees work too.
 
 **Shell > New Agent Pane** (⌥⌘A) splits the focused pane and starts an agent in the new pane.
@@ -413,6 +422,9 @@ linger = 5               # seconds a succeeded job's pane stays, marked done, be
 
 [notifications]
 log = false              # log every attention/notification decision to /tmp/dealer-notifications.log
+
+[power]
+caffeinate = false       # keep the display awake while agents work (+30 s), with a titlebar cup
 ```
 
 - Changes apply live: Dealer watches the file (editors that save by replacing it work too).
@@ -510,6 +522,7 @@ and asserts the tree after each step.
 - `ControlServer.swift` / `ControlHandler.swift` / `ControlNotify.swift` – control socket, request handler, `dealer notify`
 - `SelfTest*.swift` – self-test, one file per feature section
 - `AgentStatus.swift` – pane status line (agent state, cwd, git branch)
+- `Caffeinate.swift` – `[power] caffeinate`: the display-awake power assertion while agents work, and the titlebar cup
 - `AgentLaunch.swift` – New Agent Pane presets
 - `Demo.swift` – scripted mouse demos for the README recordings (`DEALER_DEMO`, `scripts/record-demo.sh`)
 - `Attention.swift` – per-pane attention (bell/OSC/agent), badges, jump to next unread, macOS notifications

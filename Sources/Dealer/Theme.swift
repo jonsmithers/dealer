@@ -138,6 +138,9 @@ enum Theme {
         /// Extra grab area on each side of a thin divider.
         static let dividerSlop: CGFloat = 3
         static let overlayStroke: CGFloat = 1.5
+        /// The titlebar's coffee cup while the display is kept awake (#69, Caffeinate.swift).
+        static let caffeineIconWidth: CGFloat = 24
+        static let caffeineGlyphSize: CGFloat = 13
     }
 
     // MARK: Fonts
