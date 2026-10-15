@@ -107,8 +107,11 @@ extension TerminalWindowController {
 
         t.step("spinner: the asterisk is drawn in the leading slot of a tab, row and pill, and nothing is there at rest (dark and light, 2x and 1x)", nil, {
             var problems: [String] = []
-            for (name, bg) in [("dark", NSColor(hex: "#282c34")!), ("light", NSColor(hex: "#fafafa")!)] {
-                problems += PixelProbe.atEachScale { _ in Theme.withBackground(bg) { drawingProblems(name) } }
+            // Each with a matching foreground: the user's own ghostty theme sets it otherwise, and a
+            // light theme's dark text on the dark case leaves no contrast to measure.
+            for (name, bg, fg) in [("dark", NSColor(hex: "#282c34")!, NSColor(hex: "#e7e9ee")!),
+                                   ("light", NSColor(hex: "#fafafa")!, NSColor(hex: "#383a42")!)] {
+                problems += PixelProbe.atEachScale { _ in Theme.withBackground(bg, foreground: fg) { drawingProblems(name) } }
             }
             // A frozen clock draws one frame; different phases must draw different pixels.
             let tab = TabButton(frame: CGRect(x: 0, y: 0, width: 160, height: Theme.Metrics.tabHeight))
