@@ -249,8 +249,9 @@ or outline. Both looks are settings (`[attention] done` and `unread`, below). Th
 on dark ghostty themes and a deeper one on light themes, and so is the red. Focusing the pane
 clears all of it. A tab or workspace shows its most urgent pane: failed, then waiting, then done,
 then unread. **⌘⇧U** (Window > Jump to Next Unread) goes to the most urgent pane in any window,
-in the same order. When Dealer isn't the key window, it
-also posts a macOS notification (bundled app only), and clicking it focuses the pane.
+in the same order. When Dealer isn't the active app, or the screen is locked, a mark also posts a
+macOS notification (bundled app only), and clicking it focuses the pane. While Dealer is in front,
+the marks alone carry it, in every window.
 
 When attention clears, its ring, outline and dot **fade out** over about a second instead of
 vanishing, so you can see which pane called you. Arriving via ⌘⇧U or a notification holds the
@@ -275,10 +276,13 @@ Sources:
 - `dealer notify` from inside the pane (the control socket/CLI, #5). Each shell gets
   `DEALER_PANE_ID`, so `dealer notify` targets its own pane by default.
 
-A mark is skipped while you're looking at the pane (it's focused, its window is key and Dealer is
-active), and a source that only raises (bell, OSC, command finished) never lowers a stronger state.
-The macOS notification is skipped while Dealer is active and the pane's window is key, even if
-the pane is in another tab or workspace of that window.
+A mark is skipped only while you're looking at the pane: it's focused and showing, its window is
+key, Dealer is active and the screen is unlocked. A source that only raises (bell, OSC, command
+finished) never lowers a stronger state. A mark clears when you see it: focusing the pane while
+you're at the machine, or coming back to the window (it becoming key, or unlocking the screen)
+with the pane focused. Focus that moves while you're away (a pane closing, `dealer focus` from a
+script) keeps the mark until you're back. Notification permission is re-read whenever Dealer
+comes forward, so allowing notifications in System Settings needs no relaunch.
 
 **Why didn't Dealer notify me?** Set `[notifications] log = true` in [settings.toml](#settings) (live,
 no restart). Dealer then appends one line per decision to `/tmp/dealer-notifications.log`: each

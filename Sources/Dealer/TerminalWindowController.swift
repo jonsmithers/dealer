@@ -633,10 +633,11 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         loc.workspace.focusedPane = pane
         loc.tab.lastFocused = pane
         pane.noteFocused()
-        // Attention.swift: focusing a pane reads it. Re-focusing the pane that already has focus
-        // (finishChange after a background change, e.g. a `dealer run` job closing) only counts
-        // when the user is looking, so a mark set while they're away survives it.
-        if changed || isLookingAt(pane) {
+        // Attention.swift: focusing a pane reads it, but only when the user is there to see it
+        // (Presence.swift, #71). A focus moved while they're away (a pane closing, `dealer focus`, a
+        // re-focus after a background change) keeps the mark; windowDidBecomeKey or the screen
+        // unlocking clears it, with the fade, when they come back.
+        if (changed && (userPresent() || Presence.focusCountsAsSeen)) || isLookingAt(pane) {
             if pane.attention != .none {
                 NotificationLog.decision(pane: pane, event: NotificationLog.clearCause ?? "focus", outcome: "attention:cleared",
                                          reason: "\(pane.attention.name) → none (\(changed ? "focus moved to the pane" : "re-focused while you were looking"); \(NotificationLog.context(self)))")
@@ -644,7 +645,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             pane.attention = .none
         } else if pane.attention != .none {
             NotificationLog.decision(pane: pane, event: "focus", outcome: "attention:kept",
-                                     reason: "\(pane.attention.name) kept: re-focused while you weren't looking (\(NotificationLog.context(self)))")
+                                     reason: "\(pane.attention.name) kept: \(changed ? "focus moved here" : "re-focused") while you weren't looking (\(NotificationLog.context(self)))")
         }
         if changed && loc.workspace.selection != nil {
             loc.workspace.selection = nil

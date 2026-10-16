@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ControlServer.shared.start()
         GhosttyRuntime.shared.start()
         AttentionNotifier.shared.start()
+        Presence.start()
         NSApp.mainMenu = makeMenu()
 
         if SelfTest.enabled {

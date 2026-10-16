@@ -68,10 +68,10 @@ enum NotificationLog {
     /// Whether the user's view of the window matches "looking": logged with skips and clears, so a
     /// locked screen or a covered window shows up next to the decision.
     static func context(_ wc: TerminalWindowController?) -> String {
-        let key = wc?.window?.isKeyWindow ?? false
+        let key = Presence.isKey(wc?.window)
         let visible = wc?.window.map(WindowVisibility.isVisible) ?? false
-        let locked = (CGSessionCopyCurrentDictionary() as? [String: Any])?["CGSSessionScreenIsLocked"] as? Bool ?? false
-        return "app \(NSApp.isActive ? "active" : "inactive"), window \(key ? "key" : "not key")"
+        let locked = Presence.screenLocked
+        return "app \(Presence.appActive ? "active" : "inactive"), window \(key ? "key" : "not key")"
             + "\(visible ? "" : ", window hidden")\(locked ? ", screen locked" : "")"
     }
 

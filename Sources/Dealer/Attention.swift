@@ -89,11 +89,6 @@ extension TerminalWindowController {
     /// Every pane in this window, in reading order (workspaces, decks, tabs, panes).
     var allPanes: [Pane] { workspaces.flatMap(\.panes) }
 
-    /// True when the user can currently see this pane with the keyboard in it.
-    func isLookingAt(_ pane: Pane) -> Bool {
-        pane === focusedPane && (window?.isKeyWindow ?? false) && NSApp.isActive
-    }
-
     /// Marks a pane. `raiseOnly` keeps a stronger existing state (a bell doesn't downgrade
     /// "waiting" to "unread"); explicit `dealer notify` calls set the state exactly.
     /// `event` names the source in the notification log (#56): `bell`, `notify`, `claude:stop`, ….
@@ -194,12 +189,17 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
         Bundle.main.bundleIdentifier == nil ? nil : UNUserNotificationCenter.current()
     }
 
-    private var authorized = false
-    /// What the launch-time authorization request answered (the only thing `post` checks).
+    /// Whether macOS lets Dealer post. Set by the launch request, and re-read from the current
+    /// settings on every app activation and before a post while false (#71), so allowing
+    /// notifications in System Settings takes effect without a relaunch.
+    private(set) var authorized = false
+    /// What the launch-time authorization request answered.
     private var launchAnswer = "not requested yet"
-    /// The latest `UNNotificationSettings.authorizationStatus`, re-read on each app activation and
-    /// logged when it changes (#56). Logging only: `post` still goes by the launch answer.
+    /// The latest `UNNotificationSettings.authorizationStatus`, logged when it changes (#56).
     private var status: String?
+    /// Self-test seam: reads the authorization status instead of `UNUserNotificationCenter`
+    /// (which needs the bundle).
+    var statusReader: ((@escaping (UNAuthorizationStatus) -> Void) -> Void)?
 
     /// For the notification log's header and suppress reasons.
     var authorizationDescription: String {
@@ -209,6 +209,9 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func start() {
+        // Re-read the authorization whenever Dealer comes forward (the user may have just changed it).
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
+                                               queue: .main) { [weak self] _ in self?.refreshStatus() }
         guard let center, !SelfTest.enabled else { return }
         center.delegate = self
         center.requestAuthorization(options: [.alert, .sound]) { ok, error in
@@ -220,22 +223,25 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
                 self.refreshStatus()
             }
         }
-        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
-                                               queue: .main) { [weak self] _ in self?.refreshStatus() }
     }
 
-    func refreshStatus() {
-        guard let center, !SelfTest.enabled, NotificationLog.isEnabled else { return }
-        center.getNotificationSettings { settings in
-            let s = Self.describe(settings.authorizationStatus)
+    /// Re-reads the authorization status and updates `authorized`; `done` gets the result on main.
+    func refreshStatus(_ done: ((Bool) -> Void)? = nil) {
+        let read: (@escaping (UNAuthorizationStatus) -> Void) -> Void
+        if let statusReader { read = statusReader }
+        else if let center, !SelfTest.enabled { read = { reply in center.getNotificationSettings { reply($0.authorizationStatus) } } }
+        else { done?(authorized); return }
+        read { st in
             DispatchQueue.main.async {
-                guard s != self.status else { return }
-                let before = self.status
-                self.status = s
-                let stale = s == "authorized" && !self.authorized
-                    ? "; Dealer still treats notifications as not allowed until it relaunches" : ""
-                NotificationLog.decision(pane: nil, event: "authorization", outcome: "status",
-                                         reason: "\(before ?? "first read") → \(s)\(stale)")
+                let s = Self.describe(st)
+                self.authorized = st == .authorized || st == .provisional
+                if s != self.status {
+                    let before = self.status
+                    self.status = s
+                    NotificationLog.decision(pane: nil, event: "authorization", outcome: "status",
+                                             reason: "\(before ?? "first read") → \(s); posting \(self.authorized ? "allowed" : "not allowed")")
+                }
+                done?(self.authorized)
             }
         }
     }
@@ -256,10 +262,11 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
         func log(_ outcome: String, _ why: String) {
             NotificationLog.decision(pane: pane, event: event, outcome: outcome, reason: why, title: shownTitle, body: body)
         }
-        // Only interrupt when the user isn't already looking at this window.
-        if NSApp.isActive && (wc.window?.isKeyWindow ?? false) {
-            let which = pane === wc.focusedPane ? "the focused pane" : "not the focused pane, but its window"
-            return log("notification:suppressed", "app active and the pane's window is key (\(which)); the mark shows in the window")
+        // While Dealer is in front the marks carry it: no desktop notification, whichever window
+        // or pane (#71). A locked screen counts as away, so the banner reaches the lock screen.
+        if Presence.inFront {
+            let which = Presence.isKey(wc.window) ? "the pane's window is key" : "another Dealer window is key"
+            return log("notification:suppressed", "Dealer is the active app (\(which)); the mark shows in the window")
         }
         if !SelfTest.enabled { NSApp.requestUserAttention(.informationalRequest) }
         if Bundle.main.bundleIdentifier == nil {
@@ -269,8 +276,19 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
         guard !SelfTest.enabled else { return log("notification:suppressed", "self-test mode") }
         guard let center else { return }
         guard authorized else {
-            return log("notification:suppressed", "not authorized (\(authorizationDescription)); dock bounce only")
+            // Maybe allowed since the last read: ask again, and post if so.
+            refreshStatus { [weak self, weak pane, weak wc] ok in
+                guard let self, let pane, let wc else { return }
+                if ok { self.deliver(center, pane: pane, in: wc, title: shownTitle, body: body, event: event) }
+                else { log("notification:suppressed", "not authorized (\(self.authorizationDescription)); dock bounce only") }
+            }
+            return
         }
+        deliver(center, pane: pane, in: wc, title: shownTitle, body: body, event: event)
+    }
+
+    private func deliver(_ center: UNUserNotificationCenter, pane: Pane, in wc: TerminalWindowController,
+                         title shownTitle: String, body: String?, event: String) {
         let content = UNMutableNotificationContent()
         content.title = shownTitle
         content.subtitle = pane.title
@@ -284,7 +302,8 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
                                          reason: "UNUserNotificationCenter refused it: \(error.localizedDescription)")
             }
         }
-        log("notification:posted", "id \(id), replacing any earlier one for this pane")
+        NotificationLog.decision(pane: pane, event: event, outcome: "notification:posted",
+                                 reason: "id \(id), replacing any earlier one for this pane", title: shownTitle, body: body)
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,

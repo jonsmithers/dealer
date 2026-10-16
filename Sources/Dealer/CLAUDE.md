@@ -216,9 +216,10 @@
   nil-target menu action nowhere. `pressCmdB` in `SelfTestSwitcher.swift` uses `NSApp.sendEvent` when
   the run is active; otherwise it sends the key through the window and SurfaceView to the menu, then
   resolves the action from SurfaceView up the responder chain as AppKit does. It never re-targets the item.
-- Workspaces restored but never shown have deck views that aren't in the window yet (their shells
-  run anyway, because surfaces are created in `SurfaceView.init`). Ghostty keybind actions from
-  those panes find no window controller until the workspace is first shown.
+- Workspaces restored but never shown still have their deck views in the window: `sizeParked` (#45)
+  adds every parked deck to the content view, hidden, on each layout pass. So ghostty actions from
+  their panes (bell, OSC notifications, keybinds) find the window controller once the window has
+  laid out.
 
 ## Colors (`Colors.swift`)
 
@@ -351,15 +352,23 @@
 ## Attention and agent status (`Attention.swift`, `AgentStatus.swift`, `AgentLaunch.swift`)
 
 - `setAttention(_:on:raiseOnly:title:body:event:)` is the only writer of `Pane.attention` besides
-  `didFocus`, which clears it (so does `windowDidBecomeKey`, in Attention.swift). `didFocus` clears
-  only on a real focus change or when the user is looking (`isLookingAt`): `finishChange` re-focuses
-  the already-focused pane after any background change (e.g. a `dealer run` job pane closing), and
-  that must not wipe the mark the job just set. It refreshes
+  `didFocus`, which clears it (so do `windowDidBecomeKey` and `Presence.screenUnlocked`). Presence
+  (#71, `Presence.swift`) is the one source of "is the user there": `Presence.inFront` (Dealer
+  active, screen unlocked), `userPresent()` (in front and this window key) and `isLookingAt(pane)`
+  (present, focused, drawn). A locked screen counts as away. `didFocus` clears only on a focus
+  change while `userPresent()`, or a re-focus while `isLookingAt`; otherwise the mark is kept
+  (`attention:kept`) until the user is back. `finishChange` re-focuses the already-focused pane
+  after any background change (e.g. a `dealer run` job pane closing), and that must not wipe a mark.
+  Desktop notifications are suppressed whenever `Presence.inFront`, whatever the window or pane;
+  the marks carry it. Self-test seam: `Presence.override` (facts: app active, locked, key window).
+  With no override, self-test mode counts focus changes as seen (`focusCountsAsSeen`), as before
+  #71, so steps that clear marks by focusing keep their meaning; `SelfTestPresence.swift` sets the
+  override. Authorization is re-read on every activation and before a post while not allowed
+  (`AttentionNotifier.refreshStatus`, test seam `statusReader`). It refreshes
   chrome and posts the macOS notification; don't assign `pane.attention` elsewhere.
 - Automatic sources (bell, OSC 9/99/777, long `COMMAND_FINISHED`) pass `raiseOnly: true` so they
   never downgrade `waiting`; explicit `dealer notify` sets the state exactly (including `none`).
-  A non-`none` state is dropped when the user is already looking at the pane (focused pane, key
-  window, active app).
+  A non-`none` state is dropped when the user is already looking at the pane (`isLookingAt`).
 - Tab/deck/workspace attention is computed (max over children), never stored; badges pick it up
   from `refreshChrome()`. The ring is a sublayer named `dealer.attentionRing`, and the self-test
   finds it by that name.
