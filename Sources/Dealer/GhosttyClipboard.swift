@@ -11,11 +11,11 @@ import UniformTypeIdentifiers
 /// Ghostty's `clipboard-read` / `clipboard-write` (allow, deny, ask; defaults ask and allow) are
 /// enforced by libghostty itself (#55): `deny` never reaches these callbacks, `allow` completes
 /// without asking, and `ask` comes back as `confirm_read_clipboard_cb` (reads) or a write with
-/// `confirm` set. Dealer only supplies the question: a sheet through
-/// `TerminalWindowController.confirm`, naming the pane, shown once the pane's window is key (as
-/// Ghostty.app defers it until focused). Cancel denies, as Ghostty does. A pasted text that trips
-/// `clipboard-paste-protection` arrives the same way but is accepted as before (Dealer has never
-/// asked on paste).
+/// `confirm` set. A paste that trips `clipboard-paste-protection` (unsafe text, unless the program
+/// takes bracketed paste and `clipboard-paste-bracketed-safe` holds) arrives the same way (#72).
+/// Dealer only supplies the question: a sheet through `TerminalWindowController.confirm`, naming
+/// the pane, shown once the pane's window is key (as Ghostty.app defers it until focused). Cancel
+/// denies, as Ghostty does, and so does the window closing before it was asked.
 enum GhosttyClipboard {
     struct Content { let mime: String; let data: Data }
 
@@ -65,16 +65,40 @@ enum GhosttyClipboard {
             guard let s = view?.surface else { return }
             complete(s, contents: reps, available: avail, state: state, confirmed: true)
         }
-        // A paste that trips clipboard-paste-protection: Dealer has never asked there (#55 is about
-        // programs reading the clipboard).
-        if request == GHOSTTY_CLIPBOARD_REQUEST_PASTE { return onMain(accept) }
-        let writing = request == GHOSTTY_CLIPBOARD_REQUEST_OSC_52_WRITE || request == GHOSTTY_CLIPBOARD_REQUEST_KITTY_WRITE
-        onMain {
-            ask(view, reading: !writing, then: accept, otherwise: { [weak view] in
-                if let s = view?.surface { ghostty_surface_deny_clipboard_request(s, state) }
-            })
+        let deny = { [weak view] in
+            deniedCount += 1
+            if let s = view?.surface { ghostty_surface_deny_clipboard_request(s, state) }
         }
+        let kind: Kind
+        switch request {
+        case GHOSTTY_CLIPBOARD_REQUEST_PASTE:
+            // clipboard-paste-protection (#72): the text would run commands as it lands.
+            let text = reps.first { $0.mime == "text/plain" }.flatMap { String(data: $0.data, encoding: .utf8) } ?? ""
+            kind = .paste(preview: Self.preview(text))
+        case GHOSTTY_CLIPBOARD_REQUEST_OSC_52_WRITE, GHOSTTY_CLIPBOARD_REQUEST_KITTY_WRITE: kind = .write
+        default: kind = .read
+        }
+        onMain { ask(view, kind, then: accept, otherwise: deny) }
     }
+
+    /// What a question is about.
+    enum Kind {
+        case read, write, paste(preview: String)
+    }
+
+    /// At most 6 lines of 80 characters, with a note of what's left out.
+    static func preview(_ text: String) -> String {
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        var shown = lines.prefix(6).map { $0.count > 80 ? $0.prefix(79) + "…" : $0 }.joined(separator: "\n")
+        if lines.count > 6 { shown += "\n… (\(lines.count - 6) more line\(lines.count == 7 ? "" : "s"))" }
+        return shown
+    }
+
+    /// Self-test only: the last paste question's text.
+    private(set) static var lastQuestionInfo = ""
+
+    /// Self-test only: how many requests Dealer has denied (Cancel/Deny, or a window closed first).
+    private(set) static var deniedCount = 0
 
     /// Writes every representation; with `confirm` (`clipboard-write = ask`) only after the user agrees.
     static func write(_ ud: UnsafeMutableRawPointer?, location: ghostty_clipboard_e,
@@ -94,7 +118,7 @@ enum GhosttyClipboard {
         }
         guard confirm else { return onMain(store) }
         let view = SurfaceView.from(ud)
-        onMain { ask(view, reading: false, then: store, otherwise: {}) }
+        onMain { ask(view, .write, then: store, otherwise: { deniedCount += 1 }) }
     }
 
     /// Writes `items` to `pb`, unconditionally (the self-test's direct entry).
@@ -111,42 +135,59 @@ enum GhosttyClipboard {
     }
 
     /// The question, on the pane's window once it's key. No window (the pane is gone): denied.
-    static func ask(_ view: SurfaceView?, reading: Bool, then accept: @escaping () -> Void, otherwise deny: @escaping () -> Void) {
+    static func ask(_ view: SurfaceView?, _ kind: Kind, then accept: @escaping () -> Void, otherwise deny: @escaping () -> Void) {
         guard let view, let pane = view.pane, let window = view.window,
               let wc = window.windowController as? TerminalWindowController else { return deny() }
         guard isKey(window) else {
-            pendingByWindow[ObjectIdentifier(window), default: []].append { [weak view] in
-                ask(view, reading: reading, then: accept, otherwise: deny)
-            }
-            observeKey(window)
+            pendingByWindow[ObjectIdentifier(window), default: []].append(Pending(
+                retry: { [weak view] in ask(view, kind, then: accept, otherwise: deny) }, deny: deny))
+            observe(window)
             return
         }
         let loc = wc.locate(pane)
         let place = loc.map { " (\($0.workspace.displayName) · \($0.tab.title))" } ?? ""
-        let message = reading ? "Let “\(pane.title)” read the clipboard?" : "Let “\(pane.title)” change the clipboard?"
-        let info = (reading
-            ? "A program in this pane\(place) asked for the clipboard's contents. Ghostty's clipboard-read is set to ask."
-            : "A program in this pane\(place) wants to replace the clipboard's contents. Ghostty's clipboard-write is set to ask.")
-        wc.confirm(message, info: info, accept: "Allow", cancel: "Deny", then: accept, otherwise: deny)
-    }
-
-    /// Questions waiting for their window to become key, oldest first.
-    private static var pendingByWindow: [ObjectIdentifier: [() -> Void]] = [:]
-    private static var keyObservers: [ObjectIdentifier: NSObjectProtocol] = [:]
-
-    private static func observeKey(_ window: NSWindow) {
-        let id = ObjectIdentifier(window)
-        guard keyObservers[id] == nil else { return }
-        keyObservers[id] = NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window,
-                                                                  queue: .main) { _ in
-            MainActor.assumeIsolated { flushPending(id) }
+        switch kind {
+        case .read:
+            wc.confirm("Let “\(pane.title)” read the clipboard?",
+                       info: "A program in this pane\(place) asked for the clipboard's contents. Ghostty's clipboard-read is set to ask.",
+                       accept: "Allow", cancel: "Deny", then: accept, otherwise: deny)
+        case .write:
+            wc.confirm("Let “\(pane.title)” change the clipboard?",
+                       info: "A program in this pane\(place) wants to replace the clipboard's contents. Ghostty's clipboard-write is set to ask.",
+                       accept: "Allow", cancel: "Deny", then: accept, otherwise: deny)
+        case .paste(let preview):
+            // Ghostty.app's wording ("Warning: Potentially Unsafe Paste").
+            let info = "Pasting this text\(place.isEmpty ? "" : " into the pane" + place) may be dangerous as it looks like some commands may be executed.\n\n\(preview)"
+            lastQuestionInfo = info
+            wc.confirm("Paste into “\(pane.title)”?", info: info, accept: "Paste", cancel: "Cancel", then: accept, otherwise: deny)
         }
     }
 
-    private static func flushPending(_ id: ObjectIdentifier) {
-        if let o = keyObservers.removeValue(forKey: id) { NotificationCenter.default.removeObserver(o) }
+    /// Questions waiting for their window to become key, oldest first. A window that closes first
+    /// denies them, so libghostty doesn't keep the requests alive (#72).
+    private struct Pending { let retry: () -> Void; let deny: () -> Void }
+    private static var pendingByWindow: [ObjectIdentifier: [Pending]] = [:]
+    private static var windowObservers: [ObjectIdentifier: [NSObjectProtocol]] = [:]
+
+    private static func observe(_ window: NSWindow) {
+        let id = ObjectIdentifier(window)
+        guard windowObservers[id] == nil else { return }
+        let nc = NotificationCenter.default
+        windowObservers[id] = [
+            nc.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main) { _ in
+                MainActor.assumeIsolated { settle(id, accepting: true) }
+            },
+            nc.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { _ in
+                MainActor.assumeIsolated { settle(id, accepting: false) }
+            },
+        ]
+    }
+
+    /// The window became key (ask now) or is closing (deny).
+    private static func settle(_ id: ObjectIdentifier, accepting: Bool) {
+        windowObservers.removeValue(forKey: id)?.forEach { NotificationCenter.default.removeObserver($0) }
         let waiting = pendingByWindow.removeValue(forKey: id) ?? []
-        waiting.forEach { $0() }
+        waiting.forEach { accepting ? $0.retry() : $0.deny() }
     }
 
     /// Self-test only: how many questions wait for a key window.

@@ -129,7 +129,12 @@ terminals and chrome re-theme without restarting anything (see [Settings](#setti
 `clipboard-read` and `clipboard-write` settings: `allow`, `deny` or `ask`. Like Ghostty, reading
 defaults to **ask** and writing to **allow**. With `ask`, Dealer asks in a sheet on the pane's
 window, naming the pane, and only once that window is in front; Deny sends the program nothing.
-`deny` never asks. Your own ⌘C/⌘V aren't affected. ⌘⇧, applies a change.
+`deny` never asks. ⌘⇧, applies a change.
+
+**Pasting** text that would run commands as it lands (it contains a newline, and the program
+hasn't turned on bracketed paste) asks first, with a preview: Ghostty's
+`clipboard-paste-protection`, on by default (`clipboard-paste-bracketed-safe` decides whether
+bracketed paste counts as safe). Cancel pastes nothing.
 
 New splits, tabs, workspaces and windows start in the focused pane's current directory, as its
 shell reports it (Ghostty's shell integration; without it, the directory the pane started in).

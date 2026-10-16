@@ -207,7 +207,9 @@ The GitHub repo is `jonsmithers/dealer`.
   `clipboard-write` (#55; defaults read = ask, write = allow). libghostty enforces the policy;
   `GhosttyClipboard` only asks for `ask`, through `TerminalWindowController.confirm`, naming the
   pane, deferred until the pane's window is key; Deny calls `ghostty_surface_deny_clipboard_request`.
-  A paste caught by `clipboard-paste-protection` is still accepted without asking (as before #55).
+  A paste caught by `clipboard-paste-protection` (as libghostty applies it, with
+  `clipboard-paste-bracketed-safe`) asks the same way, Paste / Cancel with a short preview, like
+  Ghostty.app (#72). A question still waiting when its window closes is denied.
 - Ghostty keybind actions (`new_split`, `goto_tab`, …) are mapped onto our own commands in
   `GhosttyRuntime.handle`, so user configs still work.
 - Keyboard/IME handling is a trimmed port of Ghostty's own

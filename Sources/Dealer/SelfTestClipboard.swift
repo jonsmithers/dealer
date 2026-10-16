@@ -185,6 +185,103 @@ extension TerminalWindowController {
             }
             problem = bad.isEmpty ? nil : bad.joined(separator: "; ")
         }
+        // MARK: Paste protection (#72): ghostty flags a paste that would run commands (a newline,
+        // into a program that hasn't turned on bracketed paste); Dealer asks first.
+        func usePaste(protection: Bool) {
+            try? "clipboard-paste-protection = \(protection)\n".write(toFile: cbConfig, atomically: true, encoding: .utf8)
+            GhosttyRuntime.configFileOverride = cbConfig
+            _ = GhosttyRuntime.shared.reloadConfig()
+        }
+        func pasteAsks() -> Int { Confirmation.autoAccepted.filter { $0.hasPrefix("Paste into “") }.count }
+        /// Starts a bash `read` in `p` (no bracketed paste) and waits until it's reading. Returns the marker.
+        func startLineReader(in p: Pane, timeout: Int = 4) -> String {
+            probe += 1
+            let m = "R\(probe)"
+            p.surface.typeText("/bin/bash --norc --noprofile -c 'IFS= read -r -t \(timeout) line; echo \"\(m.prefix(1))\"\"\(m.dropFirst()):$line:E\"\"ND\"'\r")
+            _ = SelfTest.waitUntil(timeout: 10) {
+                guard let s = p.surface.surface else { return false }
+                let pid = Int32(truncatingIfNeeded: ghostty_surface_foreground_pid(s))
+                return pid > 0 && ProcessTree.arguments(of: pid)?.first.map { ($0 as NSString).lastPathComponent } == "bash"
+            }
+            return m
+        }
+        func lineRead(_ m: String, in p: Pane) -> String? {
+            var got: String?
+            _ = SelfTest.waitUntil(timeout: 10) {
+                let text = p.surface.screenText
+                guard let r = text.range(of: m + ":"), let e = text.range(of: ":END", range: r.upperBound..<text.endIndex) else { return false }
+                got = String(text[r.upperBound..<e.lowerBound])
+                return true
+            }
+            return got
+        }
+        func paste(_ text: String, into p: Pane) {
+            osc.clearContents()
+            osc.setString(text, forType: .string)
+            p.surface.perform("paste_from_clipboard")
+        }
+
+        t.step("clipboard: an unsafe paste (a newline) asks, and pastes on Paste", nil, {
+            problem
+        }) {
+            guard live else { problem = nil; return }
+            usePaste(protection: true)
+            let before = pasteAsks()
+            let m = startLineReader(in: pane())
+            paste("first-line\n", into: pane())
+            let got = lineRead(m, in: pane())
+            let q = Confirmation.autoAccepted.last ?? ""
+            problem = got == "first-line" && pasteAsks() == before + 1 ? nil
+                : "got \(got ?? "no reply line"), \(pasteAsks() - before) question(s), last: \(q)"
+        }
+        t.step("clipboard: the paste question names the pane and previews the text", nil, {
+            let q = Confirmation.autoAccepted.last ?? ""
+            let info = GhosttyClipboard.lastQuestionInfo
+            return !live || (q.hasPrefix("Paste into “") && info.contains("first-line")) ? nil : "last question: \(q) / \(info)"
+        }) {}
+        t.step("clipboard: a safe paste (one line) doesn't ask", nil, {
+            problem
+        }) {
+            guard live else { problem = nil; return }
+            usePaste(protection: true)
+            let before = pasteAsks()
+            let m = startLineReader(in: pane())
+            paste("safe-line", into: pane())
+            pane().surface.typeText("\r")
+            let got = lineRead(m, in: pane())
+            problem = got == "safe-line" && pasteAsks() == before ? nil
+                : "got \(got ?? "no reply line"), \(pasteAsks() - before) question(s); screen ends \(pane().surface.screenText.suffix(160).debugDescription)"
+        }
+        t.step("clipboard: with clipboard-paste-protection = false an unsafe paste doesn't ask", nil, {
+            problem
+        }) {
+            guard live else { problem = nil; return }
+            usePaste(protection: false)
+            let before = pasteAsks()
+            let m = startLineReader(in: pane())
+            paste("free-line\n", into: pane())
+            let got = lineRead(m, in: pane())
+            problem = got == "free-line" && pasteAsks() == before ? nil : "got \(got ?? "no reply line"), \(pasteAsks() - before) question(s)"
+        }
+        t.step("clipboard: a paste question waiting for a window that closes is denied", nil, {
+            problem
+        }) {
+            guard live else { problem = nil; return }
+            usePaste(protection: true)
+            AppDelegate.shared.newWindow(nil)
+            guard let wc = AppDelegate.shared.windowControllers.last, wc !== self, let p = wc.focusedPane else { problem = "no second window"; return }
+            wc.window?.animationBehavior = .none
+            _ = SelfTest.waitUntil(timeout: 10) { !p.surface.screenText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            let asksBefore = pasteAsks(), deniedBefore = GhosttyClipboard.deniedCount
+            _ = startLineReader(in: p, timeout: 8)
+            keyNow = false
+            paste("closing-line\n", into: p)
+            let waited = SelfTest.waitUntil(timeout: 5) { GhosttyClipboard.pendingCount == 1 }
+            wc.window?.close()
+            keyNow = true
+            problem = waited && GhosttyClipboard.pendingCount == 0 && GhosttyClipboard.deniedCount == deniedBefore + 1 && pasteAsks() == asksBefore ? nil
+                : "waited \(waited), pending \(GhosttyClipboard.pendingCount), denied \(GhosttyClipboard.deniedCount - deniedBefore), asked \(pasteAsks() - asksBefore)"
+        }
         t.step("clipboard: clean up (the launch config, the general pasteboard)", nil, {
             GhosttyRuntime.configFileOverride == nil && GhosttyClipboard.pasteboard == NSPasteboard.general ? nil : "not restored"
         }) {
