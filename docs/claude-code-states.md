@@ -48,8 +48,9 @@ because libghostty sets both, Claude Code picks the ghostty behavior [bin][obs]:
 
 - **Window title (OSC 0).** While working, the title reads `◐ <session title>` alternating
   with `◑` (about 1 s period). It reads `✳ <session title>` while idle *or* while a dialog is
-  open [obs]. Dealer shows this title on the tab and in the pane bar. You can turn it off
-  with `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` [docs].
+  open [obs]. Dealer shows this title on the tab and in the pane bar, minus a leading `◐ ` / `◑ `
+  (#75): it draws its own working spinner, so the glyph only took space. The idle `✳ ` stays.
+  Claude Code's title can be turned off with `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` [docs].
 - **Progress (OSC 9;4).** `9;4;3` (indeterminate) is sent while a turn runs, and **stays
   set while a permission dialog is open**. `9;4;0` is sent when the turn ends [obs]. It's
   gated on `terminalProgressBarEnabled` (default true) and on ghostty ≥ 1.2.0 via

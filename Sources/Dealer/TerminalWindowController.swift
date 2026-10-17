@@ -180,6 +180,9 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         let pane = Pane(workingDirectory: workingDirectory, command: command)
         pane.surface.onTitle = { [weak self, weak pane] title in
             guard let self, let pane else { return }
+            let title = Pane.terminalTitle(title)
+            // Claude Code alternates ◐/◑ about once a second; stripped, the title holds still.
+            guard pane.shellTitle != title else { return }
             pane.shellTitle = title
             self.refreshChrome()
         }

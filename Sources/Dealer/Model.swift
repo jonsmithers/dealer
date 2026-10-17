@@ -184,6 +184,15 @@ final class Pane {
     /// The program is reporting progress (OSC 9;4), e.g. an agent working. See AgentStatus.swift.
     var isReportingProgress = false
 
+    /// A title as a program sets it (OSC 0/2), cleaned for display. Claude Code prefixes `◐ ` / `◑ `
+    /// while it works; Dealer draws its own working spinner (#64), so that exact leading prefix is
+    /// dropped (#75). A glyph elsewhere, and the idle `✳ `, stay. Applied once, where ghostty's
+    /// SET_TITLE comes in, so the tab, pane bar, sidebar, Go to Pane and `dealer list` all agree.
+    static func terminalTitle(_ raw: String) -> String {
+        for prefix in ["◐ ", "◑ "] where raw.hasPrefix(prefix) { return String(raw.dropFirst(prefix.count)) }
+        return raw
+    }
+
     var title: String {
         if let t = customTitle, !t.isEmpty { return t }
         if let t = shellTitle, !t.isEmpty { return t }
