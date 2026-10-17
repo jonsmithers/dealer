@@ -276,7 +276,7 @@ final class PanePickerRow: NSView {
         let slot = RunningSpinner.slot
         let top = CGRect(x: 0, y: 4, width: bounds.width, height: 20)
         if spinner.isRunning {
-            RunningSpinner.draw(in: RunningSpinner.box(in: top, x: lead), color: Theme.text, phase: RunningSpinner.phase())
+            RunningSpinner.draw(in: RunningSpinner.box(in: top, x: lead), phase: RunningSpinner.phase())
         } else if e.pane.attention != .none {
             let d: CGFloat = 8
             AttentionStyle.draw(e.pane.attention, in: .zero, cornerRadius: 0,

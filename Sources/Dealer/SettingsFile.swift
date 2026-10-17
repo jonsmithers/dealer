@@ -91,7 +91,7 @@ enum SettingsFile {
 
     [power]
     # Keep the display (and so the Mac) awake while any agent is working: whenever a tab or
-    # workspace shows the turning asterisk, and for 30 s after the last one stops. A coffee cup
+    # workspace shows the working spinner, and for 30 s after the last one stops. A coffee cup
     # in the titlebar shows while it's on. It doesn't stop a manual lock or closing the lid.
     # caffeinate = false
 

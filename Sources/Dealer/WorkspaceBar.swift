@@ -118,7 +118,7 @@ final class WorkspaceButton: FlippedView {
         }
     }
     let attentionFade = AttentionFadeState()
-    /// True while an agent in this workspace is working (#64, RunningSpinner.swift): a turning asterisk
+    /// True while an agent in this workspace is working (#64, RunningSpinner.swift): Claude's working mark
     /// in front of the number. Unlike a tab, a pill is sized to its content, so it widens by the
     /// spinner's slot, the way it already does for the attention dot.
     var isRunning = false {
@@ -222,9 +222,7 @@ final class WorkspaceButton: FlippedView {
 
         var x = Self.padding + chipWidth
         if spinner.isRunning {
-            // In the name's own colour: colours and outlines on chrome mean attention.
-            RunningSpinner.draw(in: spinnerBox, color: titleAttrs[.foregroundColor] as! NSColor,
-                                phase: RunningSpinner.phase())
+            RunningSpinner.draw(in: spinnerBox, phase: RunningSpinner.phase())
             x += RunningSpinner.slot
         }
         if !number.isEmpty {

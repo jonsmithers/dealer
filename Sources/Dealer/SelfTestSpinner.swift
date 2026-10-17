@@ -1,13 +1,14 @@
 import AppKit
 
-// MARK: - Self-test section: the working spinner (#64, RunningSpinner.swift)
+// MARK: - Self-test section: the working spinner (#64, #73, RunningSpinner.swift)
 
 extension TerminalWindowController {
     /// A pane reporting OSC 9;4 progress spins its tab button and its workspace's switcher entry
     /// (sidebar row and top-bar pill): the model roll-up, the drawing (exact pixels in the leading
     /// slot, dark and light, 2x and 1x), the one shared timer, and the two cases that must *not*
     /// spin — a pane waiting on a dialog (Claude keeps progress set then), and Reduce Motion, which
-    /// keeps a standing asterisk and no timer.
+    /// keeps a standing mark and no timer. Also Claude's frames themselves (#73): eight, each in its
+    /// band of the sprite, stepping and pulsing with the phase.
     func spinnerSelfTestSteps(_ t: SelfTestKit) {
         var ids: [String: Int] = [:]
         var lastError: String?
@@ -54,8 +55,8 @@ extension TerminalWindowController {
             refreshChrome()
             layoutNow()
         }
-        /// The strongest coverage of `stroke` on `base` inside `box`: about 1 where the asterisk is
-        /// drawn (its stroke is 1.2pt, so whole pixels are fully covered), 0 where nothing is.
+        /// The strongest coverage of `stroke` on `base` inside `box`: about the mark's opacity where it is
+        /// drawn (it's a filled shape, so its centre covers whole pixels), 0 where nothing is.
         func inked(_ v: NSView, _ box: CGRect, stroke: NSColor, base: NSColor) -> CGFloat {
             PixelProbe.samples(v, in: box).compactMap { PixelProbe.coverage(of: stroke, on: base, in: $0) }.max() ?? 0
         }
@@ -84,7 +85,7 @@ extension TerminalWindowController {
                 if atRest > 0.2 { problems.append("\(name) \(e.kind): something is drawn in the slot at rest (\(atRest))") }
                 e.run(true)
                 let ink = inked(e.view, e.box(), stroke: e.stroke, base: e.base)
-                if ink < 0.75 { problems.append("\(name) \(e.kind): the asterisk is faint or missing (\(ink))") }
+                if ink < 0.75 { problems.append("\(name) \(e.kind): the mark is faint or missing (\(ink))") }
             }
             return problems
         }
@@ -105,7 +106,40 @@ extension TerminalWindowController {
             progress(pane("sp-b"), true)
         }
 
-        t.step("spinner: the asterisk is drawn in the leading slot of a tab, row and pill, and nothing is there at rest (dark and light, 2x and 1x)", nil, {
+        t.step("spinner: a working tab is widened by the slot, so a short title stays whole; a resting tab isn't", nil, {
+            guard let a = pane("sp-a"), let b = pane("sp-b"), let la = self.locate(a), let lb = self.locate(b),
+                  let ia = la.deck.index(of: la.tab), let ib = lb.deck.index(of: lb.tab),
+                  let bb = tabButton(b) else { return all(["setup failed"]) }
+            let w = la.deck.view.strip.tabWidths
+            let want = TabStripView.naturalWidth(lb.tab.title) + RunningSpinner.slot
+            let text = ceil((lb.tab.title as NSString).size(withAttributes: [.font: Theme.Fonts.tabActive]).width)
+            return all([w[ib] == want ? nil : "the working tab is \(w[ib])pt, want \(want) (its natural width plus the slot)",
+                        w[ia] == TabStripView.naturalWidth(la.tab.title) ? nil : "the resting tab is \(w[ia])pt, want its natural width",
+                        bb.frame.width == want ? nil : "the button is \(bb.frame.width)pt wide, want \(want)",
+                        bb.titleRect.width >= text ? nil : "the title gets \(bb.titleRect.width)pt of the \(text) it needs"])
+        }) {
+            // Short titles that fit easily: the strip doesn't need to shrink anything.
+            if let a = ids["sp-a"] { call("rename", ["target": "\(a)", "level": "tab", "title": "sh"]) }
+            if let b = ids["sp-b"] { call("rename", ["target": "\(b)", "level": "tab", "title": "agent"]) }
+            self.refreshChrome()
+            self.layoutNow()
+        }
+
+        t.step("spinner: Claude's sprite parses into eight frames, each inside its own 100×100 band", nil, {
+            let a = SpinnerAnimation.claude
+            var problems: [String] = []
+            if a.frames.count != 8 { problems.append("\(a.frames.count) frames, want 8") }
+            for (i, f) in a.frames.enumerated() {
+                let b = f.bounds
+                if b.width < 70 || b.height < 70 { problems.append("frame \(i) is only \(b.size)") }
+                if !CGRect(x: -0.5, y: -0.5, width: 101, height: 101).contains(b) { problems.append("frame \(i) leaves its box: \(b)") }
+            }
+            let shown = (0..<16).map { RunningSpinner.frame(at: CGFloat($0) / 16) }
+            if Set(shown).count != a.frames.count { problems.append("one pulse shows frames \(shown), not every frame") }
+            return all(problems)
+        }) {}
+
+        t.step("spinner: the mark is drawn in the leading slot of a tab, row and pill, and nothing is there at rest (dark and light, 2x and 1x)", nil, {
             var problems: [String] = []
             // Each with a matching foreground: the user's own ghostty theme sets it otherwise, and a
             // light theme's dark text on the dark case leaves no contrast to measure.
@@ -121,11 +155,21 @@ extension TerminalWindowController {
             RunningSpinner.phaseOverride = 0.17
             let later = PixelProbe.pixels(tab, rect: tab.spinnerBox)
             RunningSpinner.phaseOverride = nil
-            if first == nil || first == later { problems.append("the asterisk draws the same pixels at phase 0 and 0.17") }
+            if first == nil || first == later { problems.append("the mark draws the same pixels at phase 0 and 0.17") }
+            // The pulse: full strength at phase 0, about `dimmest` halfway, in the foreground colour
+            // whatever the title's colour (an inactive tab's title is muted).
+            let dim = TabButton(frame: CGRect(x: 0, y: 0, width: 160, height: Theme.Metrics.tabHeight))
+            dim.isActive = true; dim.isRunning = true
+            for (phase, want) in [(CGFloat(0), CGFloat(1)), (0.5, RunningSpinner.dimmest)] {
+                RunningSpinner.phaseOverride = phase
+                let ink = inked(dim, dim.spinnerBox, stroke: Theme.text, base: Theme.surface)
+                if abs(ink - want) > 0.15 { problems.append("at phase \(phase) the mark's strength is \(ink), want about \(want)") }
+            }
+            RunningSpinner.phaseOverride = nil
             return all(problems.map { $0 })
         }) {}
 
-        t.step("spinner: a spinning tab keeps its width and takes the slot from its title; a pill grows by the slot", nil, {
+        t.step("spinner: a spinning tab button of a fixed width takes the slot from its title; a pill grows by the slot", nil, {
             let tab = TabButton(frame: CGRect(x: 0, y: 0, width: 160, height: Theme.Metrics.tabHeight))
             tab.title = "agent"
             let rest = tab.titleRect
@@ -138,7 +182,7 @@ extension TerminalWindowController {
             let slot = RunningSpinner.slot
             return all([running.minX == rest.minX + slot ? nil : "the title should start \(slot)pt later, starts at \(running.minX) vs \(rest.minX)",
                         running.width == rest.width - slot ? nil : "the title should be \(slot)pt narrower, is \(running.width) vs \(rest.width)",
-                        tab.spinnerBox.maxX <= running.minX ? nil : "the asterisk (\(tab.spinnerBox)) runs into the title (\(running))",
+                        tab.spinnerBox.maxX <= running.minX ? nil : "the mark (\(tab.spinnerBox)) runs into the title (\(running))",
                         pill.idealWidth == pillRest + slot ? nil : "the pill should grow by \(slot)pt, \(pillRest) → \(pill.idealWidth)"])
         }) {}
 
@@ -171,10 +215,11 @@ extension TerminalWindowController {
             progress(pane("sp-b"), true)
         }
 
-        t.step("spinner: Reduce Motion keeps a standing asterisk and runs no timer", nil, {
+        t.step("spinner: Reduce Motion keeps a standing mark and runs no timer", nil, {
             let problems = PixelProbe.atEachScale { _ in drawingProblems("reduce motion") }
             return all([RunningSpinner.spins ? "Reduce Motion should stop the spin" : nil,
                         RunningSpinner.phase() == 0 ? nil : "the phase should be frozen at 0",
+                        RunningSpinner.opacity(at: RunningSpinner.phase()) == 1 ? nil : "a standing mark should be at full strength",
                         SpinnerTicker.shared.count == 0 ? nil : "\(SpinnerTicker.shared.count) elements registered under Reduce Motion",
                         spinning(pane("sp-b")!).allSatisfy { $0.value } ? nil : "the elements should still show it: \(spinning(pane("sp-b")!))"]
                        + problems)

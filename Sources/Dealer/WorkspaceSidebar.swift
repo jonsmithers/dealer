@@ -114,7 +114,7 @@ final class WorkspaceRow: FlippedView {
         }
     }
     let attentionFade = AttentionFadeState()
-    /// True while an agent in this workspace is working (#64, RunningSpinner.swift): a turning asterisk
+    /// True while an agent in this workspace is working (#64, RunningSpinner.swift): Claude's working mark
     /// between the number and the name.
     var isRunning = false {
         didSet {
@@ -240,9 +240,7 @@ final class WorkspaceRow: FlippedView {
         }
         x += Self.numberColumn
         if spinner.isRunning && !isAddRow {
-            // In the name's own colour: colours and outlines on chrome mean attention.
-            RunningSpinner.draw(in: spinnerBox, color: titleAttrs[.foregroundColor] as! NSColor,
-                                phase: RunningSpinner.phase())
+            RunningSpinner.draw(in: spinnerBox, phase: RunningSpinner.phase())
             x += RunningSpinner.slot
         }
 

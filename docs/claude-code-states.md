@@ -107,7 +107,7 @@ Other relevant payload fields:
 
 | Dealer state | Set by | Default look | Cleared by |
 |---|---|---|---|
-| **running** | OSC 9;4 progress set (automatic, no setup) | "running" in the pane bar, plus a turning asterisk on the pane's tab and its workspace's switcher entry (#64, `RunningSpinner.swift`; standing still under Reduce Motion) | progress removed (`9;4;0`); outranked by waiting/done |
+| **running** | OSC 9;4 progress set (automatic, no setup) | "running" in the pane bar, plus Claude's animated working mark on the pane's tab and its workspace's switcher entry (#64, `RunningSpinner.swift`; standing still under Reduce Motion) | progress removed (`9;4;0`); outranked by waiting/done |
 | **failed** | `dealer notify --state failed` from the `StopFailure` hook (#29, `[agent] errors_as_failed`); also `dealer run` failures and shell commands exiting non-zero | red outline (not configurable) | focusing the pane |
 | **waiting** | `dealer notify --state waiting` from hooks: `PermissionRequest`, `Notification` (`permission_prompt`, `elicitation_*`). Automatic since #12 (bundled plugin) | blue outline (not configurable) | focusing the pane |
 | **done** | `dealer notify --state done` from the `Stop` hook. Automatic since #12 | blue outline, like waiting (#61; `[attention] done = "dot"` for a muted dot) | focusing the pane |

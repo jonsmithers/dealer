@@ -1,6 +1,6 @@
 import AppKit
 
-// MARK: - "An agent is working here" (#64)
+// MARK: - "An agent is working here" (#64, #73)
 //
 // A continual animation on every tab button and workspace switcher entry (sidebar row or top-bar
 // pill) that holds a pane whose `agentState` is `.running` — OSC 9;4 progress, which Claude Code
@@ -8,36 +8,58 @@ import AppKit
 // progress in `agentState`, so a pane waiting on a permission prompt (where Claude keeps progress
 // set) shows its blue outline and no spinner, and the spinner never competes with an attention mark.
 //
-// It is the only *motion* in the chrome that isn't a fade, and it is deliberately colorless: it
-// draws in the element's own title color, because colors and outlines mean attention (#7, #9).
+// It is the only *motion* in the chrome that isn't a fade. It has no hue, because colors and
+// outlines mean attention (#7, #9); it stands out by shape and contrast instead: a filled mark in
+// the full foreground color (`Theme.text`) whatever its element's title color, pulsing brighter
+// and dimmer.
 
-/// The look: a six-spoke asterisk that turns while its spokes breathe. Claude Code animates its
-/// own prompt by cycling `· ✢ ✳ ✶ ✻ ✽`, an asterisk whose spokes grow and shrink, so this draws
-/// that cycle as vectors instead of swapping glyphs — per-frame glyph metrics differ, which would
-/// make the chrome jitter, and the fallback font for those code points isn't ours to pick.
+/// An agent's working animation: still frames shown in turn, each a filled shape in a
+/// `side`×`side` box (y down, like the SVG it came from). A value, so another kind of agent can get
+/// its own; Dealer only knows "a pane reports progress" today, so `RunningSpinner.animation` is
+/// Claude's.
+struct SpinnerAnimation {
+    let frames: [NSBezierPath]
+    let side: CGFloat
+    /// How long each frame shows. Frames step; they are never tweened.
+    let frameDuration: TimeInterval
+
+    /// The mark claude.ai shows while Claude works (#73), its exact frames (ClaudeSpinnerSprite.swift):
+    /// a sprite sheet of eight 100×100 frames stacked down a 100×800 viewBox, one subpath each.
+    /// The page's frame rate isn't in the file; 0.12 s matches it by eye.
+    static let claude: SpinnerAnimation = {
+        let frames = SVGPath.subpaths(claudeSpritePath).enumerated().map { i, path -> NSBezierPath in
+            path.transform(using: AffineTransform(translationByX: 0, byY: -100 * CGFloat(i)))
+            return path
+        }
+        return SpinnerAnimation(frames: frames, side: 100, frameDuration: 0.12)
+    }()
+}
+
 enum RunningSpinner {
-    /// The slot a spinner takes in front of a title, and the asterisk's size inside it.
-    static let slot: CGFloat = 14
-    static let size: CGFloat = 9
-    /// One full turn.
-    static let period: TimeInterval = 2.4
-    private static let spokes = 6
-    /// How far a spoke's length swings around the middle, as a fraction of the radius.
-    private static let breathe: CGFloat = 0.3
-    /// Redraw rate while something spins. 30 Hz is plenty for a 2.4 s turn, and a tick costs one
-    /// small `draw(_:)` per spinning element.
+    /// The slot a spinner takes in front of a title, and the mark's size inside it.
+    static let slot: CGFloat = 18
+    static let size: CGFloat = 13
+    /// One pulse, bright → dim → bright. The frames run on the same clock (16 of them per pulse).
+    static let period: TimeInterval = 1.92
+    /// The pulse's dimmest opacity; the brightest is 1.
+    static let dimmest: CGFloat = 0.5
+    /// Redraw rate while something spins: frames step at ~8 Hz, but the pulse fades smoothly. A tick
+    /// costs one small `draw(_:)` per spinning element.
     static let tickInterval: TimeInterval = 1.0 / 30
+
+    /// Which animation spinners show (see `SpinnerAnimation`).
+    static var animation = SpinnerAnimation.claude
 
     /// Off in self-test mode (like `AttentionFade.enabled`), so pixel checks see a fixed frame and
     /// no timer runs; on for the README demos, which run in self-test mode but should look like the
     /// app. `SelfTestSpinner.swift` turns it on for its own steps.
     static var animating = !SelfTest.enabled || Demo.name != nil
 
-    /// Whether the asterisk moves at all. Reduce Motion keeps it, standing still: it says "an agent
-    /// is working here", which a static mark still says.
+    /// Whether the mark moves at all. Reduce Motion keeps it, standing still at full brightness: it
+    /// says "an agent is working here", which a static mark still says.
     static var spins: Bool { animating && !AttentionFade.reduceMotion }
 
-    /// The asterisk's box inside an element, given the slot's leading edge in the element's
+    /// The mark's box inside an element, given the slot's leading edge in the element's
     /// coordinates: `size` square, centred on the element's vertical middle.
     static func box(in bounds: CGRect, x: CGFloat) -> CGRect {
         CGRect(x: x + (slot - size) / 2, y: bounds.midY - size / 2, width: size, height: size)
@@ -46,32 +68,44 @@ enum RunningSpinner {
     /// Self-test only: renders a chosen frame, whatever the clock says.
     static var phaseOverride: CGFloat?
 
-    /// 0…1 through the turn. One clock for every element, so all spinners turn together. Frozen at
-    /// 0 when it doesn't spin, which leaves the asterisk standing in its mid-breath frame.
+    /// 0…1 through the pulse. One clock for every element, so all spinners show the same frame. Frozen
+    /// at 0 when it doesn't spin, which leaves the first frame standing at full brightness.
     static func phase(at now: Date = Date()) -> CGFloat {
         if let phaseOverride { return phaseOverride }
         guard spins else { return 0 }
         return CGFloat(now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period)
     }
 
+    /// The frame shown at `phase`.
+    static func frame(at phase: CGFloat, of a: SpinnerAnimation = animation) -> Int {
+        guard !a.frames.isEmpty else { return 0 }
+        return Int((Double(phase) * period / a.frameDuration).rounded(.down)) % a.frames.count
+    }
+
+    /// The mark's opacity at `phase`: 1 at 0, `dimmest` halfway.
+    static func opacity(at phase: CGFloat) -> CGFloat {
+        dimmest + (1 - dimmest) * (0.5 + 0.5 * cos(phase * 2 * .pi))
+    }
+
     /// The one drawer. Every element calls this, so the look changes in one place.
-    static func draw(in box: CGRect, color: NSColor, phase: CGFloat) {
-        let c = CGPoint(x: box.midX, y: box.midY)
-        let r = box.width / 2
-        let turn = phase * 2 * .pi
-        color.setStroke()
-        for i in 0..<spokes {
-            let a = turn + CGFloat(i) * 2 * .pi / CGFloat(spokes)
-            // Each spoke breathes a sixth of a turn behind the one before it, so the asterisk
-            // ripples the way Claude's `·✢✳✶✻✽` cycle grows and shrinks.
-            let len = r * (1 - breathe + breathe * cos(turn * 2 - CGFloat(i) * .pi / 3))
-            let path = NSBezierPath()
-            path.move(to: CGPoint(x: c.x + cos(a) * r * 0.2, y: c.y + sin(a) * r * 0.2))
-            path.line(to: CGPoint(x: c.x + cos(a) * len, y: c.y + sin(a) * len))
-            path.lineWidth = 1.2
-            path.lineCapStyle = .round
-            path.stroke()
+    static func draw(in box: CGRect, phase: CGFloat) {
+        let a = animation
+        guard !a.frames.isEmpty, let ctx = NSGraphicsContext.current else { return }
+        ctx.saveGraphicsState()
+        defer { ctx.restoreGraphicsState() }
+        let s = box.width / a.side
+        let t = NSAffineTransform()
+        // Frames are y-down; chrome views are flipped, but don't count on it.
+        if ctx.isFlipped {
+            t.translateX(by: box.minX, yBy: box.minY)
+            t.scaleX(by: s, yBy: s)
+        } else {
+            t.translateX(by: box.minX, yBy: box.maxY)
+            t.scaleX(by: s, yBy: -s)
         }
+        t.concat()
+        Theme.text.withAlphaComponent(opacity(at: phase)).setFill()
+        a.frames[frame(at: phase, of: a)].fill()
     }
 }
 

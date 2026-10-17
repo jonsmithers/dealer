@@ -378,10 +378,13 @@ final class TabStripView: FlippedView {
     // selecting a tab doesn't resize it. No animation: titles change often (shells set them per
     // command), and a width that glides on every prompt would be distracting.
 
-    /// The width a tab wants for `title`, before any shrinking.
-    static func naturalWidth(_ title: String) -> CGFloat {
+    /// The width a tab wants for `title`, before any shrinking. A tab whose agent is working (#73)
+    /// also wants the spinner's slot, so the mark doesn't eat a short title; the strip reflows when
+    /// an agent starts or stops, as it does whenever a shell retitles a tab.
+    static func naturalWidth(_ title: String, running: Bool = false) -> CGFloat {
         let text = title.isEmpty ? 0 : ceil((title as NSString).size(withAttributes: [.font: Theme.Fonts.tabActive]).width)
-        return min(max(text + TabButton.chromeWidth, Theme.Metrics.tabMinWidth), Theme.Metrics.tabMaxWidth)
+        let chrome = TabButton.chromeWidth + (running ? RunningSpinner.slot : 0)
+        return min(max(text + chrome, Theme.Metrics.tabMinWidth), Theme.Metrics.tabMaxWidth)
     }
 
     /// Shrinks the widest of `natural` first until they sum to at most `available`, never below
@@ -403,16 +406,17 @@ final class TabStripView: FlippedView {
         return natural.map { min($0, level) }
     }
 
-    private var fitCache: (titles: [String], width: CGFloat, widths: [CGFloat])?
+    private var fitCache: (titles: [String], running: [Bool], width: CGFloat, widths: [CGFloat])?
 
-    /// Current tab widths, from the model's titles (the buttons may lag a reload behind).
+    /// Current tab widths, from the model's titles and working states (the buttons may lag a reload
+    /// behind).
     var tabWidths: [CGFloat] {
-        let titles = deck.tabs.map(\.title)
-        if let c = fitCache, c.titles == titles, c.width == bounds.width { return c.widths }
+        let titles = deck.tabs.map(\.title), running = deck.tabs.map(\.isWorking)
+        if let c = fitCache, c.titles == titles, c.running == running, c.width == bounds.width { return c.widths }
         let n = CGFloat(titles.count)
         let avail = bounds.width - Self.inset * 2 - Self.addWidth - n * Theme.Metrics.tabSpacing
-        let widths = Self.fit(titles.map(Self.naturalWidth), available: avail)
-        fitCache = (titles, bounds.width, widths)
+        let widths = Self.fit(zip(titles, running).map { Self.naturalWidth($0, running: $1) }, available: avail)
+        fitCache = (titles, running, bounds.width, widths)
         return widths
     }
 
@@ -504,9 +508,9 @@ final class TabButton: FlippedView {
         }
     }
     let attentionFade = AttentionFadeState()
-    /// True while an agent in this tab is working (#64, RunningSpinner.swift): a turning asterisk in
-    /// front of the title. The tab's width doesn't change with it — the title just gets the slot
-    /// less — so a strip doesn't reflow every time an agent starts or stops.
+    /// True while an agent in this tab is working (#64, RunningSpinner.swift): Claude's working mark in
+    /// front of the title, in a slot the strip adds to the tab's width (`TabStripView.naturalWidth`).
+    /// A tab already at its maximum, or shrunk to fit, gives the slot from its title instead.
     var isRunning = false {
         didSet {
             if spinner.onChange == nil { spinner.onChange = { [weak self] in self?.needsDisplay = true } }
@@ -590,8 +594,7 @@ final class TabButton: FlippedView {
         // The trailing slot is always reserved, so the title stays put when the × appears (#46).
         (title as NSString).draw(in: titleRect, withAttributes: attrs)
         if spinner.isRunning {
-            // In the title's own colour: colours and outlines on chrome mean attention.
-            RunningSpinner.draw(in: spinnerBox, color: attrs[.foregroundColor] as! NSColor, phase: RunningSpinner.phase())
+            RunningSpinner.draw(in: spinnerBox, phase: RunningSpinner.phase())
         }
 
         if showsClose {

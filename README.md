@@ -380,17 +380,17 @@ own hook or notify settings. Anything that prints an OSC 9 notification
 The pane bar shows the pane's status on the right: agent state, cwd and git branch, e.g.
 `waiting · ~/git/dealer · main`. The tab's tooltip shows the same line. The states are:
 - **running**: the program is reporting progress with OSC 9;4. Claude Code does this while it works.
-  A running pane also puts a small turning asterisk (#64) in front of the title on its **tab** and on its
+  A running pane also puts Claude's working mark (#64, #73; the animated spark from claude.ai) in front of the title on its **tab** and on its
   **workspace**'s sidebar row or pill, so you can see at a glance which tabs and workspaces have an
-  agent working right now — including ones you aren't looking at. It's drawn in the title's own
-  colour, never an attention colour, and a pane that's *waiting* on you doesn't spin even though
-  Claude keeps progress set while a dialog is open. With macOS **Reduce Motion** on, the asterisk
-  stands still instead of turning.
+  agent working right now — including ones you aren't looking at. It's drawn in the terminal's
+  foreground colour and pulses brighter and dimmer, never in an attention colour, and a pane that's
+  *waiting* on you doesn't show it even though Claude keeps progress set while a dialog is open.
+  With macOS **Reduce Motion** on, the mark stands still at full brightness.
 - **waiting** / **done**: from attention.
 
 **Keep the display awake while agents work** (#69): with `[power] caffeinate = true` in
 [settings.toml](#settings) (off by default; applies live), Dealer holds a macOS power assertion
-whenever any tab or workspace in any window shows the turning asterisk, and for 30 s after the
+whenever any tab or workspace in any window shows the working mark, and for 30 s after the
 last one stops, so the screen doesn't sleep under a long agent run. A coffee cup at the right end
 of every window's titlebar shows while it's held; its tooltip explains it: how many agents are
 working, when the display will sleep again, and how to turn it off.
