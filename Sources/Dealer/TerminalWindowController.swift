@@ -804,10 +804,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         }
         for (p, r) in frames {
             if p.view.superview !== dv.content { dv.content.addSubview(p.view) }
-            if p.view.isHidden {
-                p.view.isHidden = false
-                p.surface.setVisible(true)
-            }
+            if p.view.isHidden { p.view.isHidden = false }
             p.view.frame = r
             p.view.showsBar = multi
             p.view.dimsWhenUnfocused = multi || decks.count > 1
@@ -815,6 +812,10 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             p.view.isFocusedPane = p === focusedPane
             p.view.refreshTitle()
             p.view.layoutSubtreeIfNeeded()
+            // Every pass, not only on unhide: a new pane's view starts unhidden but its surface
+            // starts occluded (#53). After sizing, so its first frame is drawn at its real size.
+            // `setVisible` only calls into ghostty on a change.
+            p.surface.setVisible(true)
         }
 
         // Pane views left behind by panes that moved to another deck are reparented

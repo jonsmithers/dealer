@@ -64,6 +64,9 @@ final class SurfaceView: NSView, NSTextInputClient {
         }
         // A conditional `theme = light:…,dark:…` follows the macOS appearance (#33).
         if let surface { ghostty_surface_set_color_scheme(surface, GhosttyRuntime.shared.colorScheme) }
+        // Start occluded (#53): the layout unoccludes the panes it shows. A pane created out of
+        // view otherwise draws a frame at its real size, and its layer keeps that buffer until shown.
+        syncOcclusion()
         LiveObjects.add(.surfaceView)
         if surface != nil { LiveObjects.add(.ghosttySurface) }
         updateTrackingAreas()
@@ -102,7 +105,8 @@ final class SurfaceView: NSView, NSTextInputClient {
     // drawing and free their GPU swap chain; their shell, scrollback, size and attention go on.
 
     /// The layout's say: false for background tabs, parked decks, other workspaces, zoomed-away panes.
-    private(set) var layoutVisible = true
+    /// False until the layout first shows the pane (#53), so a surface created out of view never draws.
+    private(set) var layoutVisible = false
     /// The window's say, from `NSWindow.occlusionState` (see `WindowVisibility`).
     private(set) var windowVisible = true
     private var sentOcclusion: Bool?
@@ -121,6 +125,12 @@ final class SurfaceView: NSView, NSTextInputClient {
         guard let surface, sentOcclusion != visible else { return }
         sentOcclusion = visible
         ghostty_surface_set_occlusion(surface, visible)
+        // ghostty's layer also draws synchronously from Core Animation's display callback when its
+        // bounds change, and that path ignores occlusion: a hidden pane being sized (#45) would
+        // rebuild its swap chain and keep the frame as layer contents (#53). So it's off while
+        // occluded; on show, one display draws the first frame at the real size.
+        layer?.needsDisplayOnBoundsChange = visible
+        if visible { layer?.setNeedsDisplay() }
     }
 
     /// Re-reads the window's visibility. A view outside any window keeps its last state, so a

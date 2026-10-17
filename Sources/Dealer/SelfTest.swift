@@ -346,6 +346,7 @@ extension TerminalWindowController {
         ghosttyResourcesSelfTestSteps(kit)
         modalsSelfTestSteps(kit)
         memorySelfTestSteps(kit)
+        hiddenBufferSelfTestSteps(kit)
         occlusionSelfTestSteps(kit)
         notificationLogSelfTestSteps(kit)
         presenceSelfTestSteps(kit)
