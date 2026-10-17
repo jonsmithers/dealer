@@ -4,26 +4,24 @@
 
 <h1 align="center">Dealer</h1>
 
-A small macOS terminal built on **libghostty** (Ghostty's embedding API) and Swift/AppKit,
-implementing the *Panes and Decks* layout model:
+A small macOS terminal built on **libghostty** and Swift/AppKit, implementing the *Panes and Decks*
+layout model:
 
 ```
 Window
-└─ Workspaces  per-window; one shown at a time, switched with ⌃1–9
-   └─ Decks      split side by side or stacked; each has its own tab strip
-      └─ Tabs      one active per deck
-         └─ Panes   split inside a single tab; hidden when their tab isn't active
+└─ Workspaces  switched in sidebar or ⌃1–9
+   └─ Decks      split horizontal or vertical, each with its own tab strip
+      └─ Tabs      one active per deck, switched with ⌘1–9
+         └─ Panes   split horizontal or vertical inside a single tab
 ```
 
-A **workspace** owns a set of decks; a window has one or more and shows one at a time
-(switch from the sidebar, the top-bar pills, or ⌃1–9). A **deck** owns tabs. A **pane** is
-owned by a tab. Splitting always makes panes; **promote** turns a pane into a deck, **fold**
-turns it back. Closing the last deck of a workspace closes the workspace, and closing the last
-workspace closes the window.
+A **workspace** owns a set of decks. A **deck** owns tabs. A tab owns **panes**. **Split** creates a
+new pane in the current tab. **Promote** turns a pane into a deck. **Fold** turns it back. Closing
+the last tab closes its deck, the last deck its workspace, and the last workspace the window.
 
 > [!NOTE]
-> Dealer is written in Swift. But Jon (the human who prompted Claude) doesn't
-> know Swift. It's all vibe-coded 🙈. Please do not expect him to be a
+> Dealer is written in Swift. But Jon (the human who prompted Claude)
+> doesn't know Swift. It's all vibe-coded 🙈. Please do not expect him to be a
 > competent steward of this codebase. It's all Claude's fault.
 
 ## Demos
