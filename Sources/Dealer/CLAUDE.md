@@ -357,7 +357,7 @@
 
 ## Attention and agent status (`Attention.swift`, `AgentStatus.swift`, `AgentLaunch.swift`)
 
-- `setAttention(_:on:raiseOnly:title:body:event:)` is the only writer of `Pane.attention` besides
+- `setAttention(_:on:raiseOnly:title:subtitle:body:event:)` is the only writer of `Pane.attention` besides
   `didFocus`, which clears it (so do `windowDidBecomeKey` and `Presence.screenUnlocked`). Presence
   (#71, `Presence.swift`) is the one source of "is the user there": `Presence.inFront` (Dealer
   active, screen unlocked), `userPresent()` (in front and this window key) and `isLookingAt(pane)`
@@ -475,7 +475,7 @@
 ## Notification decision log (`NotificationLog.swift`, #56)
 
 - `[notifications] log` (read live) appends one line per attention/notification decision via
-  `NotificationLog.decision(pane:event:outcome:reason:title:body:)`, a no-op when off. Lines are
+  `NotificationLog.decision(pane:event:outcome:reason:title:subtitle:body:)`, a no-op when off. Lines are
   built on main; the append and rotation (`maxBytes`, renamed to `.1`) run on a serial queue.
 - **Every new path that sets, skips, clears or posts must log, and every "no" needs a reason.**
   `setAttention` takes an `event:` label (`bell`, `notify`, `claude:<event>`, `job-done(status=N)`)

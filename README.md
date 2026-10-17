@@ -298,7 +298,7 @@ shows, plus its workspace and tab:
 
 ```
 2026-10-12T21:29:58.015-04:00 claude:stop attention:set pane=2 ws="api" tab="claude" reason="none → done" title="Claude Code" body="Finished"
-2026-10-12T21:29:58.016-04:00 claude:stop notification:suppressed pane=2 ws="api" tab="claude" reason="app active and the pane's window is key (not the focused pane, but its window); the mark shows in the window" title="Claude Code" body="Finished"
+2026-10-12T21:29:58.016-04:00 claude:stop notification:suppressed pane=2 ws="api" tab="claude" reason="app active and the pane's window is key (not the focused pane, but its window); the mark shows in the window" title="Claude Code" subtitle="claude" body="Finished"
 2026-10-12T21:29:57.998-04:00 bell attention:skipped pane=3 ws="api" tab="build" reason="wanted unread: already waiting, which outranks it (this source only raises); no notification"
 ```
 
@@ -493,6 +493,7 @@ Environment variables:
   closes. With `--keep` it stays. Your own pane is never marked.
 - **Failure:** it stays open as a shell, titled `FAILED (status) <cmd>` and marked *failed*, so ⌘⇧U
   takes you there.
+- **Notification:** `✓ <cmd>` or `✗ <cmd>`, then the job's workspace name.
 
 ```zsh
 b() { dealer run -- "$@"; }               # b open ~/Desktop/Screenshot\ 1.png

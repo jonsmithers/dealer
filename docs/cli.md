@@ -29,7 +29,8 @@ workspaces, type into them, focus, resize, rename, color, list, and notify.
 - **Synchronous:** every command replies after the change is applied, so `dealer focus 3; dealer
   identify` already sees pane 3 focused. No polling.
 - **Errors:** exit 1 with a message on stderr (unknown ID, bad option value). Exit 2 means a usage
-  error, and exit 3 means the socket is unreachable.
+  error, including an option the command doesn't take (`notify --cwd` is an error, not ignored),
+  and exit 3 means the socket is unreachable.
 
 ## Commands
 
@@ -44,7 +45,7 @@ workspaces, type into them, focus, resize, rename, color, list, and notify.
 | `resize [--axis width\|height] (--to 0.3\|30% \| --by +5\|-3\|+10%)` | Moves the divider of the nearest enclosing split (of that axis) of a pane, or of a deck (`-t deck:N`). `--to` sets the target's share. `--by` changes it by cells or percent. |
 | `rename [--tab \| --workspace] [TITLE]` | Names a pane (or its tab or workspace, or `-t tab:N`). An empty title goes back to following the terminal. |
 | `color [--tab \| --workspace] COLOR\|none` | Colors a tab or workspace (#9). COLOR is a swatch name (`red`, `orange`, `yellow`, `green`, `teal`, `blue`, `purple`, `pink`, or numbers 1… with a `[colors] palette`), a swatch number, or `#rrggbb`; `none` clears it. A workspace/window target colors the workspace; a pane/tab target colors its tab. `list --json` shows `color` on workspaces and `tab_color` on tabs. |
-| `notify [--state unread\|done\|waiting\|failed\|none] [--title T] [--body B]` | Marks the pane for attention. See the README's Attention section. |
+| `notify [--state unread\|done\|waiting\|failed\|none] [--title T] [--body B]` | Marks the pane for attention. The macOS notification shows `--title` (default: the state, e.g. "Finished"), then the pane's title (left out if it's the same), then `--body`. See the README's Attention section. |
 | `close` | Closes a pane or tab without asking. |
 | `run [--here] [--split \| --tab] [--size 12\|30%] [--keep] [--quiet] [--focus] [--title T] [--cwd DIR] [--] CMD...` | Runs CMD as a background job next to the caller (see below) and prints the job's pane ID. Routes to the workspace that best fits `$PWD`. One argument is a shell string; several are an argv, each word shell-quoted. |
 | `diagnose [--leaks]` | Writes a memory diagnostics report to `~/Library/Logs/Dealer/` and prints its path (Help › Capture Memory Diagnostics… does the same). It holds counts and sizes only, no titles, cwds or terminal contents. `--leaks` also runs `leaks`, which is slow, pauses Dealer, and can quote leaked memory. It also says on stderr whether the notification log is on, where it is and how big. See [diagnostics.md](diagnostics.md). |
@@ -106,6 +107,8 @@ b_str() { dealer run --quiet -- "$@"; }   # same, without the "done" mark on suc
   doesn't keep it; with `[jobs] close_on_success = false` or `--keep` it stays. The pane you ran
   `dealer run` from is never marked, on success or failure. A mark is skipped on a pane you're
   looking at. `--quiet` skips the mark and notification.
+- **The notification** has two lines: `✓ <cmd>` (or `✗ <cmd>` on failure), then the job's
+  workspace name. The exit status shows in the pane's title.
 - **Failure:** the pane stays open at a prompt, so you can inspect and rerun. It's marked
   *failed* (a red ring and outline, #29), so ⌘⇧U (Jump to Next Unread) goes straight to it, ahead
   of anything merely waiting.

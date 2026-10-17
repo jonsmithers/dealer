@@ -92,8 +92,9 @@ extension TerminalWindowController {
     /// Marks a pane. `raiseOnly` keeps a stronger existing state (a bell doesn't downgrade
     /// "waiting" to "unread"); explicit `dealer notify` calls set the state exactly.
     /// `event` names the source in the notification log (#56): `bell`, `notify`, `claude:stop`, ….
-    func setAttention(_ a: Attention, on pane: Pane, raiseOnly: Bool = false, title: String? = nil, body: String? = nil,
-                      event: String = "attention") {
+    /// `subtitle` replaces the notification's default second line, the pane's title.
+    func setAttention(_ a: Attention, on pane: Pane, raiseOnly: Bool = false, title: String? = nil, subtitle: String? = nil,
+                      body: String? = nil, event: String = "attention") {
         func skipped(_ why: String) {
             NotificationLog.decision(pane: pane, event: event, outcome: "attention:skipped",
                                      reason: "wanted \(a.name): \(why); no notification", title: title, body: body)
@@ -112,7 +113,9 @@ extension TerminalWindowController {
         NotificationLog.decision(pane: pane, event: event, outcome: new == .none ? "attention:cleared" : "attention:set",
                                  reason: "\(old.name) → \(new.name)", title: title, body: body)
         refreshChrome()
-        if new > .none { AttentionNotifier.shared.post(for: pane, in: self, state: new, title: title, body: body, event: event) }
+        if new > .none {
+            AttentionNotifier.shared.post(for: pane, in: self, state: new, title: title, subtitle: subtitle, body: body, event: event)
+        }
     }
 
     /// `cause` says what cleared it, for the notification log.
@@ -256,11 +259,16 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    func post(for pane: Pane, in wc: TerminalWindowController, state: Attention, title: String?, body: String?,
-              event: String = "attention") {
+    func post(for pane: Pane, in wc: TerminalWindowController, state: Attention, title: String?, subtitle: String? = nil,
+              body: String?, event: String = "attention") {
         let shownTitle = title ?? (state == .failed ? "Failed" : state == .waiting ? "Waiting for input" : state == .done ? "Finished" : "Terminal")
+        // The second line is the pane's title unless the caller gives one, and is left out when it
+        // would only repeat the first.
+        let second = (subtitle ?? pane.title).trimmingCharacters(in: .whitespaces)
+        let shownSubtitle = second.isEmpty || second == shownTitle ? nil : second
         func log(_ outcome: String, _ why: String) {
-            NotificationLog.decision(pane: pane, event: event, outcome: outcome, reason: why, title: shownTitle, body: body)
+            NotificationLog.decision(pane: pane, event: event, outcome: outcome, reason: why, title: shownTitle,
+                                     subtitle: shownSubtitle, body: body)
         }
         // While Dealer is in front the marks carry it: no desktop notification, whichever window
         // or pane (#71). A locked screen counts as away, so the banner reaches the lock screen.
@@ -279,12 +287,12 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
             // Maybe allowed since the last read: ask again, and post if so.
             refreshStatus { [weak self, weak pane, weak wc] ok in
                 guard let self, let pane, let wc else { return }
-                if ok { self.deliver(center, pane: pane, in: wc, title: shownTitle, body: body, event: event) }
+                if ok { self.deliver(center, pane: pane, in: wc, title: shownTitle, subtitle: shownSubtitle, body: body, event: event) }
                 else { log("notification:suppressed", "not authorized (\(self.authorizationDescription)); dock bounce only") }
             }
             return
         }
-        deliver(center, pane: pane, in: wc, title: shownTitle, body: body, event: event)
+        deliver(center, pane: pane, in: wc, title: shownTitle, subtitle: shownSubtitle, body: body, event: event)
     }
 
     // MARK: Withdrawing (#78)
@@ -339,15 +347,16 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func deliver(_ center: UNUserNotificationCenter, pane: Pane, in wc: TerminalWindowController,
-                         title shownTitle: String, body: String?, event: String) {
+                         title shownTitle: String, subtitle: String?, body: String?, event: String) {
         // The authorization re-read is asynchronous: the mark may have cleared meanwhile (#78).
         guard pane.attention != .none else {
             return NotificationLog.decision(pane: pane, event: event, outcome: "notification:suppressed",
-                                            reason: "the pane's attention cleared before the post went out", title: shownTitle, body: body)
+                                            reason: "the pane's attention cleared before the post went out", title: shownTitle,
+                                            subtitle: subtitle, body: body)
         }
         let content = UNMutableNotificationContent()
         content.title = shownTitle
-        content.subtitle = pane.title
+        content.subtitle = subtitle ?? ""
         content.body = body ?? ""
         content.userInfo = ["pane": pane.id]
         let id = "pane-\(pane.id)"
@@ -360,7 +369,8 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
         }
         notePosted(pane)
         NotificationLog.decision(pane: pane, event: event, outcome: "notification:posted",
-                                 reason: "id \(id), replacing any earlier one for this pane", title: shownTitle, body: body)
+                                 reason: "id \(id), replacing any earlier one for this pane", title: shownTitle,
+                                 subtitle: subtitle, body: body)
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,

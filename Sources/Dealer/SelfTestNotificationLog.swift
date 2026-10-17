@@ -118,6 +118,17 @@ extension TerminalWindowController {
             if let b = pane("nl-b") { self.setAttention(.unread, on: b, raiseOnly: true, event: "bell") }
         }
 
+        t.step("notify-log: the notification's second line is the pane's title, left out when it repeats the first", nil, {
+            let (same, p1) = line("notify notification:suppressed", who("nl-b"), "title=\"nl-b title\"")
+            return all(p1, same == nil || !same!.contains("subtitle=") ? nil : "a subtitle repeating the title: \(same!)",
+                       has("notify notification:suppressed", who("nl-b"), "title=\"Deploy\"", "subtitle=\"nl-b title\""))
+        }) {
+            call("rename", ["title": "nl-b title"], caller: "nl-b")
+            call("notify", ["state": "unread", "title": "nl-b title"], caller: "nl-b")
+            call("notify", ["state": "waiting", "title": "Deploy"], caller: "nl-b")
+            call("rename", ["title": ""], caller: "nl-b")
+        }
+
         t.step("notify-log: a Claude hook (the plugin's script → dealer CLI → socket) is logged by its event", nil, {
             guard let hook else { return "the hook script couldn't run" }
             return all(hook.status == 0 ? nil : "hook script exited \(hook.status): \(hook.err)",
@@ -147,7 +158,7 @@ extension TerminalWindowController {
         }
 
         var live = false
-        t.step("notify-log: a `dealer run` failure logs job-done with its status; job-done outside a job is ignored with a reason", nil, {
+        t.step("notify-log: a `dealer run` failure logs job-done with its status (notification: ✗ <cmd>, then the workspace); job-done outside a job is ignored with a reason", nil, {
             guard let job = pane("nl-job") else { return all("the job pane wasn't created") }
             if live {
                 if let p = waitFor("job-done(status=3) attention:set", "pane=\(job.id)", "reason=\"none → failed\"", timeout: 20) {
@@ -157,7 +168,10 @@ extension TerminalWindowController {
                 print("      (no live shell: reporting job-done 3 through the handler; the typed tail wasn't exercised)")
                 call("job-done", ["status": 3], caller: "nl-job")
             }
-            return all(has("job-done(status=3) attention:set", "pane=\(job.id)", "reason=\"none → failed\""),
+            let (posted, p1) = line("job-done(status=3) notification:suppressed", "pane=\(job.id)", "title=\"✗ (exit 3)\"",
+                                    "subtitle=\"notify-log\"")
+            return all(has("job-done(status=3) attention:set", "pane=\(job.id)", "reason=\"none → failed\""), p1,
+                       posted == nil || !posted!.contains("body=") ? nil : "the job's notification has a body: \(posted!)",
                        has("job-done(status=1) ignored", who("nl-b"), "reason=\"not a dealer run job pane\""))
         }) {
             created(call("run", ["command": "(exit 3)", "cwd": tmp, "placement": "split", "size": "20%", "target": "pane:\(ids["nl-a"] ?? -1)"]), "nl-job")

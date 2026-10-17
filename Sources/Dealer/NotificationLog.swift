@@ -47,12 +47,13 @@ enum NotificationLog {
     /// `focus`, …); `outcome` is what happened (`attention:set`, `attention:skipped`,
     /// `notification:suppressed`, …); `reason` says why, and is required for every "no".
     static func decision(pane: Pane?, event: String, outcome: String, reason: String? = nil,
-                         title: String? = nil, body: String? = nil) {
+                         title: String? = nil, subtitle: String? = nil, body: String? = nil) {
         guard isEnabled else { return }
         var parts = [clock.string(from: Date()), event, outcome]
         if let pane { parts.append(identity(pane)) }
         if let reason { parts.append("reason=" + quote(reason)) }
         if let title { parts.append("title=" + quote(title)) }
+        if let subtitle { parts.append("subtitle=" + quote(subtitle)) }
         if let body { parts.append("body=" + quote(body)) }
         write(parts.joined(separator: " ") + "\n")
     }

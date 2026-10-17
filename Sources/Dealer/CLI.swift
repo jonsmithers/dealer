@@ -100,6 +100,31 @@ enum CLI {
         }
     }
 
+    /// The options each command takes, aliases included; anything else is a usage error rather
+    /// than silently ignored. `--json`, `--socket` and `--` go with every command.
+    static let options: [String: Set<String>] = {
+        let target: Set = ["-t", "--target", "--match", "-m"]
+        let focus: Set = ["--focus", "--no-focus", "--keep-focus"]
+        return [
+            "identify": ["--caller", "--focused"],
+            "list": [],
+            "find": ["--process", "--title", "--cwd", "--after", "--next"],
+            "create": target.union(focus).union(["--side", "--location", "--size", "--bias", "--cwd", "--command", "-e",
+                                                 "--title", "--name"]),
+            "send-text": target.union(["--key", "-k", "--enter", "--paste", "--stdin"]),
+            "focus": target,
+            "resize": target.union(["--axis", "--to", "--by", "--increment"]),
+            "rename": target.union(["--tab", "--workspace", "--pane"]),
+            "color": target.union(["--tab", "--workspace", "--pane"]),
+            "notify": target.union(["--state", "--title", "--body", "--internal-log-source"]),
+            "close": target,
+            "run": target.union(focus).union(["--here", "--split", "--tab", "--size", "--bias", "--keep", "--quiet",
+                                              "--title", "--cwd"]),
+            "job-done": [],
+            "diagnose": ["--leaks"],
+        ]
+    }()
+
     struct Output {
         var json = false
         var only: String?
@@ -141,6 +166,9 @@ enum CLI {
                 if cmd == "send-text" { items.append(["text": arg, "word": true]) }
                 i += 1
                 continue
+            }
+            if let allowed = options[cmd], !allowed.contains(flag), !["--", "--json", "--socket"].contains(flag) {
+                throw Usage(message: "unknown option \(flag) for '\(cmd)' (see dealer help)")
             }
             switch flag {
             case "--": textEnded = true
@@ -229,7 +257,7 @@ enum CLI {
             guard positional.count == 1 else { throw Usage(message: "color takes one COLOR: a swatch name or number, #rrggbb, or none") }
             a["color"] = positional[0]
         case "notify":
-            if !positional.isEmpty, a["body"] == nil { a["body"] = positional.joined(separator: " ") }
+            if let p = positional.first { throw Usage(message: "unexpected argument '\(p)' (the text goes in --body)") }
         case "identify", "list", "find", "resize", "diagnose":
             if !positional.isEmpty { throw Usage(message: "unexpected argument '\(positional[0])'") }
         default:

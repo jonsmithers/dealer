@@ -185,17 +185,20 @@ enum ControlJobs {
         }
         jobs[id]?.status = status
         let wc = loc.wc
+        // The notification is the outcome and command, then the workspace it ran in. The pane's
+        // title (DONE/FAILED <cmd>) would only repeat the first line.
+        let workspace = loc.ws?.displayName ?? ""
         if status == 0 {
-            let title = "✓ \(job.command)", body = "Finished in \(pane.pwd.map(short) ?? "job")"
+            let title = "✓ \(job.command)"
             // Every outcome marks the job pane, never the pane `dealer run` was called from (#63:
             // marking the caller was never wanted). A succeeded job that closes first lingers,
             // titled DONE and marked done, so the success can be seen.
             retitle(pane, job: job, "DONE \(job.command)", wc)
             if job.notify {
-                wc.setAttention(.done, on: pane, title: title, body: body, event: event)
+                wc.setAttention(.done, on: pane, title: title, subtitle: workspace, event: event)
             } else {
                 NotificationLog.decision(pane: pane, event: event, outcome: "attention:skipped",
-                                         reason: "--quiet: no mark, no notification", title: title, body: body)
+                                         reason: "--quiet: no mark, no notification", title: title, subtitle: workspace)
             }
             if job.closeOnSuccess {
                 closeAfterLinger(pane, seconds: Settings.jobLinger)
@@ -203,7 +206,7 @@ enum ControlJobs {
             }
         } else {
             retitle(pane, job: job, "FAILED (\(status)) \(job.command)", wc)
-            wc.setAttention(.failed, on: pane, title: "✗ \(job.command)", body: "Exited with status \(status)", event: event)
+            wc.setAttention(.failed, on: pane, title: "✗ \(job.command)", subtitle: workspace, event: event)
         }
         return ["close": false, "status": status]
     }
@@ -231,6 +234,4 @@ enum ControlJobs {
         if let tab = job.tab, tab.customTitle != nil { tab.customTitle = title }
         wc.refreshChrome()
     }
-
-    private static func short(_ p: String) -> String { WorkingDirectory.tilde(p) }
 }

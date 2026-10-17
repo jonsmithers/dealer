@@ -191,6 +191,29 @@ extension TerminalWindowController {
             let key = ControlHandler.handle(["cmd": "send-text", "args": ["items": [["key": "hyper+q"]]]])
             return [bad, gone, key].allSatisfy { $0["ok"] as? Bool == false } ? nil : "expected errors"
         }) {}
+        t.step("cli: an option a command doesn't take is a usage error; every option in `dealer help` parses", nil, {
+            func rejects(_ cmd: String, _ argv: [String]) -> String? {
+                do { _ = try CLI.parse(cmd, argv) } catch is CLI.Usage { return nil } catch { return "\(cmd): \(error)" }
+                return "dealer \(cmd) \(argv.joined(separator: " ")) should be a usage error"
+            }
+            // The usage text names each command at a 6-space indent; its continuation lines are deeper.
+            var cmd: String?, missing: [String] = []
+            for line in CLI.usage.split(separator: "\n") {
+                let words = line.split(separator: " ").map(String.init)
+                if line.hasPrefix("      "), !line.hasPrefix("       "), let w = words.first, CLI.options[w] != nil { cmd = w }
+                else if !line.hasPrefix("       ") { cmd = nil }
+                guard let c = cmd else { continue }
+                for w in words where w.hasPrefix("--") {
+                    let flag = w.trimmingCharacters(in: CharacterSet(charactersIn: "[]()|:,"))
+                    if !["--json", "--socket"].contains(flag), CLI.options[c]?.contains(flag) != true { missing.append("\(c) \(flag)") }
+                }
+            }
+            return all(rejects("notify", ["--cwd", "/tmp"]), rejects("notify", ["hello"]), rejects("run", ["--name", "x", "true"]),
+                       rejects("create", ["--tab"]),
+                       missing.isEmpty ? nil : "documented but rejected: \(missing.joined(separator: ", "))",
+                       (try? CLI.parse("run", ["--cwd", "/tmp", "ls", "--name"]).1["command"] as? String) == "ls --name"
+                           ? nil : "run's command words should pass through, flags included")
+        }) {}
         t.step("cli: real socket round-trip with the dealer binary", nil, {
             guard let socket = ControlServer.shared.path else { return "control socket isn't running" }
             func run(_ args: [String]) -> (Int32, String, String) {
