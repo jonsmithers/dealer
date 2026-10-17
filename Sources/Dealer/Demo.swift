@@ -27,6 +27,40 @@ enum Demo {
     static var environment: [String: String] { name == nil ? [:] : ["ZDOTDIR": directory, "HISTFILE": "/dev/null"] }
 }
 
+/// Custom shaders in self-test and demo runs (#77). Those runs load the user's real ghostty config
+/// (theme and font are wanted in the recordings), but not its `custom-shader`s: one extra config
+/// file, loaded last, empties the repeatable list (`custom-shader =`) and puts
+/// `custom-shader-animation` back to its default. That file is also the one seam for a demo
+/// shader: if `scripts/demo/shader.glsl` exists in the source tree, demos (not the self-test) use
+/// it instead of none. One switch: `ignoresUserShaders`.
+enum DemoShader {
+    static var ignoresUserShaders: Bool { SelfTest.enabled }
+    /// The repo's demo shader, for builds run in place (demos always are); nil when absent.
+    static var demoShader: String? {
+        guard Demo.name != nil else { return nil }
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("scripts/demo/shader.glsl")
+        return FileManager.default.fileExists(atPath: url.path) ? url.path : nil
+    }
+
+    /// The override's text: reset, then the demo shader if there is one.
+    static func overrideText(shader: String?) -> String {
+        var lines = ["# Written by Dealer for self-test and demo runs (DemoShader, #77).",
+                     "custom-shader =", "custom-shader-animation = true"]
+        if let shader { lines.append("custom-shader = \(shader)") }
+        return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// The file `GhosttyRuntime.loadConfig` loads after the user's files, or nil outside these runs.
+    static func overrideFile() -> String? {
+        guard ignoresUserShaders else { return nil }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("dealer-shader-override-\(getpid()).conf")
+        guard (try? overrideText(shader: demoShader).write(to: url, atomically: true, encoding: .utf8)) != nil else { return nil }
+        return url.path
+    }
+}
+
 /// A short caption centred in the band under the decks (`Demo.captionBand`), out of the way of
 /// the titlebar tabs and every drop target.
 final class DemoCaptionView: PassthroughView, ThemeApplying {

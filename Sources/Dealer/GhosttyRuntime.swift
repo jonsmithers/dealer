@@ -87,8 +87,8 @@ final class GhosttyRuntime {
     static var configFileOverride: String?
 
     /// A fresh config from ghostty's default files (XDG and Application Support), finalized, with
-    /// its diagnostics. Mirrors `Ghostty.Config.loadConfig` in Ghostty's macOS app.
-    private static func loadConfig() -> (ghostty_config_t?, [String]) {
+    /// its diagnostics; in self-test and demo runs, minus the user's custom shaders (`DemoShader`). Mirrors `Ghostty.Config.loadConfig` in Ghostty's macOS app.
+    static func loadConfig() -> (ghostty_config_t?, [String]) {
         guard let cfg = ghostty_config_new() else { return (nil, ["ghostty_config_new failed"]) }
         if let file = configFileOverride {
             ghostty_config_load_file(cfg, file)
@@ -96,6 +96,8 @@ final class GhosttyRuntime {
             ghostty_config_load_default_files(cfg)
         }
         ghostty_config_load_recursive_files(cfg)
+        // Self-test and demo runs drop the user's custom shaders (#77; demos may use their own).
+        if let file = DemoShader.overrideFile() { ghostty_config_load_file(cfg, file) }
         ghostty_config_finalize(cfg)
         let problems = (0..<ghostty_config_diagnostics_count(cfg)).map { i -> String in
             ghostty_config_get_diagnostic(cfg, i).message.map { String(cString: $0) } ?? "unknown problem"
