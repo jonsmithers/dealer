@@ -26,12 +26,6 @@ the last tab closes its deck, the last deck its workspace, and the last workspac
 
 ## Demos
 
-Recorded from Dealer's scripted demo mode (`scripts/record-demo.sh`): the pointer is drawn by the
-demo, but every press, drag and release is a real mouse event going through the app's own drag
-and click handling. They're recorded with `[window] tabs_in_titlebar = true`, so the top decks'
-tab strips sit in the titlebar row; tabs are grabbed by their lower half, which drags the tab (the
-upper half drags the window). Captions run along the bottom.
-
 <details open>
 <summary><b>Drag tabs and panes</b>: new deck, split, re-split, swap, move to another deck, close</summary>
 
@@ -75,6 +69,8 @@ Claude session: a real one shows its own permission prompt in the pane.
 
 [Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/goto.mp4)
 </details>
+
+Demo videos are recorded with `scripts/record-demo.sh`.
 
 ## Build & run
 
@@ -552,3 +548,5 @@ and asserts the tree after each step.
 - `AgentLaunch.swift` – New Agent Pane presets
 - `Demo.swift` – scripted mouse demos for the README recordings (`DEALER_DEMO`, `scripts/record-demo.sh`)
 - `Attention.swift` – per-pane attention (bell/OSC/agent), badges, jump to next unread, macOS notifications
+
+<!-- vim: set tw=100: -->
