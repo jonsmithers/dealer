@@ -270,7 +270,11 @@ extension TerminalWindowController {
                 // Panes ghostty would confirm closing: idle demo shells need shell integration for 0.
                 let busy = self.allDecks.flatMap(\.tabs).flatMap(\.panes).filter { $0.surface.needsConfirmQuit }.count
                 let strips = self.titlebarStripDecks.map { $0.tabs.map(\.title).joined(separator: ",") }
-                print("DEMO BEAT \(self.describeWorkspaces { $0.customTitle ?? "?" }) titlebar=\(strips) movable=\(self.window?.isMovable ?? false) busy=\(busy) next=\"\(text)\"")
+                // What spins (the working spinner, #74) and what's marked, so those beats can be checked too.
+                let panes = self.workspaces.flatMap { $0.decks.flatMap(\.tabs).flatMap(\.panes) }
+                let working = panes.filter(\.isWorking).map { $0.customTitle ?? "?" } + self.workspaces.filter(\.isWorking).map { "ws:" + ($0.name ?? "?") }
+                let marked = panes.filter { $0.attention != .none }.map { "\($0.customTitle ?? "?"):\($0.attention)" }
+                print("DEMO BEAT \(self.describeWorkspaces { $0.customTitle ?? "?" }) titlebar=\(strips) movable=\(self.window?.isMovable ?? false) busy=\(busy) working=\(working) attention=\(marked) next=\"\(text)\"")
                 fflush(stdout)
             }
         }
@@ -444,18 +448,25 @@ extension TerminalWindowController {
             named(docs.panes.first, "notes")
             if let first { focus(first) }
 
-            say("An agent (right) and a build (second tab) are running")
-            mouse.move(to: at(paneView("agent"), 0.5, 0.6))
+            // The agent reports progress the way Claude Code does (docs/claude-code-states.md):
+            // OSC 9;4;3 while a turn runs, which spins its tab and its workspace's entry. When it
+            // needs permission the waiting mark outranks the spinner; it then clears its progress.
+            say("An agent (right) is working: its tab spins. A build runs in the second tab")
             mouse.run {
-                type(agent, "sleep 3; dealer notify --state waiting --title Agent --body 'Permission needed'\r")
-                type(build, "sleep 4; make deploy || dealer notify --state failed --title Build --body 'make deploy failed'\r")
+                type(agent, "printf '\\e]9;4;3\\a'; sleep 6; dealer notify --state waiting --title Agent --body 'Permission needed'; printf '\\e]9;4;0\\a'\r")
+                type(build, "sleep 9; make deploy || dealer notify --state failed --title Build --body 'make deploy failed'\r")
             }
-            mouse.wait(1.2)
-            say("Meanwhile, you're in another workspace")
+            mouse.move(to: at(paneView("agent"), 0.5, 0.6))
+            mouse.wait(1.8)
+            say("Switch to another workspace: the agent's spins in the sidebar")
             mouse.click(at(row("docs")))
-            mouse.wait(3.2)
-            say("Its workspace is outlined: red, since a failure outranks waiting")
-            mouse.move(to: at(row("app"), 0.5, 0.5), duration: 1.0)
+            mouse.wait(3.6)
+            say("It needs you: the spinner gives way to a blue outline")
+            mouse.move(to: at(row("app"), 0.85, 0.5), duration: 0.9)
+            mouse.wait(0.9)
+            say("Then the build fails: red, since a failure outranks waiting")
+            mouse.wait(1.4)
+            mouse.move(to: at(row("app"), 0.5, 0.5), duration: 0.6)
             mouse.wait(0.8)
             say("Click it: the waiting pane is blue, the failed tab red")
             mouse.click(at(row("app")))
