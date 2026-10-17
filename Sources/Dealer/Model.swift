@@ -180,7 +180,14 @@ final class Pane {
     let view: PaneView
     var shellTitle: String?
     /// Set by bells, desktop notifications and `dealer notify`; cleared on focus. See Attention.swift.
-    var attention: Attention = .none
+    /// Every clear passes here, so this is where the pane's banner is withdrawn (#78).
+    var attention: Attention = .none {
+        didSet {
+            if attention == .none, oldValue != .none {
+                AttentionNotifier.shared.withdraw(self, event: NotificationLog.clearCause ?? "attention-cleared")
+            }
+        }
+    }
     /// The program is reporting progress (OSC 9;4), e.g. an agent working. See AgentStatus.swift.
     var isReportingProgress = false
 

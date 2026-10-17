@@ -253,7 +253,8 @@ clears all of it. A tab or workspace shows its most urgent pane: failed, then wa
 then unread. **⌘⇧U** (Window > Jump to Next Unread) goes to the most urgent pane in any window,
 in the same order. When Dealer isn't the active app, or the screen is locked, a mark also posts a
 macOS notification (bundled app only), and clicking it focuses the pane. While Dealer is in front,
-the marks alone carry it, in every window.
+the marks alone carry it, in every window. When the mark clears, or the pane closes, its
+notification is removed from Notification Center.
 
 When attention clears, its ring, outline and dot **fade out** over about a second instead of
 vanishing, so you can see which pane called you. Arriving via ⌘⇧U or a notification holds the
@@ -291,7 +292,8 @@ no restart). Dealer then appends one line per decision to `/tmp/dealer-notificat
 input (hook event, `dealer notify`, `dealer run` result, bell, OSC notification, command finished),
 whether the pane's mark was set or *skipped*, whether a notification was posted or *suppressed*, and
 the reason for every "no". It also logs clicks, what cleared a mark (focus, ⌘⇧U, a click, the window
-becoming key) and the notification permission status. Lines name the pane by the ID `dealer list`
+becoming key), each notification *withdrawn* when its mark cleared or its pane closed, and the
+notification permission status. Lines name the pane by the ID `dealer list`
 shows, plus its workspace and tab:
 
 ```

@@ -482,6 +482,13 @@
   and logs set/skipped itself; `post` logs posted/suppressed; `clearAttention(_:cause:)` and
   `reveal(_:cause:)` name what cleared it (`NotificationLog.clearCause` carries the reveal's cause
   into `didFocus`). Only logging was added: the decisions themselves are unchanged.
+- **Withdrawing banners (#78):** `Pane.attention`'s didSet is the one place a clear is seen; on a
+  clear it calls `AttentionNotifier.withdraw`, which removes `pane-<id>` (delivered and pending)
+  only if `deliver` posted one this run (`posted`). Closed panes are swept by `withdrawClosed()`
+  from `finishChange` and a window's `onClose`. Each withdrawal logs `notification:withdrawn`,
+  named by `NotificationLog.clearCause` (`withClearCause` sets it for focus and `clearAttention`).
+  Self-test/unbundled runs record it in `withdrawals` without calling UN; `SelfTestNotifyRemove.swift`
+  stands in for posts with `notePosted`.
 - The hook script labels its `dealer notify` calls with `--internal-log-source claude:<event>`.
   The flag is deliberately undocumented (not in `dealer help` or docs/cli.md); keep it hook-only.
 - The self-test writes to a temp path (`NotificationLog.path`), never `/tmp/dealer-notifications.log`.

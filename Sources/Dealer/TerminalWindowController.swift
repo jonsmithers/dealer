@@ -297,6 +297,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             focus(p)
         }
         Caffeinate.shared.update()  // a closed or moved pane may have been working (#69)
+        AttentionNotifier.shared.withdrawClosed()  // a closed pane's banner goes too (#78)
     }
 
     /// Shows `ws`, hiding (not removing) the other workspaces' decks, and focuses where it was left.
@@ -652,7 +653,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
                 NotificationLog.decision(pane: pane, event: NotificationLog.clearCause ?? "focus", outcome: "attention:cleared",
                                          reason: "\(pane.attention.name) → none (\(changed ? "focus moved to the pane" : "re-focused while you were looking"); \(NotificationLog.context(self)))")
             }
-            pane.attention = .none
+            NotificationLog.withClearCause("focus") { pane.attention = .none }
         } else if pane.attention != .none {
             NotificationLog.decision(pane: pane, event: "focus", outcome: "attention:kept",
                                      reason: "\(pane.attention.name) kept: \(changed ? "focus moved here" : "re-focused") while you weren't looking (\(NotificationLog.context(self)))")

@@ -26,6 +26,15 @@ enum NotificationLog {
     /// rather than a plain focus change. Main thread only.
     static var clearCause: String?
 
+    /// Runs `body` with `clearCause` set to `cause` unless a reveal already set one, so lines logged
+    /// by the clear (a banner's withdrawal, #78) name it.
+    static func withClearCause(_ cause: String, _ body: () -> Void) {
+        let saved = clearCause
+        clearCause = saved ?? cause
+        defer { clearCause = saved }
+        body()
+    }
+
     private static let queue = DispatchQueue(label: "dev.smithers.dealer.notification-log")
     private static let clock: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()

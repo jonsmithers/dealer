@@ -352,6 +352,7 @@ extension TerminalWindowController {
         occlusionSelfTestSteps(kit)
         notificationLogSelfTestSteps(kit)
         presenceSelfTestSteps(kit)
+        notifyRemoveSelfTestSteps(kit)
         auditBugsSelfTestSteps(kit)
 
         // `DEALER_SELFTEST_ONLY=<prefix>` keeps only the steps whose title starts with it, for a

@@ -77,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.controllers.removeAll { $0 === wc }
             Caffeinate.shared.update()  // its working panes are gone (#69)
+            AttentionNotifier.shared.withdrawClosed()  // and their banners (#78)
             // Closing the last window by hand ends the session; quitting keeps it.
             if self.controllers.isEmpty && !self.terminating && !SelfTest.enabled {
                 SessionSnapshot(windows: []).save()

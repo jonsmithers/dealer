@@ -120,7 +120,7 @@ extension TerminalWindowController {
         guard pane.attention != .none else { return }
         NotificationLog.decision(pane: pane, event: cause, outcome: "attention:cleared",
                                  reason: "\(pane.attention.name) → none (\(NotificationLog.context(self)))")
-        pane.attention = .none
+        NotificationLog.withClearCause(cause) { pane.attention = .none }  // withdraws its banner (#78)
         refreshChrome()
     }
 
@@ -287,8 +287,64 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
         deliver(center, pane: pane, in: wc, title: shownTitle, body: body, event: event)
     }
 
+    // MARK: Withdrawing (#78)
+
+    /// Panes (by id) that got a banner this run and haven't had it withdrawn. Only these are ever
+    /// withdrawn, so a focus change on an unannounced pane never calls into UNUserNotificationCenter.
+    private(set) var posted: Set<Int> = []
+    /// Every withdrawal this run, in order (the self-test reads it; unbundled runs have no center).
+    private(set) var withdrawals: [(id: String, event: String)] = []
+
+    static func requestID(_ paneID: Int) -> String { "pane-\(paneID)" }
+
+    /// Records that `pane` has a banner up. `deliver` calls it; the self-test calls it to stand in
+    /// for a post, since self-test and unbundled runs never deliver one.
+    func notePosted(_ pane: Pane) { posted.insert(pane.id) }
+
+    /// Removes the pane's banner from Notification Center (delivered or still pending), if it got
+    /// one. Called from `Pane.attention`'s didSet the moment the model clears, not after the fade.
+    func withdraw(_ pane: Pane, event: String) {
+        guard posted.remove(pane.id) != nil else { return }
+        remove(Self.requestID(pane.id), event: event, pane: pane, why: "the pane's attention cleared")
+    }
+
+    /// Withdraws the banners of panes that are in no window any more (closed by hand, shell exit,
+    /// a closed tab, workspace or window). Coalesced to the end of the current main-queue turn, so
+    /// structural changes settle first.
+    func withdrawClosed() {
+        guard !posted.isEmpty, !sweepQueued else { return }
+        sweepQueued = true
+        DispatchQueue.main.async { [self] in
+            sweepQueued = false
+            let open = Set(Pane.all.map(\.1.id))
+            for id in posted.subtracting(open).sorted() {
+                posted.remove(id)
+                remove(Self.requestID(id), event: "pane-closed", pane: nil, why: "pane \(id) closed")
+            }
+        }
+    }
+    private var sweepQueued = false
+
+    private func remove(_ id: String, event: String, pane: Pane?, why: String) {
+        withdrawals.append((id, event))
+        let note: String
+        if let center, !SelfTest.enabled {
+            center.removeDeliveredNotifications(withIdentifiers: [id])
+            center.removePendingNotificationRequests(withIdentifiers: [id])
+            note = "removed from Notification Center"
+        } else {
+            note = Bundle.main.bundleIdentifier == nil ? "unbundled, so nothing to remove" : "self-test mode, so nothing to remove"
+        }
+        NotificationLog.decision(pane: pane, event: event, outcome: "notification:withdrawn", reason: "id \(id): \(why); \(note)")
+    }
+
     private func deliver(_ center: UNUserNotificationCenter, pane: Pane, in wc: TerminalWindowController,
                          title shownTitle: String, body: String?, event: String) {
+        // The authorization re-read is asynchronous: the mark may have cleared meanwhile (#78).
+        guard pane.attention != .none else {
+            return NotificationLog.decision(pane: pane, event: event, outcome: "notification:suppressed",
+                                            reason: "the pane's attention cleared before the post went out", title: shownTitle, body: body)
+        }
         let content = UNMutableNotificationContent()
         content.title = shownTitle
         content.subtitle = pane.title
@@ -302,6 +358,7 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
                                          reason: "UNUserNotificationCenter refused it: \(error.localizedDescription)")
             }
         }
+        notePosted(pane)
         NotificationLog.decision(pane: pane, event: event, outcome: "notification:posted",
                                  reason: "id \(id), replacing any earlier one for this pane", title: shownTitle, body: body)
     }
