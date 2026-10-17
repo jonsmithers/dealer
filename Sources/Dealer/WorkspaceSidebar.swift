@@ -291,8 +291,14 @@ final class WorkspaceRow: FlippedView {
         if to != from { c.move(workspace: ws, to: to) }
     }
 
+    /// Middle-click closes the workspace (#37); other extra buttons (back/forward) do nothing (#57).
+    private var middleClick = MiddleClick()
+    override func otherMouseDown(with event: NSEvent) {
+        middleClick.down(event) { super.otherMouseDown(with: event) }
+    }
     override func otherMouseUp(with event: NSEvent) {
-        guard let ws = workspace, let c = controller else { return }
+        guard middleClick.up(event, in: self, passOn: { super.otherMouseUp(with: event) }),
+              let ws = workspace, let c = controller else { return }
         c.close(workspace: ws)
     }
 

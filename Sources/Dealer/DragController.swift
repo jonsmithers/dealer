@@ -282,7 +282,7 @@ final class DragController {
         }
     }
 
-    private func highlightColor(_ target: Target) -> NSColor {
+    func highlightColor(_ target: Target) -> NSColor {  // internal for SelfTestAuditBugs
         switch target {
         case let .paneEdge(p, _), let .paneCenter(p):
             return controller.locate(p)?.deck.color ?? Palette.neutral
@@ -291,9 +291,9 @@ final class DragController {
         case .workspace:
             return Theme.accentNeutral
         case .windowEdge:
-            // The colour the new deck will get.
-            let used = Set(controller.decks.map { $0.colorIndex % Palette.deckColors.count })
-            return Palette.deckColors[Palette.deckColors.indices.first { !used.contains($0) } ?? 0]
+            // The colour the new deck will get: `promote` takes `nextColorIndex` (a private copy of
+            // it fell back to the first colour once all six were in use, #57).
+            return Deck.color(index: controller.nextColorIndex())
         }
     }
 

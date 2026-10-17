@@ -369,6 +369,13 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         finishChange(focus: new)
     }
 
+    /// Drops a zoom that would hide a pane just added to `tab` (in `ws`), as the menu's `split`
+    /// does. With `--no-focus` nothing else clears it, and a zoomed-away pane isn't even sized (#57).
+    func unzoom(hiding tab: Tab, in ws: Workspace) {
+        guard let z = zoom, let loc = z.pane.value.flatMap({ locate($0) }) else { return }
+        if loc.tab === tab || (z.level >= 2 && loc.workspace === ws) { zoom = nil }
+    }
+
     func newTab(in deck: Deck) {
         let tab = Tab(root: Node(makePane(workingDirectory: WorkingDirectory.inherited(from: focusedPane, for: .tab))))
         let i = min(deck.activeIndex + 1, deck.tabs.count)

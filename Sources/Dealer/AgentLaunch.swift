@@ -59,15 +59,9 @@ extension TerminalWindowController {
 extension SurfaceView {
     /// Writes bytes to the pty as if typed (not a bracketed paste), so "\r" presses Enter.
     /// Goes through ghostty's `text:` binding action, which parses Zig string escapes.
+    /// Escapes per Unicode scalar (`ControlHandler.escapeForBinding`): escaping each UTF-8 byte
+    /// as its own scalar turned "café" into "cafÃ©" (#57).
     func typeText(_ text: String) {
-        var escaped = "text:"
-        for b in text.utf8 {
-            switch b {
-            case UInt8(ascii: "\\"): escaped += "\\\\"
-            case 0..<0x20, 0x7f: escaped += String(format: "\\x%02x", b)
-            default: escaped.unicodeScalars.append(UnicodeScalar(b))
-            }
-        }
-        perform(escaped)
+        perform("text:" + ControlHandler.escapeForBinding(text))
     }
 }

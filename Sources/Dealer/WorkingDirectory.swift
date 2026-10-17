@@ -21,6 +21,13 @@ enum WorkingDirectory {
         return ghostty_config_get(cfg, &v, key, UInt(key.utf8.count)) ? v : nil
     }
 
+    /// `path` with a leading home directory shown as `~`. Only a whole path component counts:
+    /// `/Users/jonx/p` stays as it is for home `/Users/jon` (it used to become `~x/p`, #57).
+    static func tilde(_ path: String, home: String = NSHomeDirectory()) -> String {
+        if path == home { return "~" }
+        return path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
+    }
+
     static func inherits(_ context: Context) -> Bool { configBool(context.configKey) ?? true }
 
     /// The directory a new pane created from `source` should start in, or nil for ghostty's default.

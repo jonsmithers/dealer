@@ -47,10 +47,7 @@ extension Pane {
     }
 
     static func abbreviate(_ path: String) -> String {
-        let home = NSHomeDirectory()
-        var p = path
-        if p == home { return "~" }
-        if p.hasPrefix(home + "/") { p = "~" + p.dropFirst(home.count) }
+        let p = WorkingDirectory.tilde(path)
         let comps = p.split(separator: "/", omittingEmptySubsequences: false)
         return comps.count > 4 ? "…/" + comps.suffix(2).joined(separator: "/") : p
     }

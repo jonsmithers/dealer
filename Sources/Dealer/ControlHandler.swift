@@ -730,6 +730,7 @@ extension TerminalWindowController {
         new.customTitle = title
         guard let loc = locate(target) else { return new }
         loc.tab.root = Node.insert(Node(new), beside: loc.node, side: side, fraction: fraction, root: loc.tab.root)
+        unzoom(hiding: loc.tab, in: loc.workspace)
         finishChange(focus: focus ? new : keep)
         return new
     }

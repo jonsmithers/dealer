@@ -300,8 +300,7 @@ enum CLI {
 
     static func tree(_ r: [String: Any]) -> String {
         var s = ""
-        let home = NSHomeDirectory()
-        func short(_ p: String) -> String { p.hasPrefix(home) ? "~" + p.dropFirst(home.count) : p }
+        func short(_ p: String) -> String { WorkingDirectory.tilde(p) }
         for w in r["windows"] as? [[String: Any]] ?? [] {
             s += "window:\(w["id"]!)\((w["front"] as? Bool) == true ? " (front)" : "")\n"
             for ws in w["workspaces"] as? [[String: Any]] ?? [] {

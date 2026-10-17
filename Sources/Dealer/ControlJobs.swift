@@ -232,8 +232,5 @@ enum ControlJobs {
         wc.refreshChrome()
     }
 
-    private static func short(_ p: String) -> String {
-        let home = NSHomeDirectory()
-        return p.hasPrefix(home) ? "~" + p.dropFirst(home.count) : p
-    }
+    private static func short(_ p: String) -> String { WorkingDirectory.tilde(p) }
 }

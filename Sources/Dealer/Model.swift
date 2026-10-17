@@ -276,7 +276,8 @@ final class Deck {
 
     deinit { LiveObjects.remove(.deck) }
 
-    var color: NSColor { Palette.deckColors[colorIndex % Palette.deckColors.count] }
+    var color: NSColor { Self.color(index: colorIndex) }
+    static func color(index: Int) -> NSColor { Palette.deckColors[index % Palette.deckColors.count] }
 
     var activeTab: Tab? { tabs.indices.contains(activeIndex) ? tabs[activeIndex] : nil }
 

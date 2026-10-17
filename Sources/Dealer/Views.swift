@@ -1,5 +1,24 @@
 import AppKit
 
+/// Middle-click close (#37) for pane bars, tabs, rows and pills. Only button 2 counts: mice send
+/// back/forward as buttons 3 and 4, and those closed tabs and workspaces (#57). The click needs a
+/// press on the view and a release inside it; AppKit sends the release to the view that got the
+/// press, wherever the pointer is by then. Other buttons go to `passOn` (the view's `super`).
+struct MiddleClick {
+    private var pressed = false
+
+    mutating func down(_ event: NSEvent, passOn: () -> Void) {
+        if event.buttonNumber == 2 { pressed = true } else { passOn() }
+    }
+
+    /// True when this release completes a middle click on `view`.
+    mutating func up(_ event: NSEvent, in view: NSView, passOn: () -> Void) -> Bool {
+        guard event.buttonNumber == 2 else { passOn(); return false }
+        defer { pressed = false }
+        return pressed && view.bounds.contains(view.convert(event.locationInWindow, from: nil))
+    }
+}
+
 class FlippedView: NSView {
     override var isFlipped: Bool { true }
 
@@ -181,14 +200,12 @@ final class PaneBarView: FlippedView, ThemeApplying {
 
     /// Middle-click closes the pane (#37), like tabs, pills and rows, through `close(pane:)` (⌘W's
     /// path, busy confirmation included). The press is consumed so nothing starts a drag.
-    private var middlePressed = false
+    private var middleClick = MiddleClick()
     override func otherMouseDown(with event: NSEvent) {
-        if event.buttonNumber == 2 { middlePressed = true } else { super.otherMouseDown(with: event) }
+        middleClick.down(event) { super.otherMouseDown(with: event) }
     }
     override func otherMouseUp(with event: NSEvent) {
-        guard event.buttonNumber == 2 else { return super.otherMouseUp(with: event) }
-        defer { middlePressed = false }
-        guard middlePressed, bounds.contains(convert(event.locationInWindow, from: nil)),
+        guard middleClick.up(event, in: self, passOn: { super.otherMouseUp(with: event) }),
               let pane = (superview as? PaneView)?.pane, let c = controller else { return }
         c.close(pane: pane)
     }
@@ -624,8 +641,14 @@ final class TabButton: FlippedView {
         c.drag.begin(.tab(tab), event: event, behind: shown)
     }
 
+    /// Middle-click closes the tab (#37); other extra buttons (back/forward) do nothing (#57).
+    private var middleClick = MiddleClick()
+    override func otherMouseDown(with event: NSEvent) {
+        middleClick.down(event) { super.otherMouseDown(with: event) }
+    }
     override func otherMouseUp(with event: NSEvent) {
-        guard let tab, let c = controller else { return }
+        guard middleClick.up(event, in: self, passOn: { super.otherMouseUp(with: event) }),
+              let tab, let c = controller else { return }
         c.close(tab: tab)
     }
 
