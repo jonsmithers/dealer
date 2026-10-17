@@ -70,6 +70,14 @@ Claude session: a real one shows its own permission prompt in the pane.
 [Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/attention.mp4)
 </details>
 
+<details>
+<summary><b>Go to Pane</b>: ⌘⇧A, type a few letters, jump anywhere; ⏎ on an empty query goes back</summary>
+
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/goto.gif" alt="With an agent working in another workspace, the titlebar's coffee cup shows Dealer is keeping the display awake. ⌘⇧A opens Go to Pane, listing every pane most recent first; typing sto narrows it to storybook, and return jumps to that pane in its workspace. ⌘⇧A then return on an empty query goes back to the previous pane" width="960">
+
+[Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/goto.mp4)
+</details>
+
 ## Build & run
 
 Prerequisites: macOS 14+, Xcode command-line tools (full Xcode isn't needed; see
