@@ -524,29 +524,4 @@ Replays the design's walkthrough (tabs, panes, rearranging, decks, deep promote,
 group promote, focus, zoom, swap, tab moves, snapshot round-trip) against a live window
 and asserts the tree after each step.
 
-## Layout
-
-- `GhosttyRuntime.swift` – `ghostty_app_t`, config, runtime callbacks (actions, close)
-- `GhosttyClipboard.swift` – the clipboard callbacks (MIME-based reads and writes, ported from Ghostty.app)
-- `GhosttyVersion.swift` – the pinned Ghostty commit, the launch-time check against `ghostty_info()`, and its banner
-- `SurfaceView.swift` – NSView hosting a `ghostty_surface_t`: keys + IME, mouse, sizing, focus
-- `Model.swift` – generic binary split `Node`, `Pane`, `Tab`, `Deck`
-- `TerminalWindowController.swift` – all structural operations and layout
-- `DragController.swift` – pane/tab drag & drop targets
-- `Views.swift` – deck, tab strip, pane bar, dividers, overlays
-- `Session.swift` – save/restore
-- `Workspace.swift` / `WorkspaceSidebar.swift` – workspaces, and the collapsible workspace sidebar + its titlebar toggle
-- `Colors.swift` – workspace and tab colors: swatches, color menus, drawing, the active-workspace accent
-- `WorkspaceBar.swift` / `WorkspaceSwitcher.swift` – the top-bar pill switcher, and choosing between it and the sidebar
-- `Settings.swift` / `SettingsFile.swift` / `TOML.swift` / `SettingsBanner.swift` – settings.toml: schema and
-  precedence, file watching, comment-preserving write-back, the minimal TOML parser, the problem banner
-- `Theme.swift` – chrome colors derived from the ghostty config (light/dark), metrics, fonts, motion
-- `ControlServer.swift` / `ControlHandler.swift` / `ControlNotify.swift` – control socket, request handler, `dealer notify`
-- `SelfTest*.swift` – self-test, one file per feature section
-- `AgentStatus.swift` – pane status line (agent state, cwd, git branch)
-- `Caffeinate.swift` – `[power] caffeinate`: the display-awake power assertion while agents work, and the titlebar cup
-- `AgentLaunch.swift` – New Agent Pane presets
-- `Demo.swift` – scripted mouse demos for the README recordings (`DEALER_DEMO`, `scripts/record-demo.sh`)
-- `Attention.swift` – per-pane attention (bell/OSC/agent), badges, jump to next unread, macOS notifications
-
 <!-- vim: set tw=100: -->
