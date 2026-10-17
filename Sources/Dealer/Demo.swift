@@ -2,7 +2,7 @@ import AppKit
 
 /// Scripted mouse demos for the README recordings (#26, #28). `DEALER_SELFTEST=1 DEALER_DEMO=<name>`
 /// runs one instead of the self-test, with the self-test's isolation (no session, temp settings).
-/// Names: `drag`, `tabs`, `workspaces`, `attention`. `scripts/record-demo.sh` records them.
+/// Names: `drag`, `tabs`, `workspaces`, `attention`, `goto`. `scripts/record-demo.sh` records them.
 ///
 /// Everything on screen is done with a pointer: `DemoMouse` posts real mouse events into the window,
 /// so DragController's tracking loop, buttons and rows handle them exactly as they would a person's,
@@ -261,6 +261,16 @@ extension TerminalWindowController {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak p] in p?.surface.typeText(s) }
         }
         func named(_ p: Pane?, _ n: String) { p?.customTitle = n }
+        /// The Go to Pane picker (#66) and the caffeinate cup (#69), for checking those beats in the log.
+        /// The tooltip check looks for AppKit's own tooltip window.
+        func extras() -> String {
+            let picker = PanePicker.shared
+            let shown = picker.isOpen ? picker.entries.prefix(PanePicker.maxRows).map { $0.pane.customTitle ?? $0.pane.title } : []
+            let tip = NSApp.windows.contains { $0.isVisible && String(describing: Swift.type(of: $0)).contains("ToolTip") }
+            let focused = self.focusedPane?.customTitle ?? "?"
+            return "focused=\(focused) picker=\(picker.isOpen ? "open query=\"\(picker.query)\" results=\(shown)" : "closed")"
+                + " cup=\(Settings.caffeinate ? (Caffeinate.shared.isHeld ? "held" : "on") : "off")\(self.caffeineIcon.isHidden ? "" : "+shown") tooltip=\(tip)"
+        }
         func say(_ text: String) {
             mouse.run { [weak self] in
                 guard let self else { return }
@@ -274,7 +284,7 @@ extension TerminalWindowController {
                 let panes = self.workspaces.flatMap { $0.decks.flatMap(\.tabs).flatMap(\.panes) }
                 let working = panes.filter(\.isWorking).map { $0.customTitle ?? "?" } + self.workspaces.filter(\.isWorking).map { "ws:" + ($0.name ?? "?") }
                 let marked = panes.filter { $0.attention != .none }.map { "\($0.customTitle ?? "?"):\($0.attention)" }
-                print("DEMO BEAT \(self.describeWorkspaces { $0.customTitle ?? "?" }) titlebar=\(strips) movable=\(self.window?.isMovable ?? false) busy=\(busy) working=\(working) attention=\(marked) next=\"\(text)\"")
+                print("DEMO BEAT \(self.describeWorkspaces { $0.customTitle ?? "?" }) titlebar=\(strips) movable=\(self.window?.isMovable ?? false) busy=\(busy) working=\(working) attention=\(marked) \(extras()) next=\"\(text)\"")
                 fflush(stdout)
             }
         }
@@ -353,6 +363,35 @@ extension TerminalWindowController {
             named(p, n)
             if let command { type(p, command + "\r") }
             return p
+        }
+
+        /// Presses a main-menu shortcut as a key event, through the window and SurfaceView to the
+        /// menu, as a person's press would go (works whether or not Dealer is the active app).
+        func menuKey(_ key: String, _ mods: NSEvent.ModifierFlags, keyCode: Int, _ label: String) {
+            mouse.run { [weak self] in
+                guard let self, let surface = self.focusedPane?.surface else { return }
+                let ok = self.pressMenuKeyForTest(key, mods, keyCode: keyCode, surface: surface)
+                print("DEMO KEY \(label) handled=\(ok) \(extras())"); fflush(stdout)
+            }
+        }
+        /// Types `chars` as key events to the first responder (the picker's field), at a readable pace.
+        func typeKeys(_ chars: String, perSecond: Double = 7) {
+            let codes: [Character: UInt16] = ["a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7, "c": 8, "v": 9,
+                                              "b": 11, "q": 12, "w": 13, "e": 14, "r": 15, "y": 16, "t": 17, "o": 31, "u": 32,
+                                              "i": 34, "p": 35, "l": 37, "j": 38, "k": 40, "n": 45, "m": 46, "\r": 36]
+            for c in chars {
+                mouse.run { [weak self] in
+                    guard let self, let window = self.window else { return }
+                    for type in [NSEvent.EventType.keyDown, .keyUp] {
+                        guard let e = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                       windowNumber: window.windowNumber, context: nil, characters: String(c),
+                                                       charactersIgnoringModifiers: String(c), isARepeat: false, keyCode: codes[c] ?? 0) else { continue }
+                        window.sendEvent(e)
+                    }
+                    print("DEMO KEY \(c == "\r" ? "return" : String(c)) \(extras())"); fflush(stdout)
+                }
+                mouse.wait(1 / perSecond)
+            }
         }
 
         let first = focusedPane
@@ -477,6 +516,60 @@ extension TerminalWindowController {
             say("Go to the failed tab: it fades out too")
             mouse.click(at(tabOf("build"), 0.5, 0.5))
             mouse.wait(2.4)
+            say("")
+            mouse.wait(0.4)
+
+        case "goto":
+            // Go to Pane (⌘⇧A, #66) and the caffeinate cup (#69). Keys go through the window as key
+            // events, so the menu-shortcut path runs; each one is captioned (no key overlay).
+            Settings.write("power.caffeinate", .bool(true))
+            if let ws = workspaces.first { rename(workspace: ws, to: "api") }
+            named(first, "server"); type(first, "ls\r")
+            addTab("tests", in: focusedDeck, "make test")
+            let web = newWorkspace(name: "web")
+            named(web.panes.first, "dev"); type(web.panes.first, "ls src\r")
+            if let dev = web.panes.first {
+                split(dev, side: .right)
+                let agent = focusedPane
+                named(agent, "agent")
+                // Reports progress the way Claude Code does while it works (docs/claude-code-states.md).
+                type(agent, "printf '\\e]9;4;3\\a'; sleep 600\r")
+            }
+            addTab("storybook", in: focusedDeck, "cat README.md")
+            let docs = newWorkspace(name: "docs")
+            named(docs.panes.first, "notes"); type(docs.panes.first, "git --no-pager log --oneline\r")
+            if let api = workspaces.first { activate(api) }
+            if let d = focusedDeck, let t = d.tabs.first { select(tab: t, in: d) }
+            if let first { focus(first) }
+
+            say("An agent is working in web, so the cup shows: Dealer keeps the display awake")
+            mouse.move(to: at({ [weak self] in self?.caffeineIcon }))
+            mouse.wait(2.6)
+            // AppKit's tooltips follow the window server's cursor, so a demo hover may not raise the
+            // cup's tooltip; the log says whether one showed. The caption carries the meaning either way.
+            mouse.run { print("DEMO HOVER cup \(extras())"); fflush(stdout) }
+            mouse.move(to: at(paneView("server"), 0.6, 0.55))
+            mouse.wait(0.3)
+            say("⌘⇧A: Go to Pane lists every pane, most recent first")
+            mouse.wait(0.6)
+            menuKey("a", [.command, .shift], keyCode: 0, "cmd-shift-A")
+            mouse.wait(1.6)
+            say("Type “sto”: letters in order narrow the list")
+            mouse.wait(0.5)
+            typeKeys("sto")
+            mouse.wait(1.2)
+            say("⏎: jump to it, in its workspace")
+            mouse.wait(0.6)
+            typeKeys("\r")
+            mouse.wait(1.6)
+            say("⌘⇧A")
+            mouse.wait(0.5)
+            menuKey("a", [.command, .shift], keyCode: 0, "cmd-shift-A")
+            mouse.wait(1.0)
+            say("⏎ with no query: back to the previous pane")
+            mouse.wait(0.6)
+            typeKeys("\r")
+            mouse.wait(1.6)
             say("")
             mouse.wait(0.4)
 
