@@ -99,8 +99,8 @@ extension TerminalWindowController {
         t.step("notify-log: turning it on writes a header; `dealer notify` logs the mark and the suppressed notification's reason", nil, {
             let (posted, p1) = line("notify attention:set", who("nl-b"), "reason=\"none → done\"", "title=\"Build\"", "body=\"All green\"")
             let (sup, p2) = line("notify notification:suppressed", who("nl-b"))
-            // Self-test runs are unbundled; if the run happens to be frontmost, the window-key reason applies.
-            let reasonOK = sup.map { $0.contains("reason=\"unbundled") || $0.contains("reason=\"app active and the pane's window is key") } ?? false
+            // Self-test runs are unbundled; if the run happens to be frontmost, the active-app reason applies (worded by #71).
+            let reasonOK = sup.map { $0.contains("reason=\"unbundled") || $0.contains("reason=\"Dealer is the active app") } ?? false
             return all(waitFor("log started", "reason=\"log turned on"), p1, p2,
                        posted == nil || posted!.contains("tab=\"") ? nil : "lines name the tab too",
                        sup == nil || reasonOK ? nil : "unexpected suppress reason: \(sup!)")
