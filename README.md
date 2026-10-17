@@ -61,7 +61,7 @@ upper half drags the window). Captions run along the bottom.
 <details>
 <summary><b>Agent attention</b>: blue for waiting, red for failed, visible from anywhere; click to go there and it fades</summary>
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/attention.gif" alt="An agent pane turns waiting (blue) and a build tab fails (red) while you're in another workspace; that workspace's row is outlined red because a failure outranks waiting. Clicking the row goes there, where the waiting pane and the failed tab (in the titlebar) are outlined; clicking into each clears its outline with a short fade" width="960">
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/attention.gif" alt="An agent works (its tab, then its workspace row, shows the spinner), then turns waiting (blue), and a build tab fails (red) while you're in another workspace; that workspace's row is outlined red because a failure outranks waiting. Clicking the row goes there, where the waiting pane and the failed tab (in the titlebar) are outlined; clicking into each clears its outline with a short fade" width="960">
 
 The states here are driven with `dealer notify`, typed into the pane; that's exactly what Dealer's
 automatic Claude Code hooks call (see [Attention](#attention-coding-agents)). This is not a live
