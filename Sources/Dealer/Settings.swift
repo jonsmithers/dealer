@@ -277,7 +277,7 @@ enum Settings {
     static var attentionUnreadOutlined: Bool { (string("attention.unread") ?? "dot") == "outline" }
 
     /// `[window] tabs_in_titlebar` (#16): top-edge decks' tab strips sit in the titlebar row.
-    static var tabsInTitlebar: Bool { bool("window.tabs_in_titlebar") ?? false }
+    static var tabsInTitlebar: Bool { bool("window.tabs_in_titlebar") ?? true }
 
     /// `[colors] auto_assign` (#9): new workspaces take the next unused swatch. Default false.
     static var autoAssignColors: Bool { bool("colors.auto_assign") ?? false }

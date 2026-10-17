@@ -52,7 +52,7 @@
 [window]
 # Put the tab strips of decks along the window's top edge into the titlebar row, like
 # Safari's compact tabs. Empty titlebar space still drags the window.
-# tabs_in_titlebar = false
+# tabs_in_titlebar = true
 
 [colors]
 # Workspace and tab colors: right-click a workspace or tab for Color › swatches, Custom…, None.

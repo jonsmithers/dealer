@@ -146,7 +146,7 @@ extension TerminalWindowController {
 
         t.step("tab fit: clean up", nil, {
             all(self.workspaces.contains { $0.name == "tabfit" } ? "the test workspace should be gone" : nil,
-                Settings.tabsInTitlebar ? "titlebar tabs should be off again" : nil)
+                Settings.tabsInTitlebar ? nil : "titlebar tabs should be back to the default (on)")
         }) {
             try? FileManager.default.removeItem(at: Settings.fileURL)
             Settings.reload()

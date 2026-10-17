@@ -208,7 +208,7 @@ back.
 
 ### Tabs in the titlebar
 
-With `[window] tabs_in_titlebar = true` in [settings.toml](#settings), the tab strips of decks
+By default (`[window] tabs_in_titlebar = true` in [settings.toml](#settings)), the tab strips of decks
 along the window's top edge move up into the titlebar row (like Safari's compact tabs), and those
 decks start right under the titlebar. Each strip stays over its own deck. Decks lower down keep
 their strips. The strips start after the traffic lights and the sidebar toggle, or after the
@@ -431,7 +431,7 @@ inject_hooks = true      # load Dealer's Claude Code plugin in new panes
 switcher = "sidebar"     # or "top" (pills in the titlebar)
 
 [window]
-tabs_in_titlebar = false # put top-edge decks' tab strips in the titlebar row
+tabs_in_titlebar = true  # put top-edge decks' tab strips in the titlebar row
 
 [colors]
 auto_assign = false      # color new workspaces with the next unused swatch

@@ -152,7 +152,7 @@ extension TerminalWindowController {
 
         t.step("edge split: clean up", nil, {
             all(self.workspaces.count == 1 ? nil : "one workspace",
-                Settings.tabsInTitlebar ? "tabs_in_titlebar should be off" : nil,
+                Settings.tabsInTitlebar ? nil : "tabs_in_titlebar should be back to the default (on)",
                 Settings.workspaceSwitcher == .sidebar ? nil : "switcher should be the sidebar")
         }) {
             dropRemove()

@@ -216,7 +216,7 @@ The GitHub repo is `jonsmithers/dealer`.
   `macos/Sources/Ghostty/Surface View/SurfaceView_AppKit.swift` in ghostty-org/ghostty (read it at the
   pinned commit, `git show <pin>:<path>`, since upstream moves on). Check that file
   before changing key handling.
-- `[window] tabs_in_titlebar` (#16, off by default) moves only top-edge decks' strips into the
+- `[window] tabs_in_titlebar` (#16, on by default) moves only top-edge decks' strips into the
   titlebar row; lower decks keep theirs. In top-bar workspace mode the pills keep a fixed left
   segment and strips start after it (not disabled). A strip that would be clipped below
   `titlebarStripMinWidth` stays in its deck.

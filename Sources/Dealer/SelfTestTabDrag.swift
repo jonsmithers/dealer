@@ -156,7 +156,7 @@ extension TerminalWindowController {
             }
         }
         t.step("tab drag: clean up", nil, {
-            all(self.workspaces.count == 1 ? nil : "one workspace", Settings.tabsInTitlebar ? "tabs_in_titlebar should be off" : nil)
+            all(self.workspaces.count == 1 ? nil : "one workspace", Settings.tabsInTitlebar ? nil : "tabs_in_titlebar should be back to the default (on)")
         }) {
             dropWorkspace()
             try? FileManager.default.removeItem(at: Settings.fileURL)

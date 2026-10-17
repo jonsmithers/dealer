@@ -53,9 +53,14 @@ extension TerminalWindowController {
         }
         var tree = ""
 
-        t.step("titlebar tabs: off by default, every strip in its deck", nil, {
-            all(Settings.tabsInTitlebar ? "default should be off" : nil, inDeck("srv") ? nil : "srv's strip should be in its deck")
+        t.step("titlebar tabs: on by default, the top deck's strip in the titlebar row", nil, {
+            all(Settings.tabsInTitlebar ? nil : "default should be on", up("srv") ? nil : "srv's strip should be in the titlebar")
         }) {}
+        t.step("titlebar tabs: turning it off puts every strip in its deck, live", nil, {
+            all(Settings.tabsInTitlebar ? "setting should be off" : nil, inDeck("srv") ? nil : "srv's strip should be in its deck")
+        }) {
+            setTabsInTitlebar(false)
+        }
         t.step("titlebar tabs: turning it on moves the top deck's strip into the titlebar row, live", nil, {
             all(up("srv") ? nil : "srv's strip should be in the titlebar", aligned("srv"),
                 deck("srv").view.content.frame.minY == 0 ? nil : "the deck card should start under the titlebar",
@@ -314,7 +319,7 @@ extension TerminalWindowController {
             setTabsInTitlebar(false)
         }
         t.step("titlebar tabs: clean up", nil, {
-            all(self.workspaces.count == 1 ? nil : "one workspace", Settings.tabsInTitlebar ? "setting should be off" : nil)
+            all(self.workspaces.count == 1 ? nil : "one workspace", Settings.tabsInTitlebar ? nil : "setting should be back to the default (on)")
         }) {
             Settings.workspaceSwitcher = .sidebar
             try? FileManager.default.removeItem(at: Settings.fileURL)
