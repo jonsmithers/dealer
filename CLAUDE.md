@@ -41,7 +41,7 @@ The GitHub repo is `jonsmithers/dealer`.
 - **No Xcode needed (#42):** building `vendor/` needs zig 0.16 and the Command Line Tools only; full
   Xcode is needed just to regenerate the shader library when Ghostty's shaders change. How it works,
   pin bumps and removal: `scripts/ghostty-build/README.md`.
-- The pinned commit needs **zig 0.16** (Homebrew's default `zig`). The script reads
+- The pinned commit needs **zig 0.16** (`brew install zig@0.16`; Homebrew's default `zig` is 0.17 now). The script reads
   `minimum_zig_version` from the checkout's `build.zig.zon` and prefers
   `/opt/homebrew/opt/zig@<ver>/bin/zig`, then `zig` on `PATH`.
 - **libghostty snapshots the process environment at `ghostty_init`** (zig 0.16's `std.process.Environ`,

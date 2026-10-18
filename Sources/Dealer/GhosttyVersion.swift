@@ -6,7 +6,7 @@ import GhosttyKit
 /// from another commit can compile and still behave differently, so the app checks at launch.
 enum GhosttyVersion {
     /// Must equal `scripts/ghostty.version`; the self-test enforces that.
-    static let pinnedCommit = "b1d9492cfa5d0d22c534a00e81bea623957113e7"
+    static let pinnedCommit = "81598385d608dda4946093d6d6a234d204a2f225"
 
     /// The version libghostty was built with, e.g. `1.3.2-main-+243f7df7c` (git describe).
     static var linked: String {

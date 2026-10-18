@@ -1,4 +1,4 @@
-Dealer's patch to Ghostty's build, for Ghostty b1d9492cfa5d0d22c534a00e81bea623957113e7 (#42).
+Dealer's patch to Ghostty's build, for Ghostty 81598385d608dda4946093d6d6a234d204a2f225 (#42).
 Lets libghostty build with only the Command Line Tools. Applied by scripts/build-ghosttykit.sh to a
 temporary clone, never to your checkout. See scripts/ghostty-build/README.md.
 
@@ -56,7 +56,7 @@ index 3f3b97eb2..c835dd93f 100644
          Config.genericMacOSTarget(b, null),
      ));
 diff --git a/src/build/SharedDeps.zig b/src/build/SharedDeps.zig
-index 7f777faa1..abbad9c79 100644
+index 1f4143fcd..c0ee21cf5 100644
 --- a/src/build/SharedDeps.zig
 +++ b/src/build/SharedDeps.zig
 @@ -500,11 +500,17 @@ pub fn add(

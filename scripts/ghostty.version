@@ -3,4 +3,4 @@
 # deliberately: rebuild, fix the C API drift, update GhosttyVersion.pinnedCommit in
 # Sources/Dealer/GhosttyVersion.swift to match (the self-test checks they agree), run the
 # self-test, and commit the new hash.
-b1d9492cfa5d0d22c534a00e81bea623957113e7
+81598385d608dda4946093d6d6a234d204a2f225
