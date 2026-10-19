@@ -173,8 +173,11 @@ extension TerminalWindowController {
             created(call("run", ["command": "echo hello hello && false", "cwd": tmp, "placement": "tab"], caller: "j0"), "jt")
         }
         t.step("jobs: [jobs] placement = \"tab\" puts the next job in a background tab", nil, {
+            // The RUN title goes on the pane; the tab keeps no custom title of its own, so its
+            // button just follows its only pane.
             all(tree("Deck0[*Col(j0, ja), jb]"), focused("j0"),
-                eq(self.locate(pane("jb")!)?.tab.title, "RUN true", "tab title"))
+                eq(pane("jb")?.title, "RUN true", "pane title"),
+                self.locate(pane("jb")!)?.tab.customTitle.map { "the job's tab got a custom title: \($0)" } ?? nil)
         }) {
             // The directory exists only if an earlier section made it (not under DEALER_SELFTEST_ONLY).
             try? FileManager.default.createDirectory(at: Settings.fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)

@@ -18,8 +18,6 @@ enum ControlJobs {
         let command: String
         let notify: Bool
         let closeOnSuccess: Bool
-        /// The job's tab when it was placed as a tab (its title follows the outcome).
-        weak var tab: Tab?
         let cwd: String?
         /// Set once the job reports back; later `job-done` calls from that pane are ignored.
         var status: Int?
@@ -73,21 +71,17 @@ enum ControlJobs {
                 // directory, as its only pane. On success Dealer closes it and the workspace goes too.
                 let callerWS = wc.locate(anchor)?.workspace
                 let name = (c as NSString).lastPathComponent
-                // The title goes on the pane only: the tab follows it, so it doesn't keep a stale
-                // RUN title once later jobs share the tab and this one has closed.
                 let pane = wc.controlNewWorkspace(after: callerWS, name: name.isEmpty ? c : name, workingDirectory: c,
                                                   command: nil, title: nil, focus: focus)
                 pane.customTitle = title
                 var info = r.info
                 if let ws = wc.locate(pane)?.workspace { info["workspace"] = ws.id; info["name"] = ws.displayName }
                 route = info
-                return try start(pane, command: command, tab: wc.locate(pane)?.tab,
-                                 cwd: c, args: args, wc: wc, focus: focus, route: route)
+                return try start(pane, command: command, cwd: c, args: args, wc: wc, focus: focus, route: route)
             }
         }
 
         let pane: Pane
-        var tab: Tab?
         switch placement {
         case "split", "pane":
             let size = args["size"] as? String ?? Settings.jobSize
@@ -96,21 +90,23 @@ enum ControlJobs {
                                    title: title, focus: focus)
         case "tab":
             guard let l = wc.locate(anchor) else { throw F(message: "no tab to run next to") }
-            pane = wc.controlNewTab(in: l.deck, after: l.tab, workingDirectory: cwd, command: nil, title: title, focus: focus)
-            tab = wc.locate(pane)?.tab
+            // The title goes on the pane only, never the tab: a one-pane tab shows the pane's title
+            // anyway, and a custom tab title would outlive the job once the tab holds other panes.
+            pane = wc.controlNewTab(in: l.deck, after: l.tab, workingDirectory: cwd, command: nil, title: nil, focus: focus)
+            pane.customTitle = title
+            wc.refreshChrome()
         default:
             throw F(message: "bad placement '\(placement)' (expected split or tab)")
         }
         // The caller's pane gets the success mark, even when the job was routed elsewhere.
-        return try start(pane, command: command, tab: tab, cwd: cwd, args: args,
-                         wc: wc, focus: focus, route: route)
+        return try start(pane, command: command, cwd: cwd, args: args, wc: wc, focus: focus, route: route)
     }
 
-    private static func start(_ pane: Pane, command: String, tab: Tab?, cwd: String?, args: [String: Any],
+    private static func start(_ pane: Pane, command: String, cwd: String?, args: [String: Any],
                               wc: TerminalWindowController, focus: Bool, route: [String: Any]?) throws -> [String: Any] {
         jobs = jobs.filter { ControlHandler.pane(id: $0.key) != nil }
         jobs[pane.id] = Job(command: command, notify: args["notify"] as? Bool ?? true,
-                            closeOnSuccess: args["close"] as? Bool ?? Settings.jobCloseOnSuccess, tab: tab, cwd: cwd)
+                            closeOnSuccess: args["close"] as? Bool ?? Settings.jobCloseOnSuccess, cwd: cwd)
         if let s = pane.surface.surface {
             pane.surface.perform("text:" + ControlHandler.escapeForBinding(" \(command); \"$DEALER_CLI\" job-done $?"))
             try ControlHandler.parseKey("enter").send(to: s)
@@ -229,9 +225,9 @@ enum ControlJobs {
         RunLoop.main.add(timer, forMode: .default)
     }
 
+    /// Outcome titles go on the job's pane only, never on its tab.
     private static func retitle(_ pane: Pane, job: Job, _ title: String, _ wc: TerminalWindowController) {
         pane.customTitle = title
-        if let tab = job.tab, tab.customTitle != nil { tab.customTitle = title }
         wc.refreshChrome()
     }
 }

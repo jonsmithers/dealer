@@ -256,7 +256,9 @@ The GitHub repo is `jonsmithers/dealer`.
   the tail `; "$DEALER_CLI" job-done $?`, and keeps the outcome policy in Dealer, not in user
   shell functions: on success mark the job pane done, retitle it `DONE`, linger `[jobs] linger`
   seconds (default 5) and close it; on failure keep it, marked failed. **Only the job pane is ever
-  marked, never the caller** (#63, the user's call; #50 had marked the caller on a closing success). Don't switch it to the
+  marked, never the caller** (#63, the user's call; #50 had marked the caller on a closing success).
+  `RUN`/`DONE`/`FAILED` titles go on the job **pane** only, never on a tab (a `--tab` job's tab
+  button follows its only pane; a custom tab title would outlive the job). Don't switch it to the
   surface `command` (aliases and the failed-job prompt would be lost), and don't detect the end
   with ghostty's COMMAND_FINISHED (it fires for every command and needs shell integration).
   - On success Dealer removes the pane itself after the linger (a run-loop timer in

@@ -87,7 +87,9 @@ b_str() { dealer run --quiet -- "$@"; }   # same, without the "done" mark on suc
 - **Placement:** by default a split below the chosen pane, 12 rows tall. With
   `[jobs] placement = "tab"` (or `--tab`) it's a background tab right after that pane's tab. The
   split height comes from `[jobs] size` or `--size`. Focus never moves, unless you pass `--focus`.
-- **Title:** `RUN <cmd>`, which changes to `FAILED (status) <cmd>` (or `DONE <cmd>` with `--keep`).
+- **Title:** the job *pane* is titled `RUN <cmd>`, which changes to `FAILED (status) <cmd>` (or
+  `DONE <cmd>` with `--keep`). Tabs are never retitled; a `--tab` job's tab button just shows its
+  only pane's title.
 - **Running:** the command is typed into a normal interactive shell, so aliases, functions and
   your rc environment work, followed by a tail that reports the exit status:
 
