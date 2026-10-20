@@ -4,6 +4,15 @@
 
 <h1 align="center">Dealer</h1>
 
+> [!WARNING]
+> **Dealer is unstable.** Behaviors, hotkeys, UI and settings may change at any moment, without
+> notice or migration.
+
+> [!IMPORTANT]
+> **Coding-agent support is for [Claude Code](https://claude.com/claude-code) only.** The attention
+> marks (working, waiting, done, failed), agent panes and hooks are built around Claude Code.
+> Codex, Gemini CLI and other agents run like any other program, but get none of those features.
+
 A small macOS terminal built on **libghostty** and Swift/AppKit, implementing the *Panes and Decks*
 layout model:
 
