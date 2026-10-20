@@ -6,8 +6,15 @@ import AppKit
 ///
 /// Click a pill to switch, double-click to rename, right-click for a menu, middle-click to close,
 /// drag to reorder. Panes and tabs dragged onto a pill move to that workspace (DragController).
-final class WorkspaceBarView: FlippedView, WorkspaceDropTargets, ThemeApplying {
+/// A group (#80) is a run of pills led by its label pill; collapsed, the label alone stands for it,
+/// and clicking the label expands or collapses it.
+final class WorkspaceBarView: FlippedView, WorkspaceDropTargets, ThemeApplying, SwitcherDragHost {
+    /// One pill per workspace, in `workspaces` order (members of a collapsed group are hidden).
     private var buttons: [WorkspaceButton] = []
+    /// One label pill per group (#80): it leads the group's run of pills, or alone stands for the
+    /// collapsed group.
+    private var labels: [GroupHeaderView] = []
+    private(set) var entries: [SwitcherEntry] = []
     let addButton = WorkspaceButton()
     /// Insertion marker shown while a pill is dragged.
     private let marker = FlippedView()
@@ -39,6 +46,9 @@ final class WorkspaceBarView: FlippedView, WorkspaceDropTargets, ThemeApplying {
     /// The pill for workspace `i`, for tests and drag targets.
     func button(at i: Int) -> NSView? { buttons.indices.contains(i) ? buttons[i] : nil }
 
+    /// The label pill of group `g` (#80), for tests.
+    func label(for g: WorkspaceGroup) -> GroupHeaderView? { labels.first { $0.group === g } }
+
     func reload() {
         guard let c = controller else { return }
         while buttons.count < c.workspaces.count {
@@ -47,8 +57,8 @@ final class WorkspaceBarView: FlippedView, WorkspaceDropTargets, ThemeApplying {
             buttons.append(b)
         }
         while buttons.count > c.workspaces.count { buttons.removeLast().removeFromSuperview() }
-        // A lone, unnamed workspace needs no switcher: keep the titlebar quiet until there's a choice.
-        let quiet = c.workspaces.count == 1 && c.workspaces[0].name == nil
+        // A lone, unnamed, ungrouped workspace needs no switcher: keep the titlebar quiet until there's a choice.
+        let quiet = c.workspaces.count == 1 && c.workspaces[0].name == nil && c.workspaces[0].group == nil
         for (i, ws) in c.workspaces.enumerated() {
             let b = buttons[i]
             b.workspace = ws
@@ -58,40 +68,81 @@ final class WorkspaceBarView: FlippedView, WorkspaceDropTargets, ThemeApplying {
             b.attention = ws.attention
             b.isRunning = ws.isWorking  // AgentStatus.swift
             b.color = ws.color
-            b.isHidden = quiet
+            b.isHidden = quiet || ws.group?.isCollapsed == true
         }
+        let groups = c.groups
+        while labels.count < groups.count {
+            let l = GroupHeaderView()
+            l.style = .pill
+            addSubview(l, positioned: .below, relativeTo: marker)
+            labels.append(l)
+        }
+        while labels.count > groups.count { labels.removeLast().removeFromSuperview() }
+        for (l, g) in zip(labels, groups) {
+            l.group = g
+            l.title = g.name
+            l.isCollapsed = g.isCollapsed
+            l.count = c.members(of: g).count
+            l.isActive = g.isCollapsed && c.activeWorkspace.group === g
+            l.attention = g.isCollapsed ? c.attention(of: g) : .none
+            l.isRunning = g.isCollapsed && c.members(of: g).contains(where: \.isWorking)
+        }
+        entries = quiet ? [] : SwitcherLayout.entries(c.workspaces)
         needsLayout = true
     }
 
-    override func layout() {
-        super.layout()
+    var entryViews: [(SwitcherEntry, NSView)] {
+        entries.compactMap { e in
+            switch e {
+            case let .workspace(ws): return buttons.first { $0.workspace === ws }.map { (e, $0) }
+            case let .header(g): return label(for: g).map { (e, $0) }
+            }
+        }
+    }
+
+    var isVertical: Bool { false }
+
+    /// The frames `layout` gives each entry view and the "+" button, in order.
+    private func plannedFrames() -> [(NSView, CGRect)] {
+        var out: [(NSView, CGRect)] = []
         var x: CGFloat = 0
         let y = ((bounds.height - Self.pillHeight) / 2).rounded()
-        for b in buttons + [addButton] where !b.isHidden {
-            let w = min(b.idealWidth, Self.maxPillWidth)
-            b.frame = CGRect(x: x, y: y, width: w, height: Self.pillHeight)
+        var prev: SwitcherEntry?
+        func inGroup(_ e: SwitcherEntry) -> Bool { e.group != nil || e.memberOf != nil }
+        for (e, v) in entryViews {
+            // A group's run of pills is set apart from its neighbours.
+            if let p = prev, e.group != nil || (inGroup(p) && !inGroup(e)) { x += Theme.Metrics.groupPillGap }
+            let ideal = (v as? WorkspaceButton)?.idealWidth ?? (v as? GroupHeaderView)?.idealWidth ?? 0
+            let w = min(ideal, Self.maxPillWidth)
+            out.append((v, CGRect(x: x, y: y, width: w, height: Self.pillHeight)))
             x += w + Self.spacing
+            prev = e
         }
+        if let p = prev, inGroup(p) { x += Theme.Metrics.groupPillGap }
+        out.append((addButton, CGRect(x: x, y: y, width: addButton.idealWidth, height: Self.pillHeight)))
+        return out
+    }
+
+    /// Width of the pills, group labels and "+", i.e. the fixed left segment in top-bar mode.
+    var contentWidth: CGFloat { (plannedFrames().last?.1.maxX ?? 0) + Self.spacing }
+
+    override func layout() {
+        super.layout()
+        for b in buttons where b.isHidden { b.frame = .zero }
+        for (v, f) in plannedFrames() { v.frame = f }
     }
 
     // MARK: Reorder
 
-    /// Where a dragged pill would land: the number of shown pills whose middle is left of `x`.
-    func insertionIndex(atX x: CGFloat) -> Int {
-        buttons.filter { !$0.isHidden && $0.frame.midX < x }.count
-    }
-
-    func showMarker(at index: Int?) {
-        guard let index else { marker.isHidden = true; return }
-        let shown = buttons.filter { !$0.isHidden }
-        let x = index < shown.count ? shown[index].frame.minX - Self.spacing / 2
-                                    : (shown.last?.frame.maxX ?? 0) + Self.spacing / 2
-        marker.frame = CGRect(x: x - 1, y: (bounds.height - Self.pillHeight) / 2, width: 2, height: Self.pillHeight)
+    func showDropMarker(_ drop: SwitcherDrop?) {
+        guard let drop else { marker.isHidden = true; return }
+        marker.frame = markerRect(for: drop, thickness: 2, spacing: Self.spacing, inset: 0)
         marker.isHidden = false
     }
 
     // MARK: Drop target (DragController)
 
+    /// A group's label pill is no target.
     func dropTarget(at p: CGPoint) -> (workspace: Workspace?, rect: CGRect)? {
         for b in buttons where !b.isHidden && b.frame.contains(p) { return b.workspace.map { ($0, b.frame) } }
         return addButton.frame.contains(p) ? (nil, addButton.frame) : nil
@@ -133,8 +184,7 @@ final class WorkspaceButton: FlippedView {
     /// The workspace's color (#9): a dot before the number plus a faint tint.
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true; superview?.needsLayout = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
-    private var dragStart: CGPoint?
-    private var reordering = false
+    private var tracker = SwitcherDragTracker()
 
     private static let padding: CGFloat = 9
     private static var dotSize: CGFloat { Theme.Metrics.switcherDotSize }
@@ -257,28 +307,17 @@ final class WorkspaceButton: FlippedView {
         guard let ws = workspace else { return }
         if event.clickCount == 2 { return c.renameWorkspaceInteractively(ws) }
         c.activate(ws)
-        dragStart = event.locationInWindow
-        reordering = false
+        tracker.down(event)
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let start = dragStart, let bar = superview as? WorkspaceBarView else { return }
-        let p = event.locationInWindow
-        if !reordering {
-            guard hypot(p.x - start.x, p.y - start.y) > 4 else { return }
-            reordering = true
-        }
-        bar.showMarker(at: bar.insertionIndex(atX: bar.convert(p, from: nil).x))
+        guard let ws = workspace else { return }
+        tracker.moved(event, entry: .workspace(ws), host: superview as? WorkspaceBarView)
     }
 
     override func mouseUp(with event: NSEvent) {
-        defer { dragStart = nil; reordering = false }
-        guard reordering, let bar = superview as? WorkspaceBarView, let ws = workspace, let c = controller,
-              let from = c.index(of: ws) else { return }
-        bar.showMarker(at: nil)
-        let i = bar.insertionIndex(atX: bar.convert(event.locationInWindow, from: nil).x)
-        let to = i > from ? i - 1 : i
-        if to != from { c.move(workspace: ws, to: to) }
+        guard let ws = workspace else { return }
+        _ = tracker.up(event, entry: .workspace(ws), host: superview as? WorkspaceBarView)
     }
 
     /// Middle-click closes the workspace (#37); other extra buttons (back/forward) do nothing (#57).
@@ -301,6 +340,11 @@ final class WorkspaceButton: FlippedView {
                 guard let ws else { return }
                 self?.controller?.setColor(c, workspace: ws)
             })
+            if let c = controller {
+                menu.addItem(.separator())
+                c.groupMenuItems(for: ws).forEach(menu.addItem)  // #80
+                menu.addItem(.separator())
+            }
         }
         menu.addItem(withTitle: "Close Workspace", action: #selector(closeIt), keyEquivalent: "").target = self
         return menu

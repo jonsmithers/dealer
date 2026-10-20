@@ -13,6 +13,10 @@ final class Workspace {
     var name: String?
     /// The workspace's color (#9, Colors.swift); nil is neutral.
     var color: NSColor?
+    /// The group it sits in (#80), or nil at the root. A group's members are contiguous in the
+    /// window's `workspaces`; only the controller's group commands (WorkspaceGroups.swift) and the
+    /// session restore set this.
+    var group: WorkspaceGroup?
     var root: Node<Deck>?
     /// The pane that had focus last time this workspace was active. It can be stale (moved to
     /// another workspace); the controller validates it.
@@ -46,6 +50,24 @@ final class Workspace {
     }
 }
 
+/// A named, collapsible run of workspaces in the switcher (#80). One level only: a group holds
+/// workspaces, never other groups. It exists only through its members (`Workspace.group`), so a
+/// group that loses its last workspace is gone; there is no empty group.
+final class WorkspaceGroup {
+    private static var nextID = 1
+    /// Process-unique, for the CLI.
+    let id: Int
+    var name: String
+    /// Collapsed: the switcher shows only its header, which carries its members' attention.
+    var isCollapsed = false
+
+    init(name: String) {
+        id = Self.nextID
+        Self.nextID += 1
+        self.name = name
+    }
+}
+
 // MARK: - Workspace commands
 
 extension TerminalWindowController {
@@ -57,6 +79,7 @@ extension TerminalWindowController {
     @discardableResult
     func newWorkspace(name: String? = nil, workingDirectory: String? = nil, activate: Bool = true) -> Workspace {
         let ws = Workspace(root: Node(makeDeck(workingDirectory: workingDirectory ?? WorkingDirectory.inherited(from: focusedPane, for: .window))), name: name)
+        ws.group = joinableGroup(of: activeWorkspace)
         insert(workspace: ws, at: activeWorkspaceIndex + 1)
         if activate { self.activate(ws) } else { refreshChrome() }
         return ws
@@ -137,6 +160,7 @@ extension TerminalWindowController {
     /// An empty workspace for a move to fill before `finishChange` runs (which would close it).
     private func makeEmptyWorkspace(after ws: Workspace) -> Workspace {
         let new = Workspace(root: nil)
+        new.group = joinableGroup(of: ws)
         insert(workspace: new, at: (index(of: ws) ?? workspaces.count - 1) + 1)
         return new
     }
@@ -180,8 +204,10 @@ extension TerminalWindowController {
         activateWorkspace(index: (activeWorkspaceIndex - 1 + workspaces.count) % workspaces.count)
     }
 
-    @objc func moveWorkspaceLeft(_ sender: Any?) { move(workspace: activeWorkspace, to: activeWorkspaceIndex - 1) }
-    @objc func moveWorkspaceRight(_ sender: Any?) { move(workspace: activeWorkspace, to: activeWorkspaceIndex + 1) }
+    /// With groups (#80) a member steps within its group and leaves it past either end; a root
+    /// workspace steps over whole groups (WorkspaceGroups.swift).
+    @objc func moveWorkspaceLeft(_ sender: Any?) { step(activeWorkspace, by: -1) }
+    @objc func moveWorkspaceRight(_ sender: Any?) { step(activeWorkspace, by: 1) }
 
     @objc func gotoWorkspaceFromMenu(_ sender: NSMenuItem) {
         if !activateWorkspace(index: sender.tag - 1) { NSSound.beep() }
@@ -234,9 +260,9 @@ extension TerminalWindowController {
         case #selector(nextWorkspace(_:)), #selector(previousWorkspace(_:)):
             return workspaces.count > 1
         case #selector(moveWorkspaceLeft(_:)):
-            return activeWorkspaceIndex > 0
+            return canStep(activeWorkspace, by: -1)
         case #selector(moveWorkspaceRight(_:)):
-            return activeWorkspaceIndex < workspaces.count - 1
+            return canStep(activeWorkspace, by: 1)
         default:
             return nil
         }

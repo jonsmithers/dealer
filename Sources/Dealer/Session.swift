@@ -30,6 +30,15 @@ struct WorkspaceSnapshot: Codable {
     /// "#rrggbb" (#9); absent in older files.
     var color: String?
     var root: TreeSnapshot<DeckSnapshot>
+    /// Index into `WindowSnapshot.groups` (#80); absent at the root and in older files. Older
+    /// builds ignore it (and `groups`), so they load the same workspaces, ungrouped.
+    var group: Int? = nil
+}
+
+/// A workspace group (#80). Its members are the workspaces whose `group` is its index.
+struct GroupSnapshot: Codable {
+    var name: String
+    var collapsed: Bool
 }
 
 struct WindowSnapshot: Codable {
@@ -41,12 +50,15 @@ struct WindowSnapshot: Codable {
     /// The user's explicit workspace-sidebar choice; absent (nil) means automatic. Optional so
     /// older files still decode.
     var sidebar: Bool?
+    /// Workspace groups (#80); absent in older files and when there are none.
+    var groups: [GroupSnapshot]?
 
-    init(frame: CGRect, workspaces: [WorkspaceSnapshot], activeWorkspace: Int, sidebar: Bool? = nil) {
+    init(frame: CGRect, workspaces: [WorkspaceSnapshot], activeWorkspace: Int, sidebar: Bool? = nil, groups: [GroupSnapshot]? = nil) {
         self.frame = frame
         self.workspaces = workspaces
         self.activeWorkspace = activeWorkspace
         self.sidebar = sidebar
+        self.groups = groups
     }
 
     /// The window's workspaces; an old single-tree file becomes one workspace.
@@ -99,21 +111,36 @@ extension TerminalWindowController {
         }
         let live = workspaces.filter { $0.root != nil }
         guard !live.isEmpty else { return nil }
+        var groups: [WorkspaceGroup] = []
         let wss = live.map { ws -> WorkspaceSnapshot in
             focusedPane = ws.validFocusedPane
-            return WorkspaceSnapshot(name: ws.name, color: ws.color?.hexString, root: deckTree(ws.root!))
+            var gi: Int?
+            if let g = ws.group {
+                if !groups.contains(where: { $0 === g }) { groups.append(g) }
+                gi = groups.firstIndex { $0 === g }
+            }
+            return WorkspaceSnapshot(name: ws.name, color: ws.color?.hexString, root: deckTree(ws.root!), group: gi)
         }
         return WindowSnapshot(frame: window.frame, workspaces: wss,
                               activeWorkspace: live.firstIndex { $0 === activeWorkspace } ?? 0,
-                              sidebar: sidebarPreference)
+                              sidebar: sidebarPreference,
+                              groups: groups.isEmpty ? nil : groups.map { GroupSnapshot(name: $0.name, collapsed: $0.isCollapsed) })
     }
 
     /// Rebuilds every workspace in a snapshot, including one migrated from a pre-workspace file.
+    /// Groups (#80) are rebuilt from their indices; a bad index leaves the workspace at the root.
+    /// Workspaces come back in file order; `restore` gathers a split group's members together.
     func restoreWorkspaces(_ snap: WindowSnapshot) -> [Workspace] {
-        snap.allWorkspaces.map { wss in
+        let groups = (snap.groups ?? []).map { gs -> WorkspaceGroup in
+            let g = WorkspaceGroup(name: gs.name.isEmpty ? "Group" : gs.name)
+            g.isCollapsed = gs.collapsed
+            return g
+        }
+        return snap.allWorkspaces.map { wss in
             let (root, focus) = restoreTree(wss.root)
             let ws = Workspace(root: root, name: wss.name)
             ws.color = wss.color.flatMap { NSColor(hex: $0) }
+            ws.group = wss.group.flatMap { groups.indices.contains($0) ? groups[$0] : nil }
             ws.focusedPane = focus
             return ws
         }

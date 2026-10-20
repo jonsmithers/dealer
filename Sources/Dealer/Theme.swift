@@ -131,6 +131,11 @@ enum Theme {
         static let sidebarWidth: CGFloat = 200
         static let sidebarRowHeight: CGFloat = 28
         static let sidebarRowDetailHeight: CGFloat = 40
+        /// Workspace groups (#80): a header row, and how far its members' rows are indented.
+        static let groupHeaderHeight: CGFloat = 24
+        static let groupIndent: CGFloat = 12
+        /// Extra space between a top-bar group's run of pills and its neighbours.
+        static let groupPillGap: CGFloat = 6
         /// The attention dot on sidebar rows and pills: 8pt like a tab's (was 6), so the waiting `?`
         /// and the failed `!` stay legible at 1x (#65).
         static let switcherDotSize: CGFloat = 8
@@ -164,6 +169,8 @@ enum Theme {
         /// The selected workspace's name (#52): a step heavier than an active tab.
         static let workspaceActive = NSFont.systemFont(ofSize: 12, weight: .semibold)
         static let paneBar = NSFont.systemFont(ofSize: 11, weight: .regular)
+        /// A workspace group's name on its header row or label pill (#80).
+        static let groupHeader = NSFont.systemFont(ofSize: 11, weight: .semibold)
         static let overlay = NSFont.systemFont(ofSize: 12, weight: .medium)
     }
 

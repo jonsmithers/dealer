@@ -6,10 +6,17 @@ import AppKit
 ///
 /// Click a row to switch, double-click to rename, right-click for a menu, middle-click to close,
 /// drag to reorder. Panes and tabs dragged onto a row move to that workspace (DragController).
-final class WorkspaceSidebarView: FlippedView, ThemeApplying {
+/// Groups (#80) show as a header with their members' rows indented under it; dragging a row onto
+/// a header or between its members puts it in the group (WorkspaceGroups.swift).
+final class WorkspaceSidebarView: FlippedView, ThemeApplying, SwitcherDragHost {
+    /// One row per workspace, in `workspaces` order (members of a collapsed group are hidden).
     private var rows: [WorkspaceRow] = []
+    /// One header per group (#80), in switcher order.
+    private var headers: [GroupHeaderView] = []
+    /// What the sidebar shows, top to bottom (above the "New Workspace" row).
+    private(set) var entries: [SwitcherEntry] = []
     let addRow = WorkspaceRow()
-    /// Insertion marker shown while a row is dragged.
+    /// Insertion marker shown while a row or header is dragged.
     private let marker = FlippedView()
 
     static let rowSpacing: CGFloat = 2
@@ -34,6 +41,9 @@ final class WorkspaceSidebarView: FlippedView, ThemeApplying {
     /// The row for workspace `i`, for tests (clicked through `window.sendEvent`) and drop targets.
     func row(at i: Int) -> NSView? { rows.indices.contains(i) ? rows[i] : nil }
 
+    /// The header of group `g` (#80), for tests.
+    func header(for g: WorkspaceGroup) -> GroupHeaderView? { headers.first { $0.group === g } }
+
     func reload() {
         guard let c = controller else { return }
         while rows.count < c.workspaces.count {
@@ -54,46 +64,83 @@ final class WorkspaceSidebarView: FlippedView, ThemeApplying {
             r.attention = ws.attention
             r.isRunning = ws.isWorking  // AgentStatus.swift
             r.color = ws.color
+            r.isHidden = ws.group?.isCollapsed == true
         }
+        let groups = c.groups
+        while headers.count < groups.count {
+            let h = GroupHeaderView()
+            addSubview(h, positioned: .below, relativeTo: marker)
+            headers.append(h)
+        }
+        while headers.count > groups.count { headers.removeLast().removeFromSuperview() }
+        for (h, g) in zip(headers, groups) {
+            h.group = g
+            h.title = g.name
+            h.isCollapsed = g.isCollapsed
+            h.count = c.members(of: g).count
+            // Collapsed, it stands in for its members: their attention, spinner and selection.
+            h.isActive = g.isCollapsed && c.activeWorkspace.group === g
+            h.attention = g.isCollapsed ? c.attention(of: g) : .none
+            h.isRunning = g.isCollapsed && c.members(of: g).contains(where: \.isWorking)
+        }
+        entries = SwitcherLayout.entries(c.workspaces)
         needsLayout = true
     }
+
+    var entryViews: [(SwitcherEntry, NSView)] {
+        entries.compactMap { e in
+            switch e {
+            case let .workspace(ws): return rows.first { $0.workspace === ws }.map { (e, $0) }
+            case let .header(g): return header(for: g).map { (e, $0) }
+            }
+        }
+    }
+
+    var isVertical: Bool { true }
 
     override func layout() {
         super.layout()
         var y: CGFloat = 0
-        for r in rows + [addRow] {
-            let h = r.detail.isEmpty ? Theme.Metrics.sidebarRowHeight : Theme.Metrics.sidebarRowDetailHeight
-            r.frame = CGRect(x: 0, y: y, width: bounds.width, height: h)
+        for r in rows where r.isHidden { r.frame = .zero }
+        for (e, v) in entryViews {
+            let h: CGFloat, x: CGFloat
+            if let r = v as? WorkspaceRow {
+                h = r.detail.isEmpty ? Theme.Metrics.sidebarRowHeight : Theme.Metrics.sidebarRowDetailHeight
+                x = e.memberOf != nil ? Theme.Metrics.groupIndent : 0
+            } else {
+                h = Theme.Metrics.groupHeaderHeight
+                x = 0
+            }
+            v.frame = CGRect(x: x, y: y, width: bounds.width - x, height: h)
             y += h + Self.rowSpacing
         }
+        let h = addRow.detail.isEmpty ? Theme.Metrics.sidebarRowHeight : Theme.Metrics.sidebarRowDetailHeight
+        addRow.frame = CGRect(x: 0, y: y, width: bounds.width, height: h)
     }
 
     // MARK: Reorder
 
-    /// Where a dragged row would land: the number of rows whose middle is above `y`.
-    func insertionIndex(atY y: CGFloat) -> Int {
-        rows.filter { $0.frame.midY < y }.count
-    }
-
-    func showMarker(at index: Int?) {
-        guard let index else { marker.isHidden = true; return }
-        let y = index < rows.count ? rows[index].frame.minY - Self.rowSpacing / 2
-                                   : (rows.last?.frame.maxY ?? 0) + Self.rowSpacing / 2
-        marker.frame = CGRect(x: 4, y: y - 1, width: bounds.width - 8, height: 2)
+    func showDropMarker(_ drop: SwitcherDrop?) {
+        guard let drop else { marker.isHidden = true; return }
+        marker.frame = markerRect(for: drop, thickness: 2, spacing: Self.rowSpacing, inset: Theme.Metrics.groupIndent)
         marker.isHidden = false
     }
+
+    /// The marker's frame while shown (self-test hook), else nil.
+    var markerFrameForTest: CGRect? { marker.isHidden ? nil : marker.frame }
 
     // MARK: Drop target (DragController)
 
     /// The row under `p` (sidebar coordinates): a workspace, or `nil` workspace for "New Workspace".
+    /// A group header is no target.
     func dropTarget(at p: CGPoint) -> (workspace: Workspace?, rect: CGRect)? {
-        for r in rows where r.frame.contains(p) { return r.workspace.map { ($0, r.frame) } }
+        for r in rows where !r.isHidden && r.frame.contains(p) { return r.workspace.map { ($0, r.frame) } }
         return addRow.frame.contains(p) ? (nil, addRow.frame) : nil
     }
 
     func rect(for ws: Workspace?) -> CGRect? {
         guard let ws else { return addRow.frame }
-        return rows.first { $0.workspace === ws }?.frame
+        return rows.first { $0.workspace === ws && !$0.isHidden }?.frame
     }
 }
 
@@ -126,8 +173,7 @@ final class WorkspaceRow: FlippedView {
     /// The workspace's color (#9): a chip at the left edge plus a faint tint.
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
-    private var dragStart: CGPoint?
-    private var reordering = false
+    private var tracker = SwitcherDragTracker()
 
     private static let padding: CGFloat = 10
 
@@ -268,27 +314,17 @@ final class WorkspaceRow: FlippedView {
         guard let ws = workspace else { return }
         if event.clickCount == 2 { return c.renameWorkspaceInteractively(ws) }
         c.activate(ws)
-        dragStart = event.locationInWindow
-        reordering = false
+        tracker.down(event)
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let start = dragStart, let sidebar else { return }
-        let p = event.locationInWindow
-        if !reordering {
-            guard hypot(p.x - start.x, p.y - start.y) > 4 else { return }
-            reordering = true
-        }
-        sidebar.showMarker(at: sidebar.insertionIndex(atY: sidebar.convert(p, from: nil).y))
+        guard let ws = workspace else { return }
+        tracker.moved(event, entry: .workspace(ws), host: sidebar)
     }
 
     override func mouseUp(with event: NSEvent) {
-        defer { dragStart = nil; reordering = false }
-        guard reordering, let sidebar, let ws = workspace, let c = controller, let from = c.index(of: ws) else { return }
-        sidebar.showMarker(at: nil)
-        let i = sidebar.insertionIndex(atY: sidebar.convert(event.locationInWindow, from: nil).y)
-        let to = i > from ? i - 1 : i
-        if to != from { c.move(workspace: ws, to: to) }
+        guard let ws = workspace else { return }
+        _ = tracker.up(event, entry: .workspace(ws), host: sidebar)
     }
 
     /// Middle-click closes the workspace (#37); other extra buttons (back/forward) do nothing (#57).
@@ -311,6 +347,11 @@ final class WorkspaceRow: FlippedView {
                 guard let ws else { return }
                 self?.controller?.setColor(c, workspace: ws)
             })
+            if let c = controller {
+                menu.addItem(.separator())
+                c.groupMenuItems(for: ws).forEach(menu.addItem)  // #80
+                menu.addItem(.separator())
+            }
         }
         menu.addItem(withTitle: "Close Workspace", action: #selector(closeIt), keyEquivalent: "").target = self
         return menu

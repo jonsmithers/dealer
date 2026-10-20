@@ -104,14 +104,6 @@ extension TabStripView {
     }
 }
 
-extension WorkspaceBarView {
-    /// Width of the pills plus "+", i.e. the fixed left segment in top-bar mode.
-    var contentWidth: CGFloat {
-        subviews.compactMap { $0 as? WorkspaceButton }.filter { !$0.isHidden }
-            .reduce(0) { $0 + min($1.idealWidth, Self.maxPillWidth) + Self.spacing }
-    }
-}
-
 // MARK: - Drag zones of a titlebar tab (#27)
 //
 // Matches macOS's native titlebar tabs (which Ghostty uses unchanged): a press-and-drag on the top

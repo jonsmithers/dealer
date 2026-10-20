@@ -88,8 +88,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     private func restore(_ snapshot: WindowSnapshot) {
         let restored = restoreWorkspaces(snapshot)
         if !restored.isEmpty {
-            workspaces = restored
             activeWorkspace = restored[min(max(snapshot.activeWorkspace ?? 0, 0), restored.count - 1)]
+            workspaces = Workspace.contiguousGroups(restored)  // #80: a crafted file may split a group
         } else {
             activeWorkspace.root = Node(makeDeck(workingDirectory: nil))
         }
@@ -317,13 +317,23 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     func insert(workspace ws: Workspace, at index: Int) {
         autoAssignColor(ws)
         workspaces.insert(ws, at: min(max(index, 0), workspaces.count))
+        workspaces = Workspace.contiguousGroups(workspaces)  // #80: a root workspace never splits a group
     }
 
     /// Reorders the switcher.
     func move(workspace ws: Workspace, to index: Int) {
         guard let i = workspaces.firstIndex(where: { $0 === ws }) else { return }
-        workspaces.remove(at: i)
-        workspaces.insert(ws, at: min(max(index, 0), workspaces.count))
+        var order = workspaces
+        order.remove(at: i)
+        order.insert(ws, at: min(max(index, 0), order.count))
+        setWorkspaceOrder(order)
+    }
+
+    /// Replaces the switcher order with a permutation of the same workspaces (group commands,
+    /// WorkspaceGroups.swift). Group members are gathered back together (#80).
+    func setWorkspaceOrder(_ order: [Workspace]) {
+        guard order.count == workspaces.count, order.allSatisfy({ w in workspaces.contains { $0 === w } }) else { return }
+        workspaces = Workspace.contiguousGroups(order)
         refreshChrome()
     }
 
