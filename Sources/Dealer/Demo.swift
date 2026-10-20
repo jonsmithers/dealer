@@ -127,7 +127,8 @@ final class DemoPointerView: PassthroughView {
 final class DemoMouse {
     enum Step {
         case move(() -> CGPoint?, TimeInterval?)
-        case press, release
+        case press(Int), release
+        case key(String, UInt16)
         case wait(TimeInterval)
         case run(() -> Void)
     }
@@ -152,7 +153,7 @@ final class DemoMouse {
     // MARK: Script
 
     func move(to p: @escaping () -> CGPoint?, duration: TimeInterval? = nil) { steps.append(.move(p, duration)) }
-    func press() { steps.append(.press) }
+    func press(clickCount: Int = 1) { steps.append(.press(clickCount)) }
     func release() { steps.append(.release) }
     func wait(_ t: TimeInterval) { steps.append(.wait(t)) }
     func run(_ f: @escaping () -> Void) { steps.append(.run(f)) }
@@ -164,6 +165,33 @@ final class DemoMouse {
         wait(0.08)
         release()
         wait(0.25)
+    }
+
+    func doubleClick(_ p: @escaping () -> CGPoint?) {
+        move(to: p)
+        wait(0.15)
+        press()
+        wait(0.06)
+        release()
+        wait(0.1)
+        press(clickCount: 2)
+        wait(0.06)
+        release()
+        wait(0.3)
+    }
+
+    /// Types `text` a key at a time at a readable pace, as real key events (an open sheet, such as
+    /// Rename Workspace, takes them before its window).
+    func type(_ text: String, interval: TimeInterval = 0.11) {
+        for ch in text {
+            steps.append(.key(String(ch), 0))
+            wait(interval)
+        }
+    }
+
+    func pressReturn() {
+        steps.append(.key("\r", 36))   // kVK_Return
+        wait(0.4)
     }
 
     func drag(from: @escaping () -> CGPoint?, to: @escaping () -> CGPoint?, hold: TimeInterval = 0.25, duration: TimeInterval? = nil) {
@@ -198,10 +226,13 @@ final class DemoMouse {
                 }
                 let step = steps.removeFirst()
                 switch step {
-                case .press:
+                case .press(let count):
                     pressed = true
                     pressPoint = position
-                    post(.leftMouseDown)
+                    post(.leftMouseDown, clickCount: count)
+                    continue
+                case .key(let chars, let code):
+                    postKey(chars, keyCode: code)
                     continue
                 case .release:
                     pressed = false
@@ -234,15 +265,37 @@ final class DemoMouse {
         placeSprite()
     }
 
-    private func event(_ type: NSEvent.EventType) -> NSEvent? {
+    private func event(_ type: NSEvent.EventType, clickCount: Int = 1) -> NSEvent? {
         guard let window = controller.window else { return nil }
         return NSEvent.mouseEvent(with: type, location: position, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
-                                  windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1,
+                                  windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: clickCount,
                                   pressure: type == .leftMouseUp ? 0 : 1)
     }
 
-    private func post(_ type: NSEvent.EventType) {
-        if let e = event(type) { controller.window?.postEvent(e, atStart: false) }
+    private func post(_ type: NSEvent.EventType, clickCount: Int = 1) {
+        if let e = event(type, clickCount: clickCount) { controller.window?.postEvent(e, atStart: false) }
+    }
+
+    /// A key down and up for the window's sheet if one is open, else the window. Sent straight to
+    /// that window, key equivalents first, rather than queued: AppKit routes queued key events to
+    /// the key window, and the demo app is usually not active (the recorder's terminal is).
+    private func postKey(_ chars: String, keyCode: UInt16) {
+        guard let window = controller.window else { return }
+        let target = window.attachedSheet ?? window
+        for type in [NSEvent.EventType.keyDown, .keyUp] {
+            if let e = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                        windowNumber: target.windowNumber, context: nil, characters: chars,
+                                        charactersIgnoringModifiers: chars, isARepeat: false, keyCode: keyCode) {
+                // Key equivalents first, as NSApp.sendEvent does. Return is the sheet's default button,
+                // but a button only takes its key equivalent in the key window, so press it directly.
+                if type == .keyDown, target.performKeyEquivalent(with: e) { continue }
+                if type == .keyDown, keyCode == 36, let button = target.defaultButtonCell {
+                    button.performClick(nil)
+                    continue
+                }
+                target.sendEvent(e)
+            }
+        }
     }
 
     /// Sends enter/exit/moved to the views under the pointer that own tracking areas.
@@ -517,10 +570,19 @@ extension TerminalWindowController {
             mouse.click(at({ [weak self] in self?.workspaceSidebar.addRow }))
             mouse.run { [weak self] in
                 guard let self else { return }
-                self.rename(workspace: self.activeWorkspace, to: "app bugfix worktree")
                 named(self.focusedPane, "fix"); type(self.focusedPane, "git status -sb\r")
             }
             mouse.wait(0.8)
+            say("Double-click to rename it")
+            mouse.doubleClick(at({ [weak self] in
+                guard let self, let i = self.workspaces.firstIndex(where: { $0 === self.activeWorkspace }) else { return nil }
+                return self.workspaceSidebar.row(at: i)
+            }))
+            mouse.wait(0.3)
+            mouse.type("app bugfix worktree")
+            mouse.wait(0.4)
+            mouse.pressReturn()
+            mouse.wait(0.4)
             say("Click to switch")
             mouse.click(at(row("app")))
             mouse.wait(0.5)
