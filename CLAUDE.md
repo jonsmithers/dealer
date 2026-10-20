@@ -120,8 +120,11 @@ The GitHub repo is `jonsmithers/dealer`.
   a `demo $` prompt, nothing but the Dealer window). Then publish explicitly with
   `scripts/record-demo.sh <out-dir> --publish <worktree of the media branch>`, which commits there
   and prints the `git push origin media` to run. Nothing is pushed implicitly. GIFs/MP4s live only on
-  the orphan `media` branch, never on master; the README links
-  `https://github.com/jonsmithers/dealer/raw/media/demos/<file>`.
+  the orphan `media` branch, never on master. The README embeds the MP4s as videos (#79), which
+  GitHub only plays from `github.com/user-attachments/assets/<id>` URLs on a line of their own
+  (a `<video>` tag or a link to the media branch is stripped or shown as a link). So after
+  publishing, the user uploads each `<demo>.mp4` to an issue comment (`gh issue comment N
+  --attach …`; agents can't), and the README's URL for that demo is replaced.
   - How it works: `DEALER_SELFTEST=1 DEALER_DEMO=<name>` runs a script in `Demo.swift`.
     `DemoMouse` posts real mouse events (`window.postEvent`) along eased paths at 60 Hz, so
     DragController's tracking loop, buttons and rows handle them as they would a person's, and

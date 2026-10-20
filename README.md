@@ -42,40 +42,33 @@ coding agents.
 <details open>
 <summary><b>1. Tabs, panes and decks</b>: drag to reorder, make a new deck, split, swap, switch tabs mid-drag, close</summary>
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/drag.gif" alt="Reordering tabs in the titlebar by dragging; dragging a tab to the window edge to make a new deck; dropping a tab on a pane's edge to split it; dropping a pane on another pane's centre to swap them; dragging a pane over another deck's hidden tab until it switches, then dropping it on that pane's edge; and closing a pane with the hover × on its bar" width="960">
-
-[Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/drag.mp4)
+https://github.com/user-attachments/assets/c4576545-24d4-4696-af1d-f3f9f527c8b3
 </details>
 
 <details>
 <summary><b>2. Workspaces</b>: one per project or worktree, each with its own color; click to switch, drag tabs between them</summary>
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/workspaces.gif" alt="Opening the workspace sidebar, whose workspaces each have a color; adding one for a git worktree (app bugfix worktree); clicking rows to switch; and dragging a tab from the titlebar onto another workspace's row" width="960">
-
-[Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/workspaces.mp4)
+https://github.com/user-attachments/assets/03066610-0f5a-41d3-9f3e-d7883e38e3c7
 </details>
 
 <details>
 <summary><b>3. Agent attention</b>: a spinner while an agent works, blue when it waits for you, red when something fails, visible from any workspace</summary>
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/attention.gif" alt="An agent works: its tab, then its workspace's row, shows a spinner, and the titlebar's coffee cup shows Dealer is keeping the display awake. While you're in another workspace the agent turns waiting (blue) and a build tab fails (red); the workspace's row is outlined red because a failure outranks waiting. Clicking the row goes there, where the waiting pane and the failed tab are outlined; clicking into each clears its outline with a short fade" width="960">
+https://github.com/user-attachments/assets/85b4f6a2-eeb4-403a-9848-d49abef3cf27
 
 The states here are driven with `dealer notify`, typed into the pane; that's exactly what Dealer's
 automatic Claude Code hooks call (see [Attention](#attention-coding-agents)). This is not a live
 Claude session: a real one shows its own permission prompt in the pane.
-
-[Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/attention.mp4)
 </details>
 
 <details>
 <summary><b>4. Go to Pane</b>: ⌘⇧A, type a few letters, jump to any pane in any workspace; ⏎ on an empty query goes back</summary>
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/goto.gif" alt="Two agents work in other workspaces (website and app bugfix worktree), and both rows show a spinner. ⌘⇧A opens Go to Pane, listing every pane most recent first; typing sto narrows it to storybook and return jumps there, in its workspace. ⌘⇧A, bug and return jump into the other agent's pane; ⌘⇧A then return on an empty query goes back to the previous pane" width="960">
-
-[Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/goto.mp4)
+https://github.com/user-attachments/assets/04e473bf-cdd4-4455-a3ed-00aec791a986
 </details>
 
-Demo videos are recorded with `scripts/record-demo.sh`.
+Demo videos are recorded with `scripts/record-demo.sh`; GIFs of the same demos live on the
+[`media` branch](https://github.com/jonsmithers/dealer/tree/media/demos).
 
 ## Build & run
 
