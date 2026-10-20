@@ -482,10 +482,15 @@ extension TerminalWindowController {
             mouse.wait(0.8)
             mouse.click(grip(tabOf("server")))
             mouse.wait(0.6)
-            say("Drag a pane out of a split onto the tab strip: it becomes a tab")
-            mouse.drag(from: at(bar("tests"), 0.3), to: stripEnd(of: "server"), hold: 0.4)
-            say("Drag tabs to reorder them")
-            mouse.drag(from: grip(tab("tests")), to: at(tabOf("server"), 0.3), hold: 0.3)
+            say("Drag a pane out of a split onto a tab strip: it becomes a tab there")
+            mouse.drag(from: at(bar("tests"), 0.3), to: stripEnd(of: "logs"), hold: 0.4)
+            // One drag shows both moving a tab across decks and placing it: it lands between the
+            // other deck's two tabs, held long enough for the insertion marker to show.
+            say("Drag a tab to another deck, in between two of its tabs")
+            mouse.drag(from: grip(tab("build")), to: {
+                guard let l = tab("logs")(), let t = tab("tests")(), let s = l.superview else { return nil }
+                return s.convert(CGPoint(x: (l.frame.maxX + t.frame.minX) / 2, y: l.frame.midY), to: nil)
+            }, hold: 0.7)
             mouse.move(to: at(paneView("logs"), 0.5, 0.5))
             say("")
             mouse.wait(0.8)

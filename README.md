@@ -40,7 +40,7 @@ New to Dealer? Watch these in order: layout first, then workspaces, then what De
 coding agents.
 
 <details open>
-<summary><b>1. Panes and Decks layout</b>: drop tabs into side-by-side and stacked splits, drag a pane to the window edge for a new deck (it keeps its content while you switch tabs next to it), pull a pane back out as a tab, reorder tabs</summary>
+<summary><b>1. Panes and Decks layout</b>: drop tabs into side-by-side and stacked splits, drag a pane to the window edge for a new deck (it keeps its content while you switch tabs next to it), pull a pane out as a tab in another deck, drop a tab between two tabs of another deck</summary>
 
 https://github.com/user-attachments/assets/c4576545-24d4-4696-af1d-f3f9f527c8b3
 </details>
