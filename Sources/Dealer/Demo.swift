@@ -2,7 +2,7 @@ import AppKit
 
 /// Scripted mouse demos for the README recordings (#26, #28). `DEALER_SELFTEST=1 DEALER_DEMO=<name>`
 /// runs one instead of the self-test, with the self-test's isolation (no session, temp settings).
-/// Names: `drag`, `tabs`, `workspaces`, `attention`, `goto`. `scripts/record-demo.sh` records them.
+/// Names: `drag`, `workspaces`, `attention`, `goto`. `scripts/record-demo.sh` records them.
 ///
 /// Everything on screen is done with a pointer: `DemoMouse` posts real mouse events into the window,
 /// so DragController's tracking loop, buttons and rows handle them exactly as they would a person's,
@@ -18,6 +18,10 @@ enum Demo {
     /// Demos are recorded with top-edge tab strips in the titlebar row (`[window] tabs_in_titlebar`,
     /// #16), written to the demo's temp settings file. Flip this one switch to record in-deck strips.
     static let tabsInTitlebar = true
+    /// Demos show colored workspaces (#79): `[colors] auto_assign = true`, written next to the
+    /// above. As in normal use, a window's first workspace stays uncolored and each later one takes
+    /// the next unused swatch. Flip this one switch to record without colors.
+    static let autoAssignColors = true
     /// A band under the decks that holds the demo's caption (0 outside demos). The titlebar row
     /// holds tabs, so the caption lives at the bottom, clear of every deck and drop target.
     static var captionBand: CGFloat { name == nil ? 0 : 34 }
@@ -278,6 +282,7 @@ extension TerminalWindowController {
     func runDemo(_ name: String) {
         // Self-test mode points Settings at a temp config home, so this never touches the user's file.
         if Demo.tabsInTitlebar { Settings.write("window.tabs_in_titlebar", .bool(true)) }
+        if Demo.autoAssignColors { Settings.write("colors.auto_assign", .bool(true)) }
         window?.setContentSize(NSSize(width: 1000, height: 600))
         window?.center()
         // Recorded as a screen region (no real cursor, no capture badge), so nothing may cover it.
@@ -318,7 +323,12 @@ extension TerminalWindowController {
                 let panes = self.workspaces.flatMap { $0.decks.flatMap(\.tabs).flatMap(\.panes) }
                 let working = panes.filter(\.isWorking).map { $0.customTitle ?? "?" } + self.workspaces.filter(\.isWorking).map { "ws:" + ($0.name ?? "?") }
                 let marked = panes.filter { $0.attention != .none }.map { "\($0.customTitle ?? "?"):\($0.attention)" }
-                print("DEMO BEAT \(self.describeWorkspaces { $0.customTitle ?? "?" }) titlebar=\(strips) movable=\(self.window?.isMovable ?? false) busy=\(busy) working=\(working) attention=\(marked) \(extras()) next=\"\(text)\"")
+                // Workspace names with their swatch (auto_assign), so the colors can be checked too.
+                let swatches = Theme.swatches
+                let ws = self.workspaces.map { w in
+                    (w.name ?? "?") + ":" + (w.color.flatMap { c in swatches.first { $0.color.sameColor(as: c) }?.name } ?? "none")
+                }
+                print("DEMO BEAT \(self.describeWorkspaces { $0.customTitle ?? "?" }) ws=\(ws) titlebar=\(strips) movable=\(self.window?.isMovable ?? false) busy=\(busy) working=\(working) attention=\(marked) \(extras()) next=\"\(text)\"")
                 fflush(stdout)
             }
         }
@@ -431,24 +441,34 @@ extension TerminalWindowController {
         let first = focusedPane
         switch name {
         case "drag":
-            // Start: one deck with three tabs.
+            // Tabs and panes (the old `tabs` demo joined this one, #79). Start: one deck, four tabs.
             named(first, "server"); type(first, "ls\r")
             addTab("logs", in: focusedDeck, "cat server.log")
+            addTab("tests", in: focusedDeck, "make test")
             addTab("build", in: focusedDeck, "git --no-pager log --oneline")
             if let d = focusedDeck, let t = d.tabs.first { select(tab: t, in: d) }
 
+            say("Drag tabs to reorder them")
+            mouse.drag(from: grip(tab("tests")), to: at(tab("server"), 0.3), hold: 0.3)
             say("Drag a tab to the window edge: it becomes a new deck")
             mouse.drag(from: grip(tab("logs")), to: windowEdge(.right), hold: 0.4)
             say("Drop a tab on a pane's edge: it joins as a split")
             mouse.drag(from: grip(tab("build")), to: at(paneView("logs"), 0.5, 0.88), hold: 0.4)
-            say("Drag a pane by its bar to re-split it somewhere else")
-            mouse.drag(from: at(bar("build"), 0.3), to: at(paneView("server"), 0.88, 0.55), hold: 0.4)
-            say("Drop on a pane's centre to swap the two")
-            mouse.drag(from: at(bar("server"), 0.3), to: at(paneView("build"), 0.5, 0.5), hold: 0.4)
-            say("Drop a pane on a tab strip: it becomes a tab there")
-            mouse.drag(from: at(bar("build"), 0.3), to: stripEnd(of: "logs"), hold: 0.4)
-            say("Drop a tab on a pane's edge to split it back in")
-            mouse.drag(from: grip(tab("logs")), to: at(paneView("server"), 0.5, 0.9), hold: 0.4)
+            say("Drop a pane on another's centre to swap the two")
+            mouse.drag(from: at(bar("build"), 0.3), to: at(paneView("logs"), 0.5, 0.5), hold: 0.4)
+            say("Hover a tab mid-drag to switch to it, then drop on that pane's edge")
+            // One drag in two legs: rest on the left deck's hidden tab until it switches, then on
+            // the edge of the pane it brought up.
+            mouse.move(to: at(bar("logs"), 0.3))
+            mouse.wait(0.2)
+            mouse.press()
+            mouse.wait(0.15)
+            mouse.move(to: at(tab("server"), 0.5))
+            mouse.wait(DragController.hoverDelay + 0.4)
+            mouse.move(to: at(paneView("server"), 0.88, 0.55))
+            mouse.wait(0.4)
+            mouse.release()
+            mouse.wait(0.6)
             say("Hover a pane bar to close it with its ×")
             mouse.move(to: at(bar("logs"), 0.5))
             mouse.wait(0.5)
@@ -457,52 +477,38 @@ extension TerminalWindowController {
             say("")
             mouse.wait(0.8)
 
-        case "tabs":
-            named(first, "server"); type(first, "ls\r")
-            addTab("logs", in: focusedDeck, "cat server.log")
-            addTab("tests", in: focusedDeck, "make test")
-            if let docs = addTab("docs", in: focusedDeck), let n = locate(docs)?.tab.root {
-                _ = promote(n, side: .right, allowWholeDeck: true)
-            }
-            let deckB = pane("docs")().flatMap { locate($0)?.deck }
-            addTab("notes", in: deckB, "cat README.md")
-            if let d = deckB, let t = d.tabs.first { select(tab: t, in: d) }
-            if let d = pane("server")().flatMap({ locate($0)?.deck }), let t = d.tabs.first { select(tab: t, in: d) }
-
-            say("Drag tabs to reorder them")
-            mouse.drag(from: grip(tab("tests")), to: at(tab("server"), 0.3), hold: 0.3)
-            say("Hover a tab mid-drag to switch to it, then drop it in that deck")
-            mouse.drag(from: grip(tab("logs")), to: at(tab("notes"), 0.6), hold: 1.1)
-            say("Drag a tab out to the window edge: a new deck")
-            mouse.drag(from: grip(tab("server")), to: windowEdge(.bottom), hold: 0.4)
-            say("…and into a pane to fold it back in as a split")
-            mouse.drag(from: grip(tab("server")), to: at(paneView("tests"), 0.12, 0.5), hold: 0.4)
-            mouse.move(to: at(paneView("docs"), 0.5, 0.5))
-            say("")
-            mouse.wait(0.8)
-
         case "workspaces":
+            if let ws = workspaces.first { rename(workspace: ws, to: "app") }
             named(first, "server"); type(first, "ls\r")
             addTab("tests", in: focusedDeck, "make test")
             if let d = focusedDeck, let t = d.tabs.first { select(tab: t, in: d) }
-            if let ws = workspaces.first { rename(workspace: ws, to: "api") }
+            // More projects, so the sidebar shows a range of colors (#79). Created in sidebar order.
+            for (ws, p, command) in [("website", "dev", "ls src"), ("infra", "deploy", "cat README.md"),
+                                     ("docs", "notes", "git --no-pager log --oneline")] {
+                let w = newWorkspace(name: ws)
+                named(w.panes.first, p); type(w.panes.first, command + "\r")
+            }
+            if let app = workspaces.first { activate(app) }
+            if let first { focus(first) }
+            sidebarPreference = false  // closed, so the first beat can open it
+            layoutNow()
 
             say("Open the workspace sidebar")
             mouse.click(at({ [weak self] in self?.sidebarToggle }))
-            say("Add a workspace")
+            say("Add a workspace, say for a git worktree")
             mouse.click(at({ [weak self] in self?.workspaceSidebar.addRow }))
             mouse.run { [weak self] in
                 guard let self else { return }
-                self.rename(workspace: self.activeWorkspace, to: "web")
-                named(self.focusedPane, "dev"); type(self.focusedPane, "ls src\r")
+                self.rename(workspace: self.activeWorkspace, to: "app bugfix worktree")
+                named(self.focusedPane, "fix"); type(self.focusedPane, "git status -sb\r")
             }
             mouse.wait(0.8)
             say("Click to switch")
-            mouse.click(at(row("api")))
+            mouse.click(at(row("app")))
             mouse.wait(0.5)
             say("Drag a tab onto a workspace to move it there")
-            mouse.drag(from: grip(tab("tests")), to: at(row("web")), hold: 0.5)
-            mouse.click(at(row("web")))
+            mouse.drag(from: grip(tab("tests")), to: at(row("app bugfix worktree")), hold: 0.5)
+            mouse.click(at(row("app bugfix worktree")))
             mouse.wait(0.4)
             mouse.move(to: at(tab("tests")))
             mouse.wait(1.0)
@@ -510,6 +516,8 @@ extension TerminalWindowController {
             mouse.wait(0.5)
 
         case "attention":
+            // The caffeinate cup (#69) shows while an agent works.
+            Settings.write("power.caffeinate", .bool(true))
             if let ws = workspaces.first { rename(workspace: ws, to: "app") }
             named(first, "editor")
             split(first!, side: .right)
@@ -517,8 +525,10 @@ extension TerminalWindowController {
             named(agent, "agent")
             let build = addTab("build", in: focusedDeck)
             if let d = focusedDeck, let t = d.tabs.first { select(tab: t, in: d) }
-            let docs = newWorkspace(name: "docs", activate: false)
-            named(docs.panes.first, "notes")
+            for (ws, p) in [("billing", "ledger"), ("docs", "notes"), ("mobile", "simulator")] {
+                named(newWorkspace(name: ws).panes.first, p)
+            }
+            if let app = workspaces.first { activate(app) }
             if let first { focus(first) }
 
             // The agent reports progress the way Claude Code does (docs/claude-code-states.md):
@@ -526,14 +536,20 @@ extension TerminalWindowController {
             // needs permission the waiting mark outranks the spinner; it then clears its progress.
             say("An agent (right) is working: its tab spins. A build runs in the second tab")
             mouse.run {
-                type(agent, "printf '\\e]9;4;3\\a'; sleep 6; dealer notify --state waiting --title Agent --body 'Permission needed'; printf '\\e]9;4;0\\a'\r")
-                type(build, "sleep 9; make deploy || dealer notify --state failed --title Build --body 'make deploy failed'\r")
+                type(agent, "printf '\\e]9;4;3\\a'; sleep 8; dealer notify --state waiting --title Agent --body 'Permission needed'; printf '\\e]9;4;0\\a'\r")
+                type(build, "sleep 11; make deploy || dealer notify --state failed --title Build --body 'make deploy failed'\r")
             }
             mouse.move(to: at(paneView("agent"), 0.5, 0.6))
-            mouse.wait(1.8)
+            mouse.wait(1.4)
+            say("While an agent works, the cup keeps the display awake")
+            mouse.move(to: at({ [weak self] in self?.caffeineIcon }))
+            mouse.wait(1.6)
+            // AppKit's tooltips follow the window server's cursor, so a demo hover may not raise the
+            // cup's tooltip; the log says whether one showed. The caption carries the meaning either way.
+            mouse.run { print("DEMO HOVER cup \(extras())"); fflush(stdout) }
             say("Switch to another workspace: the agent's spins in the sidebar")
             mouse.click(at(row("docs")))
-            mouse.wait(3.6)
+            mouse.wait(3.2)
             say("It needs you: the spinner gives way to a blue outline")
             mouse.move(to: at(row("app"), 0.85, 0.5), duration: 0.9)
             mouse.wait(0.9)
@@ -554,34 +570,31 @@ extension TerminalWindowController {
             mouse.wait(0.4)
 
         case "goto":
-            // Go to Pane (⌘⇧A, #66) and the caffeinate cup (#69). Keys go through the window as key
-            // events, so the menu-shortcut path runs; each one is captioned (no key overlay).
-            Settings.write("power.caffeinate", .bool(true))
-            if let ws = workspaces.first { rename(workspace: ws, to: "api") }
+            // Go to Pane (⌘⇧A, #66) with two agents working elsewhere. Keys go through the window as
+            // key events, so the menu-shortcut path runs; each one is captioned (no key overlay).
+            if let ws = workspaces.first { rename(workspace: ws, to: "app") }
             named(first, "server"); type(first, "ls\r")
             addTab("tests", in: focusedDeck, "make test")
-            let web = newWorkspace(name: "web")
+            // Agents report progress the way Claude Code does while it works (docs/claude-code-states.md).
+            let working = "printf '\\e]9;4;3\\a'; sleep 600\r"
+            let web = newWorkspace(name: "website")
             named(web.panes.first, "dev"); type(web.panes.first, "ls src\r")
             if let dev = web.panes.first {
                 split(dev, side: .right)
-                let agent = focusedPane
-                named(agent, "agent")
-                // Reports progress the way Claude Code does while it works (docs/claude-code-states.md).
-                type(agent, "printf '\\e]9;4;3\\a'; sleep 600\r")
+                named(focusedPane, "agent"); type(focusedPane, working)
             }
             addTab("storybook", in: focusedDeck, "cat README.md")
+            let fix = newWorkspace(name: "app bugfix worktree")
+            named(fix.panes.first, "bugfix agent"); type(fix.panes.first, working)
             let docs = newWorkspace(name: "docs")
             named(docs.panes.first, "notes"); type(docs.panes.first, "git --no-pager log --oneline\r")
-            if let api = workspaces.first { activate(api) }
+            if let app = workspaces.first { activate(app) }
             if let d = focusedDeck, let t = d.tabs.first { select(tab: t, in: d) }
             if let first { focus(first) }
 
-            say("An agent is working in web, so the cup shows: Dealer keeps the display awake")
-            mouse.move(to: at({ [weak self] in self?.caffeineIcon }))
-            mouse.wait(2.6)
-            // AppKit's tooltips follow the window server's cursor, so a demo hover may not raise the
-            // cup's tooltip; the log says whether one showed. The caption carries the meaning either way.
-            mouse.run { print("DEMO HOVER cup \(extras())"); fflush(stdout) }
+            say("Two agents are working, in website and in the worktree: their rows spin")
+            mouse.move(to: at(row("app bugfix worktree"), 0.6, 0.5))
+            mouse.wait(1.6)
             mouse.move(to: at(paneView("server"), 0.6, 0.55))
             mouse.wait(0.3)
             say("⌘⇧A: Go to Pane lists every pane, most recent first")
@@ -595,13 +608,19 @@ extension TerminalWindowController {
             say("⏎: jump to it, in its workspace")
             mouse.wait(0.6)
             typeKeys("\r")
-            mouse.wait(1.6)
-            say("⌘⇧A")
+            mouse.wait(1.4)
+            say("⌘⇧A, “bug”, ⏎: straight into the other agent's pane")
             mouse.wait(0.5)
             menuKey("a", [.command, .shift], keyCode: 0, "cmd-shift-A")
-            mouse.wait(1.0)
-            say("⏎ with no query: back to the previous pane")
             mouse.wait(0.6)
+            typeKeys("bug")
+            mouse.wait(0.6)
+            typeKeys("\r")
+            mouse.wait(1.6)
+            say("⌘⇧A, then ⏎ with no query: back to the previous pane")
+            mouse.wait(0.5)
+            menuKey("a", [.command, .shift], keyCode: 0, "cmd-shift-A")
+            mouse.wait(0.9)
             typeKeys("\r")
             mouse.wait(1.6)
             say("")

@@ -36,34 +36,29 @@ the last tab closes its deck, the last deck its workspace, and the last workspac
 
 ## Demos
 
-<details open>
-<summary><b>Drag tabs and panes</b>: new deck, split, re-split, swap, move to another deck, close</summary>
+New to Dealer? Watch these in order: layout first, then workspaces, then what Dealer does for
+coding agents.
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/drag.gif" alt="Dragging a tab out of the titlebar to the window edge to make a new deck, dropping a tab on a pane's edge to split, dragging panes by their bars to re-split and swap, dropping a pane on a titlebar tab strip, and closing a pane with the hover × on its bar" width="960">
+<details open>
+<summary><b>1. Tabs, panes and decks</b>: drag to reorder, make a new deck, split, swap, switch tabs mid-drag, close</summary>
+
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/drag.gif" alt="Reordering tabs in the titlebar by dragging; dragging a tab to the window edge to make a new deck; dropping a tab on a pane's edge to split it; dropping a pane on another pane's centre to swap them; dragging a pane over another deck's hidden tab until it switches, then dropping it on that pane's edge; and closing a pane with the hover × on its bar" width="960">
 
 [Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/drag.mp4)
 </details>
 
 <details>
-<summary><b>Tabs</b>: reorder, hover to switch mid-drag, out to a new deck and back into a pane</summary>
+<summary><b>2. Workspaces</b>: one per project or worktree, each with its own color; click to switch, drag tabs between them</summary>
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/tabs.gif" alt="Reordering tabs in the titlebar by dragging, hovering another deck's titlebar tab mid-drag to switch to it and dropping in that deck, dragging a tab to the bottom window edge for a new deck (whose strip stays in the deck), and dropping it back into a pane as a split" width="960">
-
-[Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/tabs.mp4)
-</details>
-
-<details>
-<summary><b>Workspaces</b>: open the sidebar, add one, click to switch, drag a tab onto a workspace</summary>
-
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/workspaces.gif" alt="Opening the workspace sidebar, adding a workspace, clicking rows to switch, and dragging a tab from the titlebar onto another workspace's row" width="960">
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/workspaces.gif" alt="Opening the workspace sidebar, whose workspaces each have a color; adding one for a git worktree (app bugfix worktree); clicking rows to switch; and dragging a tab from the titlebar onto another workspace's row" width="960">
 
 [Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/workspaces.mp4)
 </details>
 
 <details>
-<summary><b>Agent attention</b>: blue for waiting, red for failed, visible from anywhere; click to go there and it fades</summary>
+<summary><b>3. Agent attention</b>: a spinner while an agent works, blue when it waits for you, red when something fails, visible from any workspace</summary>
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/attention.gif" alt="An agent works (its tab, then its workspace row, shows the spinner), then turns waiting (blue), and a build tab fails (red) while you're in another workspace; that workspace's row is outlined red because a failure outranks waiting. Clicking the row goes there, where the waiting pane and the failed tab (in the titlebar) are outlined; clicking into each clears its outline with a short fade" width="960">
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/attention.gif" alt="An agent works: its tab, then its workspace's row, shows a spinner, and the titlebar's coffee cup shows Dealer is keeping the display awake. While you're in another workspace the agent turns waiting (blue) and a build tab fails (red); the workspace's row is outlined red because a failure outranks waiting. Clicking the row goes there, where the waiting pane and the failed tab are outlined; clicking into each clears its outline with a short fade" width="960">
 
 The states here are driven with `dealer notify`, typed into the pane; that's exactly what Dealer's
 automatic Claude Code hooks call (see [Attention](#attention-coding-agents)). This is not a live
@@ -73,9 +68,9 @@ Claude session: a real one shows its own permission prompt in the pane.
 </details>
 
 <details>
-<summary><b>Go to Pane</b>: ⌘⇧A, type a few letters, jump anywhere; ⏎ on an empty query goes back</summary>
+<summary><b>4. Go to Pane</b>: ⌘⇧A, type a few letters, jump to any pane in any workspace; ⏎ on an empty query goes back</summary>
 
-<img src="https://github.com/jonsmithers/dealer/raw/media/demos/goto.gif" alt="With an agent working in another workspace, the titlebar's coffee cup shows Dealer is keeping the display awake. ⌘⇧A opens Go to Pane, listing every pane most recent first; typing sto narrows it to storybook, and return jumps to that pane in its workspace. ⌘⇧A then return on an empty query goes back to the previous pane" width="960">
+<img src="https://github.com/jonsmithers/dealer/raw/media/demos/goto.gif" alt="Two agents work in other workspaces (website and app bugfix worktree), and both rows show a spinner. ⌘⇧A opens Go to Pane, listing every pane most recent first; typing sto narrows it to storybook and return jumps there, in its workspace. ⌘⇧A, bug and return jump into the other agent's pane; ⌘⇧A then return on an empty query goes back to the previous pane" width="960">
 
 [Full-quality MP4](https://github.com/jonsmithers/dealer/raw/media/demos/goto.mp4)
 </details>

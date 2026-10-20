@@ -14,7 +14,7 @@
 # produced, commits there, and prints the push command. Review <out-dir>/review/*.png first.
 set -e; setopt pipefail
 ROOT=${0:A:h:h}; OUT=${1:?usage: record-demo.sh <out-dir> [demo…] | <out-dir> --publish <media-worktree>}; shift
-ALL=(drag tabs workspaces attention goto)
+ALL=(drag workspaces attention goto)
 GIF_BUDGET=$((5 * 1024 * 1024))
 mkdir -p $OUT
 OUT=${OUT:A}

@@ -112,8 +112,8 @@ The GitHub repo is `jonsmithers/dealer`.
   Ghostty also reads `~/Library/Application Support/com.mitchellh.ghostty/config`, which XDG
   doesn't redirect and which loads after it; check that it has no color settings.
 - **README demo recordings (#26, #28).** Regenerate after any visual change:
-  `swift build && scripts/record-demo.sh <out-dir>` records every demo (or name some: `drag tabs
-  workspaces attention`). Prerequisites: an unlocked screen, Screen Recording permission for the
+  `swift build && scripts/record-demo.sh <out-dir>` records every demo (or name some: `drag
+  workspaces attention goto`). Prerequisites: an unlocked screen, Screen Recording permission for the
   app running the script, ffmpeg, and hands off the machine while it runs (the demo window floats
   on top). The script writes `<demo>.gif` (5 MB budget, enforced), `<demo>.mp4`, and contact sheets
   in `<out-dir>/review/`. **Read every sheet before publishing** (privacy: only `/tmp/demo` paths,
@@ -135,8 +135,9 @@ The GitHub repo is `jonsmithers/dealer`.
     when the demo prints `DEMO DONE`, *before* the app exits: a frame after the window closes would
     show the user's screen. `screencapture -v -l` isn't used because it records the real pointer
     and macOS swaps the traffic lights for a capture badge.
-  - Demos run with `tabs_in_titlebar = true` (one switch, `Demo.tabsInTitlebar`, written to the
-    demo's temp settings). Grab tabs with the `grip(…)` helper (lower half = tab drag; the upper
+  - Demos run with `tabs_in_titlebar = true` and `[colors] auto_assign = true` (one switch each,
+    `Demo.tabsInTitlebar` and `Demo.autoAssignColors`, written to the demo's temp settings; #79).
+    The first workspace stays uncolored, as in normal use. Grab tabs with the `grip(…)` helper (lower half = tab drag; the upper
     half drags the window, #27). Captions sit in a band under the decks (`Demo.captionBand`, 0
     outside demos, subtracted in `deckArea`). Each caption logs `DEMO BEAT <tree>`, so a run
     can be checked from its log without recording.
