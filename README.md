@@ -9,10 +9,10 @@
 > notice or migration.
 
 > [!IMPORTANT]
-> **Coding-agent support is for [Claude Code](https://claude.com/claude-code) only.** Codex, Gemini
-> CLI and other agents aren't supported: they run like any other program, so the working, waiting
-> and done marks never appear for them. Only the generic marks (the bell, desktop notifications,
-> failed commands) still apply.
+> **Coding-agent support currently covers [Claude Code](https://claude.com/claude-code) only.**
+> Codex, Gemini CLI and other agents aren't supported yet. For now they run like any other program:
+> the generic marks (the bell, desktop notifications, failed commands) apply, but the working,
+> waiting and done marks don't.
 
 A small macOS terminal built on **libghostty** and Swift/AppKit, implementing the *Panes and Decks*
 layout model:
