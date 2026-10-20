@@ -398,6 +398,22 @@ extension TerminalWindowController {
                 return self.workspaceSidebar.row(at: i)
             }
         }
+        /// A drag whose drop point is resolved before the press. Pressing a tab selects it, which hides
+        /// the pane it is to land beside (the drag uncovers it again only once it moves), so a target
+        /// resolved after the press would be nil.
+        func dragAimed(from: @escaping () -> CGPoint?, to: @escaping () -> CGPoint?, hold: TimeInterval = 0.4) {
+            final class Aim { var point: CGPoint? }
+            let aim = Aim()
+            mouse.move(to: from)
+            mouse.run { aim.point = to() }
+            mouse.wait(0.2)
+            mouse.press()
+            mouse.wait(0.15)
+            mouse.move(to: { aim.point })
+            mouse.wait(hold)
+            mouse.release()
+            mouse.wait(0.6)
+        }
         /// Adds a tab running `command` to `deck`, named `n`.
         @discardableResult
         func addTab(_ n: String, in deck: Deck?, _ command: String? = nil) -> Pane? {
@@ -441,39 +457,36 @@ extension TerminalWindowController {
         let first = focusedPane
         switch name {
         case "drag":
-            // Tabs and panes (the old `tabs` demo joined this one, #79). Start: one deck, four tabs.
+            // "Panes and Decks layout" (#79, the user's order): the README's first demo, so the core
+            // ideas come first. Start: one deck, four tabs.
             named(first, "server"); type(first, "ls\r")
             addTab("logs", in: focusedDeck, "cat server.log")
             addTab("tests", in: focusedDeck, "make test")
             addTab("build", in: focusedDeck, "git --no-pager log --oneline")
+            addTab("docs", in: focusedDeck, "cat README.md")
             if let d = focusedDeck, let t = d.tabs.first { select(tab: t, in: d) }
 
-            say("Drag tabs to reorder them")
-            mouse.drag(from: grip(tab("tests")), to: at(tab("server"), 0.3), hold: 0.3)
-            say("Drag a tab to the window edge: it becomes a new deck")
-            mouse.drag(from: grip(tab("logs")), to: windowEdge(.right), hold: 0.4)
-            say("Drop a tab on a pane's edge: it joins as a split")
-            mouse.drag(from: grip(tab("build")), to: at(paneView("logs"), 0.5, 0.88), hold: 0.4)
-            say("Drop a pane on another's centre to swap the two")
-            mouse.drag(from: at(bar("build"), 0.3), to: at(paneView("logs"), 0.5, 0.5), hold: 0.4)
-            say("Hover a tab mid-drag to switch to it, then drop on that pane's edge")
-            // One drag in two legs: rest on the left deck's hidden tab until it switches, then on
-            // the edge of the pane it brought up.
-            mouse.move(to: at(bar("logs"), 0.3))
-            mouse.wait(0.2)
-            mouse.press()
-            mouse.wait(0.15)
-            mouse.move(to: at(tab("server"), 0.5))
-            mouse.wait(DragController.hoverDelay + 0.4)
-            mouse.move(to: at(paneView("server"), 0.88, 0.55))
-            mouse.wait(0.4)
-            mouse.release()
+            say("One deck, five tabs")
+            mouse.move(to: at(paneView("server"), 0.6, 0.5))
             mouse.wait(0.6)
-            say("Hover a pane bar to close it with its ×")
-            mouse.move(to: at(bar("logs"), 0.5))
-            mouse.wait(0.5)
-            mouse.click({ pane("logs")().map { p in p.view.bar.convert(CGPoint(x: p.view.bar.closeButton.frame.midX, y: p.view.bar.closeButton.frame.midY), to: nil) } ?? nil })
-            mouse.move(to: at(paneView("server"), 0.5, 0.45))
+            say("Drop a tab on a pane's side edge: they split side by side")
+            dragAimed(from: grip(tab("logs")), to: at(paneView("server"), 0.9, 0.5))
+            say("Drop one on a pane's bottom edge: they split stacked")
+            dragAimed(from: grip(tab("tests")), to: at(paneView("server"), 0.5, 0.88))
+            say("Drag a pane by its bar to the window edge: it becomes a new deck")
+            mouse.drag(from: at(bar("logs"), 0.3), to: windowEdge(.right), hold: 0.4)
+            say("Switch tabs in the first deck: the new deck stays as it is")
+            mouse.click(grip(tab("build")))
+            mouse.wait(0.8)
+            mouse.click(grip(tab("docs")))
+            mouse.wait(0.8)
+            mouse.click(grip(tabOf("server")))
+            mouse.wait(0.6)
+            say("Drag a pane out of a split onto the tab strip: it becomes a tab")
+            mouse.drag(from: at(bar("tests"), 0.3), to: stripEnd(of: "server"), hold: 0.4)
+            say("Drag tabs to reorder them")
+            mouse.drag(from: grip(tab("tests")), to: at(tabOf("server"), 0.3), hold: 0.3)
+            mouse.move(to: at(paneView("logs"), 0.5, 0.5))
             say("")
             mouse.wait(0.8)
 
