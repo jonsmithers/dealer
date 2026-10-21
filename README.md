@@ -4,16 +4,6 @@
 
 <h1 align="center">Dealer</h1>
 
-> [!WARNING]
-> **Dealer is unstable.** Behaviors, hotkeys, UI and settings may change at any moment, without
-> notice or migration.
-
-> [!IMPORTANT]
-> **Coding-agent support currently covers [Claude Code](https://claude.com/claude-code) only.**
-> Codex, Gemini CLI and other agents aren't supported yet. For now they run like any other program:
-> the generic marks (the bell, desktop notifications, failed commands) apply, but the working,
-> waiting and done marks don't.
-
 A small macOS terminal built on **libghostty** and Swift/AppKit, implementing the *Panes and Decks*
 layout model:
 
@@ -29,15 +19,7 @@ A **workspace** owns a set of decks. A **deck** owns tabs. A tab owns **panes**.
 new pane in the current tab. **Promote** turns a pane into a deck. **Fold** turns it back. Closing
 the last tab closes its deck, the last deck its workspace, and the last workspace the window.
 
-> [!NOTE]
-> Dealer is written in Swift. But Jon (the human who prompted Claude)
-> doesn't know Swift. It's all vibe-coded 🙈. Please do not expect him to be a
-> competent steward of this codebase. It's all Claude's fault.
-
-## Demos
-
-New to Dealer? Watch these in order: layout first, then workspaces, then what Dealer does for
-coding agents.
+## Features overview
 
 <details open>
 <summary><b>1. Panes and Decks layout</b>: drop tabs into side-by-side and stacked splits, drag a pane to the window edge for a new deck (it keeps its content while you switch tabs next to it), pull a pane out as a tab in another deck, drop a tab between two tabs of another deck</summary>
@@ -52,7 +34,7 @@ https://github.com/user-attachments/assets/03066610-0f5a-41d3-9f3e-d7883e38e3c7
 </details>
 
 <details>
-<summary><b>3. Agent attention</b>: a spinner while an agent works, blue when it waits for you, red when something fails, visible from any workspace</summary>
+<summary><b>3. Agents & Attention</b>: agent-working spinner, blue accent when something is finished/waiting, red when something has failed. Visible from any workspace</summary>
 
 https://github.com/user-attachments/assets/85b4f6a2-eeb4-403a-9848-d49abef3cf27
 
@@ -67,13 +49,26 @@ Claude session: a real one shows its own permission prompt in the pane.
 https://github.com/user-attachments/assets/04e473bf-cdd4-4455-a3ed-00aec791a986
 </details>
 
-Demo videos are recorded with `scripts/record-demo.sh`; GIFs of the same demos live on the
-[`media` branch](https://github.com/jonsmithers/dealer/tree/media/demos).
+Demo videos are recorded with `scripts/record-demo.sh`.
+
+> [!WARNING]
+> **Unstable.** Updates may change any aspect of dealer without notice or migration.
+
+> [!WARNING]
+> **Coding-agent support currently covers [Claude Code](https://claude.com/claude-code) only.**
+> Codex, Gemini CLI and other agents aren't supported yet. For now they run like any other program:
+> the generic marks (the bell, desktop notifications, failed commands) apply, but the working,
+> waiting and done marks don't.
+
+> [!WARNING]
+> Dealer is written in Swift. But Jon (the human who prompted Claude) doesn't know Swift. It's all
+> vibe-coded 🙈. Please do not expect him to be a competent steward of this codebase. Blame Claude
+> for everything, not Jon.
 
 ## Build & run
 
 Prerequisites: macOS 14+, Xcode command-line tools (full Xcode isn't needed; see
-`scripts/ghostty-build/README.md`), zig 0.16 (`brew install zig`), and a Ghostty checkout at the commit pinned in
+`scripts/ghostty-build/README.md`), zig 0.16, and a Ghostty checkout at the commit pinned in
 `scripts/ghostty.version`. The easiest place for it is next to this repo:
 
 ```sh
