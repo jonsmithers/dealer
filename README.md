@@ -36,7 +36,7 @@ https://github.com/user-attachments/assets/212b634e-8aba-4109-81c4-14c075e1632f
 <details>
 <summary><b>3. Agents & Attention</b>: agent-working spinner, a progress ring for builds, blue accent when something is finished/waiting, red when something has failed. Visible from any workspace</summary>
 
-https://github.com/user-attachments/assets/85b4f6a2-eeb4-403a-9848-d49abef3cf27
+https://github.com/user-attachments/assets/f02a047b-f66f-44f3-8f97-c70d0b57b3b1
 
 The states here are driven with `dealer notify`, typed into the pane; that's exactly what Dealer's
 automatic Claude Code hooks call (see [Attention](#attention-coding-agents)). This is not a live
@@ -46,7 +46,7 @@ Claude session: a real one shows its own permission prompt in the pane.
 <details>
 <summary><b>4. Go to Pane</b>: ⌘⇧A, type a few letters, jump to any pane in any workspace; ⏎ on an empty query goes back</summary>
 
-https://github.com/user-attachments/assets/04e473bf-cdd4-4455-a3ed-00aec791a986
+https://github.com/user-attachments/assets/ac4275fb-cf69-4f6f-b181-4f9e1ed20346
 </details>
 
 Demo videos are recorded with `scripts/record-demo.sh`.
