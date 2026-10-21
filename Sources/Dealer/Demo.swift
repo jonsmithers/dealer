@@ -380,6 +380,7 @@ extension TerminalWindowController {
                 let swatches = Theme.swatches
                 let ws = self.workspaces.map { w in
                     (w.name ?? "?") + ":" + (w.color.flatMap { c in swatches.first { $0.color.sameColor(as: c) }?.name } ?? "none")
+                        + (w.group.map { "@" + $0.name + ($0.isCollapsed ? "(collapsed)" : "") } ?? "")  // #80
                 }
                 print("DEMO BEAT \(self.describeWorkspaces { $0.customTitle ?? "?" }) ws=\(ws) titlebar=\(strips) movable=\(self.window?.isMovable ?? false) busy=\(busy) working=\(working) attention=\(marked) \(extras()) next=\"\(text)\"")
                 fflush(stdout)
@@ -443,6 +444,13 @@ extension TerminalWindowController {
                 case .top: p = CGPoint(x: a.midX, y: a.minY + 40)
                 }
                 return self.contentView.convert(p, to: nil)
+            }
+        }
+        /// The sidebar header of the group named `name` (#80).
+        func header(_ name: String) -> () -> NSView? {
+            { [weak self] in
+                guard let self, let g = self.groups.first(where: { $0.name == name }) else { return nil }
+                return self.workspaceSidebar.header(for: g)
             }
         }
         func row(_ name: String) -> () -> NSView? {
@@ -591,7 +599,29 @@ extension TerminalWindowController {
             mouse.click(at(row("app bugfix worktree")))
             mouse.wait(0.4)
             mouse.move(to: at(tab("tests")))
+            mouse.wait(0.6)
+            // Groups (#80). The first group is made by the model call behind the row menu's Move to
+            // New Group… (a context menu's own tracking loop and window are beyond DemoMouse);
+            // joining it and collapsing it are real drags and clicks.
+            say("Gather workspaces into a group")
+            mouse.run { [weak self] in
+                guard let self, let web = self.workspaces.first(where: { $0.name == "website" }),
+                      let infra = self.workspaces.first(where: { $0.name == "infra" }) else { return }
+                self.move(infra, toGroup: self.moveToNewGroup(web, name: "side projects"))
+            }
             mouse.wait(1.0)
+            say("Drag a workspace onto a group's header to add it")
+            mouse.drag(from: at(row("docs")), to: at(header("side projects")), hold: 0.4)
+            // Something in the group wants you, so the collapsed header has an outline to carry. Not
+            // docs: pressing its row to drag it made it the workspace you're looking at.
+            mouse.run { [weak self] in
+                guard let self, let deploy = self.workspaces.flatMap(\.panes).first(where: { $0.customTitle == "deploy" }) else { return }
+                self.setAttention(.waiting, on: deploy, event: "demo")
+            }
+            mouse.wait(0.8)
+            say("Click a header to collapse the group; it still shows its members' attention")
+            mouse.click(at(header("side projects")))
+            mouse.wait(1.2)
             say("")
             mouse.wait(0.5)
 
