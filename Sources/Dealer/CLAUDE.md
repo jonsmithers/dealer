@@ -153,6 +153,16 @@
   for it. `isSidebarVisible` is `sidebarPreference ?? (workspaces.count > 1)`: `nil` is automatic,
   and only the user's toggle sets it. Because the automatic state flips with the workspace count,
   `refreshChrome()` marks the content view for layout when the sidebar's shown state is stale.
+- Groups (#80, `WorkspaceGroups.swift`): `workspaces` stays one flat list (⌃1–9 and the menus
+  count it), and a `WorkspaceGroup` exists only as its members' `Workspace.group`, so it vanishes
+  with its last member. Members are always contiguous: every reorder goes through
+  `setWorkspaceOrder`, and `insert(workspace:at:)` and `restore` through `Workspace.contiguousGroups`.
+  Both switchers lay out `SwitcherLayout.entries` (headers, plus members unless collapsed) and drag
+  through `SwitcherDragHost`/`SwitcherLayout.drop`; compute entries on demand, never store them
+  in a view (AppKit keeps a closed window's views, and stored entries leaked its workspaces, #43).
+  A collapsed header (`GroupHeaderView`) carries its members' rolled-up attention, spinner and the
+  neutral selected outline; groups have no color. Session: `WindowSnapshot.groups` +
+  `WorkspaceSnapshot.group` (an index), both optional, so files decode both ways.
 - `WindowSnapshot.sidebar` is optional (absent = automatic); keep it that way so older files
   decode. Don't persist the automatic value as an explicit one.
 - DragController checks the sidebar before the left-edge promote band (the sidebar lies left of

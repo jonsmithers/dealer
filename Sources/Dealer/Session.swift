@@ -70,7 +70,12 @@ struct WindowSnapshot: Codable {
 struct SessionSnapshot: Codable {
     var windows: [WindowSnapshot]
 
+    /// `DEALER_SESSION_FILE` points a normal launch at another file, for trying a dev build
+    /// without touching the real session (#80's test-drive). Read here only.
     static var url: URL {
+        if let f = ProcessInfo.processInfo.environment["DEALER_SESSION_FILE"], !f.isEmpty {
+            return URL(fileURLWithPath: (f as NSString).expandingTildeInPath)
+        }
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Dealer", isDirectory: true)
         return dir.appendingPathComponent("session.json")

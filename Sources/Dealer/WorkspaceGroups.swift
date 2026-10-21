@@ -402,7 +402,7 @@ struct SwitcherDragTracker {
 /// A group's entry in a switcher (#80): a disclosure triangle and the group's name. Click to
 /// collapse or expand, double-click to rename, drag to move the whole group, right-click for its
 /// menu. While collapsed it stands in for its members: their rolled-up attention (outline or dot,
-/// like a workspace entry), the working spinner, a member count, and the neutral selected outline
+/// like a workspace entry), the working spinner, a member count (sidebar), and the neutral selected outline
 /// when the active workspace is inside. Groups have no color (#80), so it never draws one.
 final class GroupHeaderView: FlippedView {
     enum Style { case row, pill }
@@ -457,7 +457,8 @@ final class GroupHeaderView: FlippedView {
         [.font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium), .foregroundColor: Theme.textFaint]
     }
 
-    private var countText: String { isCollapsed && count > 0 ? "\(count)" : "" }
+    /// Sidebar only: on a pill a bare number would read as a ⌃N workspace number.
+    private var countText: String { style == .row && isCollapsed && count > 0 ? "\(count)" : "" }
     private var countWidth: CGFloat { countText.isEmpty ? 0 : ceil((countText as NSString).size(withAttributes: countAttrs).width) + 6 }
     private var dotWidth: CGFloat { attentionFade.shown > .none ? Self.dotSize + 6 : 0 }
 

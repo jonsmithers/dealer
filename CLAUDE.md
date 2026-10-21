@@ -98,6 +98,8 @@ The GitHub repo is `jonsmithers/dealer`.
   so `claude` in its panes behaves like a top-level session.
 - **Don't clobber the user's session.** A normal launch restores, and on quit overwrites,
   `~/Library/Application Support/Dealer/session.json`. Self-test mode neither reads nor writes it.
+  `DEALER_SESSION_FILE=<path>` points a normal launch at another file instead (#80); use it
+  rather than backing up the real one when you can.
   If you do a normal launch for testing, back up that file first and restore it afterwards.
 - **Don't touch the user's settings file** (`~/.config/dealer/settings.toml`, or under
   `$XDG_CONFIG_HOME`). Self-test mode already uses a temp config home. For a normal launch against
