@@ -196,6 +196,7 @@ enum ControlHandler {
                         "name": ws.displayName,
                         "custom_name": ws.name ?? NSNull(),
                         "color": ws.color?.hexString ?? NSNull(),
+                        "group": ws.group.map { g -> [String: Any] in ["id": g.id, "name": g.name, "collapsed": g.isCollapsed] } ?? NSNull(),
                         "active": ws === wc.activeWorkspace,
                         "decks": ws.decks.map { d -> [String: Any] in
                             [

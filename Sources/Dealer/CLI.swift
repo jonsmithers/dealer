@@ -332,7 +332,8 @@ enum CLI {
         for w in r["windows"] as? [[String: Any]] ?? [] {
             s += "window:\(w["id"]!)\((w["front"] as? Bool) == true ? " (front)" : "")\n"
             for ws in w["workspaces"] as? [[String: Any]] ?? [] {
-                s += "  workspace:\(ws["id"]!) \"\(ws["name"] as? String ?? "")\"\((ws["active"] as? Bool) == true ? " (active)" : "")\n"
+                let group = (ws["group"] as? [String: Any]).map { " [group \"\($0["name"] as? String ?? "")\"]" } ?? ""
+                s += "  workspace:\(ws["id"]!) \"\(ws["name"] as? String ?? "")\"\(group)\((ws["active"] as? Bool) == true ? " (active)" : "")\n"
                 for d in ws["decks"] as? [[String: Any]] ?? [] {
                     s += "    deck:\(d["id"]!)\n"
                     for t in d["tabs"] as? [[String: Any]] ?? [] {

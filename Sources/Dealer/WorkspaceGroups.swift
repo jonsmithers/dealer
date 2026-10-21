@@ -119,8 +119,8 @@ extension TerminalWindowController {
     func attention(of g: WorkspaceGroup) -> Attention { members(of: g).map(\.attention).max() ?? .none }
 
     /// "Group", or "Group 2", 3… when that name is taken in this window.
-    private func defaultGroupName() -> String {
-        let taken = Set(groups.map(\.name))
+    private func defaultGroupName(excluding self_: WorkspaceGroup? = nil) -> String {
+        let taken = Set(groups.filter { $0 !== self_ }.map(\.name))
         if !taken.contains("Group") { return "Group" }
         var n = 2
         while taken.contains("Group \(n)") { n += 1 }
@@ -207,7 +207,7 @@ extension TerminalWindowController {
     /// An empty name resets it to the default.
     func rename(group g: WorkspaceGroup, to name: String?) {
         let t = name?.trimmingCharacters(in: .whitespaces) ?? ""
-        g.name = t.isEmpty ? defaultGroupName() : t
+        g.name = t.isEmpty ? defaultGroupName(excluding: g) : t
         refreshChrome()
     }
 
