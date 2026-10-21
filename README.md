@@ -30,7 +30,7 @@ https://github.com/user-attachments/assets/b6977950-bf70-47fe-bac5-950576f8d86d
 <details>
 <summary><b>2. Workspaces</b>: one per project or worktree, each with its own color; click to switch, drag tabs between them, gather them into collapsible groups</summary>
 
-https://github.com/user-attachments/assets/28d26aeb-8d71-4d48-bdf9-beb56c7a6313
+https://github.com/user-attachments/assets/212b634e-8aba-4109-81c4-14c075e1632f
 </details>
 
 <details>
