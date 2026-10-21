@@ -14,7 +14,8 @@ final class WorkspaceBarView: FlippedView, WorkspaceDropTargets, ThemeApplying, 
     /// One label pill per group (#80): it leads the group's run of pills, or alone stands for the
     /// collapsed group.
     private var labels: [GroupHeaderView] = []
-    private(set) var entries: [SwitcherEntry] = []
+    /// The lone, unnamed, ungrouped workspace shows no pill.
+    private var quiet = false
     let addButton = WorkspaceButton()
     /// Insertion marker shown while a pill is dragged.
     private let marker = FlippedView()
@@ -58,7 +59,7 @@ final class WorkspaceBarView: FlippedView, WorkspaceDropTargets, ThemeApplying, 
         }
         while buttons.count > c.workspaces.count { buttons.removeLast().removeFromSuperview() }
         // A lone, unnamed, ungrouped workspace needs no switcher: keep the titlebar quiet until there's a choice.
-        let quiet = c.workspaces.count == 1 && c.workspaces[0].name == nil && c.workspaces[0].group == nil
+        quiet = c.workspaces.count == 1 && c.workspaces[0].name == nil && c.workspaces[0].group == nil
         for (i, ws) in c.workspaces.enumerated() {
             let b = buttons[i]
             b.workspace = ws
@@ -87,12 +88,13 @@ final class WorkspaceBarView: FlippedView, WorkspaceDropTargets, ThemeApplying, 
             l.attention = g.isCollapsed ? c.attention(of: g) : .none
             l.isRunning = g.isCollapsed && c.members(of: g).contains(where: \.isWorking)
         }
-        entries = quiet ? [] : SwitcherLayout.entries(c.workspaces)
         needsLayout = true
     }
 
+    /// Computed, never stored: AppKit can keep a closed window's views, and they must not hold
+    /// its workspaces (#43).
     var entryViews: [(SwitcherEntry, NSView)] {
-        entries.compactMap { e in
+        (quiet ? [] : SwitcherLayout.entries(controller?.workspaces ?? [])).compactMap { e in
             switch e {
             case let .workspace(ws): return buttons.first { $0.workspace === ws }.map { (e, $0) }
             case let .header(g): return label(for: g).map { (e, $0) }

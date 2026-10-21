@@ -13,8 +13,6 @@ final class WorkspaceSidebarView: FlippedView, ThemeApplying, SwitcherDragHost {
     private var rows: [WorkspaceRow] = []
     /// One header per group (#80), in switcher order.
     private var headers: [GroupHeaderView] = []
-    /// What the sidebar shows, top to bottom (above the "New Workspace" row).
-    private(set) var entries: [SwitcherEntry] = []
     let addRow = WorkspaceRow()
     /// Insertion marker shown while a row or header is dragged.
     private let marker = FlippedView()
@@ -83,12 +81,13 @@ final class WorkspaceSidebarView: FlippedView, ThemeApplying, SwitcherDragHost {
             h.attention = g.isCollapsed ? c.attention(of: g) : .none
             h.isRunning = g.isCollapsed && c.members(of: g).contains(where: \.isWorking)
         }
-        entries = SwitcherLayout.entries(c.workspaces)
         needsLayout = true
     }
 
+    /// What the sidebar shows, top to bottom (above the "New Workspace" row). Computed, never
+    /// stored: AppKit can keep a closed window's views, and they must not hold its workspaces (#43).
     var entryViews: [(SwitcherEntry, NSView)] {
-        entries.compactMap { e in
+        SwitcherLayout.entries(controller?.workspaces ?? []).compactMap { e in
             switch e {
             case let .workspace(ws): return rows.first { $0.workspace === ws }.map { (e, $0) }
             case let .header(g): return header(for: g).map { (e, $0) }
