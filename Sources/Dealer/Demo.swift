@@ -28,7 +28,13 @@ enum Demo {
 
     /// Pane hooks: where demo shells start and what they read.
     static var workingDirectory: String? { name == nil ? nil : directory }
-    static var environment: [String: String] { name == nil ? [:] : ["ZDOTDIR": directory, "HISTFILE": "/dev/null"] }
+    static var environment: [String: String] {
+        guard let name else { return [:] }
+        var env = ["ZDOTDIR": directory, "HISTFILE": "/dev/null"]
+        // The stand-in `claude` (record-demo.sh) asks for permission this long into its turn.
+        if name == "attention" { env["DEMO_CLAUDE_ASKS_AFTER"] = "8" }
+        return env
+    }
 }
 
 /// Custom shaders in self-test and demo runs (#77). Those runs load the user's real ghostty config
@@ -374,7 +380,8 @@ extension TerminalWindowController {
                 let strips = self.titlebarStripDecks.map { $0.tabs.map(\.title).joined(separator: ",") }
                 // What spins (the working spinner, #74) and what's marked, so those beats can be checked too.
                 let panes = self.workspaces.flatMap { $0.decks.flatMap(\.tabs).flatMap(\.panes) }
-                let working = panes.filter(\.isWorking).map { $0.customTitle ?? "?" } + self.workspaces.filter(\.isWorking).map { "ws:" + ($0.name ?? "?") }
+                let working = panes.compactMap { p in p.workingMark.map { "\(p.customTitle ?? "?"):\($0)" } }
+                    + self.workspaces.compactMap { w in w.workingMark.map { "ws:\(w.name ?? "?"):\($0)" } }
                 let marked = panes.filter { $0.attention != .none }.map { "\($0.customTitle ?? "?"):\($0.attention)" }
                 // Workspace names with their swatch (auto_assign), so the colors can be checked too.
                 let swatches = Theme.swatches
@@ -647,13 +654,16 @@ extension TerminalWindowController {
             if let app = workspaces.first { activate(app) }
             if let first { focus(first) }
 
-            // The agent reports progress the way Claude Code does (docs/claude-code-states.md):
-            // OSC 9;4;3 while a turn runs, which spins its tab and its workspace's entry. When it
-            // needs permission the waiting mark outranks the spinner; it then clears its progress.
-            say("An agent (right) is working: its tab spins. A build runs in the second tab")
+            // The agent is record-demo.sh's stand-in `claude`: it reports progress the way Claude
+            // Code does (docs/claude-code-states.md), and its name gets it Claude's mark (#81) on its
+            // tab and its workspace's entry. After 8 s it needs permission (DEMO_CLAUDE_ASKS_AFTER):
+            // the waiting mark outranks the spinner. The stand-in `cargo` fills a ring on the build's
+            // tab (OSC 9;4;1;N) in about 4 s, while it's in view, then again for its tests; at
+            // about 11 s the deploy fails.
+            say("An agent (right) is working: its tab spins. The build's tab fills as it goes")
             mouse.run {
-                type(agent, "printf '\\e]9;4;3\\a'; sleep 8; dealer notify --state waiting --title Agent --body 'Permission needed'; printf '\\e]9;4;0\\a'\r")
-                type(build, "sleep 11; make deploy || dealer notify --state failed --title Build --body 'make deploy failed'\r")
+                type(agent, "claude\r")
+                type(build, "cargo build --release && cargo test && make deploy || dealer notify --state failed --title Build --body 'make deploy failed'\r")
             }
             mouse.move(to: at(paneView("agent"), 0.5, 0.6))
             mouse.wait(1.4)
@@ -691,8 +701,9 @@ extension TerminalWindowController {
             if let ws = workspaces.first { rename(workspace: ws, to: "app") }
             named(first, "server"); type(first, "ls\r")
             addTab("tests", in: focusedDeck, "make test")
-            // Agents report progress the way Claude Code does while it works (docs/claude-code-states.md).
-            let working = "printf '\\e]9;4;3\\a'; sleep 600\r"
+            // record-demo.sh's stand-in `claude` reports progress the way Claude Code does while it
+            // works (docs/claude-code-states.md), and gets Claude's mark (#81).
+            let working = "claude\r"
             let web = newWorkspace(name: "website")
             named(web.panes.first, "dev"); type(web.panes.first, "ls src\r")
             if let dev = web.panes.first {

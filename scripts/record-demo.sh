@@ -50,10 +50,45 @@ print -r -- "HISTFILE=/dev/null" >> .zshrc
 # Ghostty's shell integration, so Dealer knows when a pane is idle (no "process running" prompts).
 print -r -- '[[ -n $GHOSTTY_RESOURCES_DIR ]] && source "$GHOSTTY_RESOURCES_DIR"/shell-integration/zsh/ghostty-integration' >> .zshrc
 : > .zshenv
-print -r -- ".zsh*" > .gitignore
+printf '.zsh*\n.bin\n' > .gitignore
 printf 'test:\n\t@echo "  ok  42 passed (1.3s)"\n' > Makefile
 printf '# demo app\n' > README.md
 printf '12:00:01 GET /health 200\n12:00:02 GET /api/items 200\n12:00:04 POST /api/items 201\n' > server.log
+# Stand-ins on the shells' PATH, hidden from `ls` and git (#79, #81). Dealer tells Claude Code by its argv, so a script named
+# `claude` gets Claude's working mark. It reports a turn the way Claude does (OSC 9;4;3, see
+# docs/claude-code-states.md) and stays in the foreground like Claude, so progress isn't dropped
+# as stale (#83). With DEMO_CLAUDE_ASKS_AFTER=<s> (set per demo by Demo.environment) it then
+# needs permission. `cargo` fills a progress ring (9;4;1;N), in about 4 s (`build`) or 6 s (`test`), then
+# clears it.
+mkdir -p .bin
+print -r -- 'path=("$ZDOTDIR/.bin" $path)' >> .zshrc
+cat > .bin/claude <<'SH'
+#!/bin/sh
+printf '\033]9;4;3\a'
+printf '\342\234\273 Working\342\200\246\n'
+if [ -n "$DEMO_CLAUDE_ASKS_AFTER" ]; then
+  sleep "$DEMO_CLAUDE_ASKS_AFTER"
+  "$DEALER_CLI" notify --state waiting --title Agent --body 'Permission needed'
+  printf '\033]9;4;0\a'
+  printf '\nAllow edit to src/app.js? (y/n) '
+fi
+sleep 600
+SH
+cat > .bin/cargo <<'SH'
+#!/bin/sh
+case $1 in
+  test) step=0.3; printf '   Compiling app v0.1.0 (/tmp/demo)\n     Running tests\n' ;;
+  *) step=0.2; printf '   Compiling app v0.1.0 (/tmp/demo)\n' ;;
+esac
+i=0
+while [ $i -le 100 ]; do printf '\033]9;4;1;%d\a' $i; sleep $step; i=$((i + 5)); done
+printf '\033]9;4;0\a'
+case $1 in
+  test) printf 'test result: ok. 42 passed; 0 failed\n' ;;
+  *) printf '    Finished `release` profile [optimized] target(s)\n' ;;
+esac
+SH
+chmod +x .bin/claude .bin/cargo
 G=(git -c user.name=demo -c user.email=demo@example.com)
 git init -q -b main
 $G add Makefile README.md .gitignore && $G commit -qm "Initial project"

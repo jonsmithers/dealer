@@ -34,7 +34,7 @@ https://github.com/user-attachments/assets/212b634e-8aba-4109-81c4-14c075e1632f
 </details>
 
 <details>
-<summary><b>3. Agents & Attention</b>: agent-working spinner, blue accent when something is finished/waiting, red when something has failed. Visible from any workspace</summary>
+<summary><b>3. Agents & Attention</b>: agent-working spinner, a progress ring for builds, blue accent when something is finished/waiting, red when something has failed. Visible from any workspace</summary>
 
 https://github.com/user-attachments/assets/85b4f6a2-eeb4-403a-9848-d49abef3cf27
 
