@@ -52,7 +52,10 @@ because libghostty sets both, Claude Code picks the ghostty behavior [bin][obs]:
   (#75): it draws its own working spinner, so the glyph only took space. The idle `✳ ` stays.
   Claude Code's title can be turned off with `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` [docs].
 - **Progress (OSC 9;4).** `9;4;3` (indeterminate) is sent while a turn runs, and **stays
-  set while a permission dialog is open**. `9;4;0` is sent when the turn ends [obs]. It's
+  set while a permission dialog is open**. `9;4;0` is sent when the turn ends [obs]. It is sent
+  **once** per turn, not refreshed: an 85 s turn (a 40 s model wait, then a 45 s tool call) sent
+  one `9;4;3` and one `9;4;0` [obs 2.1.305, #83]. So Dealer's progress timeout keeps it while
+  Claude is still the foreground process group. It's
   gated on `terminalProgressBarEnabled` (default true) and on ghostty ≥ 1.2.0 via
   `TERM_PROGRAM_VERSION` [docs][bin]. Background subagents keep it set after the turn ends [docs].
 - **Desktop notification (OSC 777).** `ESC]777;notify;Claude Code;<message>BEL`. It's sent

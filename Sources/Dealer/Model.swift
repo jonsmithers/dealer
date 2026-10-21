@@ -200,6 +200,8 @@ final class Pane {
     /// The last title the program set started with Claude Code's working glyph (`◐ `/`◑ `), before
     /// `terminalTitle` stripped it: the fallback when the foreground process can't say (#81).
     var titleSaysClaudeWorking = false
+    /// Drops progress nobody is reporting any more (#83, `ProgressSource.armTimeout`).
+    var progressTimer: Timer?
 
     /// A title as a program sets it (OSC 0/2), cleaned for display. Claude Code prefixes `◐ ` / `◑ `
     /// while it works; Dealer draws its own working spinner (#64), so that exact leading prefix is
@@ -229,7 +231,10 @@ final class Pane {
         LiveObjects.add(.pane)
     }
 
-    deinit { LiveObjects.remove(.pane) }
+    deinit {
+        progressTimer?.invalidate()
+        LiveObjects.remove(.pane)
+    }
 
     var pwd: String? { surface.pwd }
 

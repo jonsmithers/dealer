@@ -324,6 +324,7 @@ extension TerminalWindowController {
         attentionStyleSelfTestSteps(kit)
         spinnerSelfTestSteps(kit)
         workingMarksSelfTestSteps(kit)
+        progressTimeoutSelfTestSteps(kit)
         titlesSelfTestSteps(kit)
         demoShaderSelfTestSteps(kit)
         caffeinateSelfTestSteps(kit)

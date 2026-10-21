@@ -434,7 +434,13 @@
   process check; attention outranks it in `agentState`. *Who* reports it (#81) is a process check:
   `ProgressSource.note` records each report and decides Claude-or-not from the foreground process
   group's argv/executable path (never `p_comm`: a native Claude's is its version), looking again
-  only when the group changes, with Claude's `◐`/`◑` title as the fallback. `Pane.isWorking` is that rolled up
+  only when the group changes, with Claude's `◐`/`◑` title as the fallback.
+- Progress nobody clears (#83, `ProgressSource.armTimeout`/`expire`): every report restarts a
+  per-pane 15 s timer (Ghostty.app's interval); when it runs out, progress stays only while the
+  group that sent the last report is still the foreground, and is checked again 15 s later.
+  Not a plain timeout: Claude Code sends 9;4;3 once per turn. Off in self-test mode
+  (`timeoutEnabled`), so steps that set progress by hand keep it; `SelfTestProgressTimeout.swift`
+  (`progress timeout:`) turns it on with a 1 s interval. `Pane.isWorking` is that rolled up
   (`agentState == .running`, so a *waiting* pane doesn't count even though Claude keeps progress set
   while a dialog is open), and `Tab.isWorking` / `Workspace.isWorking` are the max over their panes,
   computed like attention's roll-up. `GitInfo.lookup` is main-thread only and

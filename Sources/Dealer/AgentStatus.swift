@@ -1,4 +1,5 @@
 import AppKit
+import GhosttyKit
 
 /// Per-pane status (#4): what an agent in the pane is doing, plus the cwd and git branch.
 /// Shown right-aligned in the pane bar and as the tab's tooltip.
@@ -150,12 +151,64 @@ enum ProgressSource {
             pane.progressForeground = 0
             pane.progressFromClaude = false
         } else if let override = foregroundOverride {
+            pane.progressForeground = foreground
             pane.progressFromClaude = override(pane)
         } else if foreground != pane.progressForeground {
             pane.progressForeground = foreground
             pane.progressFromClaude = isClaude(foregroundGroup: foreground)
         }
+        armTimeout(pane)
         return before != (pane.isReportingProgress, pane.workingMark)
+    }
+
+    // MARK: Progress nobody clears (#83)
+    //
+    // A program killed mid-progress (⌃C on a build, `kill -9`) never sends 9;4;0. Ghostty.app drops
+    // a report after 15 s without a new one (`SurfaceView_AppKit.swift`, `progressReportTimer`; every
+    // report but `remove` restarts it). Dealer can't copy that as is: Claude Code sends 9;4;3 once per
+    // turn and nothing until 9;4;0, so a plain timeout would hide every turn longer than 15 s (measured
+    // on 2.1.305, #83). So when the 15 s run out without a new report, the progress stays only if the
+    // foreground process group that sent the last report is still the terminal's foreground (it is
+    // still at work, merely quiet), and the same check runs again 15 s later; otherwise it's dropped.
+
+    /// Seconds without a new report before the check, as in Ghostty.app.
+    static var timeout: TimeInterval = 15
+    /// Off in self-test mode, where steps set progress by hand and must not lose it to a timer;
+    /// `SelfTestProgressTimeout.swift` turns it on with a short `timeout`.
+    static var timeoutEnabled = !SelfTest.enabled
+    /// Self-test only: stands in for the terminal's foreground process group.
+    static var currentForegroundOverride: ((Pane) -> Int32)?
+
+    static func currentForeground(of pane: Pane) -> Int32 {
+        if let o = currentForegroundOverride { return o(pane) }
+        return pane.surface.surface.map { Int32(truncatingIfNeeded: ghostty_surface_foreground_pid($0)) } ?? 0
+    }
+
+    /// (Re)starts the pane's timer after a report, or stops it once progress is off.
+    static func armTimeout(_ pane: Pane) {
+        pane.progressTimer?.invalidate()
+        pane.progressTimer = nil
+        guard pane.isReportingProgress, timeoutEnabled else { return }
+        let t = Timer(timeInterval: timeout, repeats: false) { [weak pane] _ in
+            guard let pane else { return }
+            pane.progressTimer = nil
+            expire(pane)
+        }
+        RunLoop.main.add(t, forMode: .common)
+        pane.progressTimer = t
+    }
+
+    /// The timer ran out: keep the progress while its reporter is still in the foreground and look
+    /// again later, else drop it as if the program had sent 9;4;0.
+    static func expire(_ pane: Pane) {
+        guard pane.isReportingProgress else { return }
+        let fg = currentForeground(of: pane)
+        if fg > 0 && fg == pane.progressForeground {
+            armTimeout(pane)
+            return
+        }
+        guard note(pane, active: false, percent: nil, foreground: fg) else { return }
+        AppDelegate.shared.windowControllers.first { $0.locate(pane) != nil }?.refreshChrome()
     }
 }
 
