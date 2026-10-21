@@ -25,11 +25,20 @@ extension TerminalWindowController {
             }
             return find(r)
         }
+        var sleeping = false  // a previous emit's `sleep 30` is running
         /// Emits `title` with OSC 0 from the live shell, then sleeps so shell integration's precmd
         /// doesn't replace it before we look; expects every view to show `want`.
         func emit(_ title: String, want: String) -> String? {
             guard let p = pane() else { return "no pane" }
-            p.surface.typeText("\u{03}")  // end the previous sleep, if any
+            // ⌃C only ends a previous emit's sleep. Sent into a shell still starting, it killed the
+            // login before zsh ran ("Ghostty failed to launch the requested command", ~55 ms) under
+            // load, and every later line went nowhere.
+            if sleeping { p.surface.typeText("\u{03}") }
+            // Then wait for the prompt: a line typed right behind the ⌃C can be lost.
+            guard p.surface.waitForShell() else {
+                return "the shell didn't answer before \"\(title)\"; screen ends: \(p.surface.screenText.suffix(300).debugDescription)"
+            }
+            sleeping = true
             p.surface.typeText("printf '\\e]0;\(title)\\a'; sleep 30\r")
             let wait = SelfTest.waitUntil { p.title == want }
                 ? nil : "the shell's title \"\(title)\" should show as \"\(want)\", but the pane's title is \"\(p.title)\""
@@ -45,7 +54,8 @@ extension TerminalWindowController {
             if let lastError { return lastError }
             guard let p = pane() else { return "no pane created" }
             guard p.surface.surface != nil else { return nil }
-            return SelfTest.waitUntil("the shell to start (pwd)", timeout: 10) { p.pwd != nil }
+            // Not `pwd`: a pane has its starting directory before its shell runs.
+            return p.surface.waitForShell() ? nil : "the shell didn't start"
         }) {
             let r = ControlHandler.handle(["cmd": "create", "args": ["type": "workspace", "target": "focused", "name": "titles"]])
             guard r["ok"] as? Bool == true, let pid = (r["result"] as? [String: Any])?["pane"] as? Int else {
