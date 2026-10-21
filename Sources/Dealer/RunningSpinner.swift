@@ -1,22 +1,27 @@
 import AppKit
 
-// MARK: - "An agent is working here" (#64, #73)
+// MARK: - "Something is working here" (#64, #73, #81)
 //
 // A continual animation on every tab button and workspace switcher entry (sidebar row or top-bar
 // pill) that holds a pane whose `agentState` is `.running` — OSC 9;4 progress, which Claude Code
-// reports while a turn runs (AgentStatus.swift, docs/claude-code-states.md). Attention outranks
-// progress in `agentState`, so a pane waiting on a permission prompt (where Claude keeps progress
-// set) shows its blue outline and no spinner, and the spinner never competes with an attention mark.
+// reports while a turn runs (AgentStatus.swift, docs/claude-code-states.md), and so do cargo, zig
+// and other agents. Attention outranks progress in `agentState`, so a pane waiting on a permission
+// prompt (where Claude keeps progress set) shows its blue outline and no spinner, and the spinner
+// never competes with an attention mark.
+//
+// Which mark is a `WorkingMark` (#81): Claude's sprite when the progress comes from Claude Code
+// (`ProgressSource`), a turning arc for any other program, and a ring filled to the percentage when
+// the report carries one. A roll-up (tab, workspace, collapsed group) shows its strongest:
+// `WorkingMark.strongest`.
 //
 // It is the only *motion* in the chrome that isn't a fade. It has no hue, because colors and
-// outlines mean attention (#7, #9); it stands out by shape and contrast instead: a filled mark in
-// the full foreground color (`Theme.text`) whatever its element's title color, pulsing brighter
-// and dimmer.
+// outlines mean attention (#7, #9); it stands out by shape and contrast instead: drawn in the full
+// foreground color (`Theme.text`) whatever its element's title color. Claude's sprite pulses
+// brighter and dimmer; the arc turns at full strength; the ring holds still.
 
 /// An agent's working animation: still frames shown in turn, each a filled shape in a
 /// `side`×`side` box (y down, like the SVG it came from). A value, so another kind of agent can get
-/// its own; Dealer only knows "a pane reports progress" today, so `RunningSpinner.animation` is
-/// Claude's.
+/// its own (#82); today only Claude has one (`WorkingMark.claude`).
 struct SpinnerAnimation {
     let frames: [NSBezierPath]
     let side: CGFloat
@@ -47,8 +52,15 @@ enum RunningSpinner {
     /// costs one small `draw(_:)` per spinning element.
     static let tickInterval: TimeInterval = 1.0 / 30
 
-    /// Which animation spinners show (see `SpinnerAnimation`).
+    /// Claude's animation (see `SpinnerAnimation`).
     static var animation = SpinnerAnimation.claude
+    /// The arc's and ring's stroke, as a fraction of the box's side, and the arc's sweep.
+    static let strokeFraction: CGFloat = 0.16
+    static let arcSweep: CGFloat = 0.75
+    /// The arc turns this many times per pulse `period`.
+    static let arcTurnsPerPeriod: CGFloat = 2
+    /// The ring's empty track, as an opacity of the stroke colour.
+    static let ringTrackOpacity: CGFloat = 0.3
 
     /// Off in self-test mode (like `AttentionFade.enabled`), so pixel checks see a fixed frame and
     /// no timer runs; on for the README demos, which run in self-test mode but should look like the
@@ -88,7 +100,45 @@ enum RunningSpinner {
     }
 
     /// The one drawer. Every element calls this, so the look changes in one place.
-    static func draw(in box: CGRect, phase: CGFloat) {
+    static func draw(_ mark: WorkingMark, in box: CGRect, phase: CGFloat) {
+        switch mark {
+        case .claude: drawClaude(in: box, phase: phase)
+        case .arc:
+            // Clockwise on screen, starting at 12 o'clock at phase 0.
+            let start = (phase * arcTurnsPerPeriod).truncatingRemainder(dividingBy: 1)
+            stroke(from: start, sweep: arcSweep, in: box, color: Theme.text)
+        case .ring(let percent):
+            stroke(from: 0, sweep: 1, in: box, color: Theme.text.withAlphaComponent(ringTrackOpacity))
+            let filled = CGFloat(max(0, min(percent, 100))) / 100
+            if filled > 0 { stroke(from: 0, sweep: filled, in: box, color: Theme.text) }
+        }
+    }
+
+    /// A circular stroke inside `box`, from `start` turns past 12 o'clock, `sweep` turns clockwise as
+    /// seen on screen, whether or not the context is flipped. Built from points, so the direction
+    /// conventions of `appendArc` can't flip it.
+    private static func stroke(from start: CGFloat, sweep: CGFloat, in box: CGRect, color: NSColor) {
+        guard let ctx = NSGraphicsContext.current else { return }
+        let width = box.width * strokeFraction
+        let r = (min(box.width, box.height) - width) / 2
+        let c = CGPoint(x: box.midX, y: box.midY)
+        let up: CGFloat = ctx.isFlipped ? -1 : 1  // screen-up in this context's y
+        let steps = max(Int(ceil(sweep * 64)), 2)
+        let path = NSBezierPath()
+        for i in 0...steps {
+            let a = (start + sweep * CGFloat(i) / CGFloat(steps)) * 2 * .pi
+            let p = CGPoint(x: c.x + r * sin(a), y: c.y + up * r * cos(a))
+            if i == 0 { path.move(to: p) } else { path.line(to: p) }
+        }
+        if sweep >= 1 { path.close() }
+        path.lineWidth = width
+        path.lineCapStyle = sweep >= 1 ? .butt : .round
+        path.lineJoinStyle = .round
+        color.setStroke()
+        path.stroke()
+    }
+
+    private static func drawClaude(in box: CGRect, phase: CGFloat) {
         let a = animation
         guard !a.frames.isEmpty, let ctx = NSGraphicsContext.current else { return }
         ctx.saveGraphicsState()
@@ -109,21 +159,25 @@ enum RunningSpinner {
     }
 }
 
-/// Whether one chrome element (tab button, workspace row or pill) shows the spinner, and its
-/// registration with the shared timer. Same shape as `AttentionFadeState`: feed it the model's
-/// value on every refresh (`set(_:)`), draw while `isRunning`, redraw from `onChange`.
+/// Whether one chrome element (tab button, workspace row or pill) shows a working mark, which one,
+/// and its registration with the shared timer. Same shape as `AttentionFadeState`: feed it the
+/// model's value on every refresh (`set(_:)`), draw `mark` while there is one, redraw from `onChange`.
 final class RunningSpinnerState {
-    /// Called on every tick, and when the element starts or stops spinning; the element redraws.
+    /// Called on every tick, and when the element's mark changes; the element redraws.
     var onChange: (() -> Void)?
-    private(set) var isRunning = false
+    private(set) var mark: WorkingMark?
+    var isRunning: Bool { mark != nil }
 
-    /// `slot` while the spinner shows, else 0: what the element must leave free in front of its title.
+    /// `slot` while a mark shows, else 0: what the element must leave free in front of its title.
     var leading: CGFloat { isRunning ? RunningSpinner.slot : 0 }
 
-    func set(_ running: Bool) {
-        guard running != isRunning else { return }
-        isRunning = running
-        if running { SpinnerTicker.shared.add(self) } else { SpinnerTicker.shared.remove(self) }
+    func set(_ mark: WorkingMark?) {
+        guard mark != self.mark else { return }
+        let was = isRunning
+        self.mark = mark
+        if was != isRunning {
+            if isRunning { SpinnerTicker.shared.add(self) } else { SpinnerTicker.shared.remove(self) }
+        }
         onChange?()
     }
 

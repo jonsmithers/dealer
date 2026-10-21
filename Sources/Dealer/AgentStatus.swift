@@ -22,6 +22,14 @@ extension Pane {
     /// a permission prompt — where Claude keeps OSC 9;4 progress set — doesn't count as working.
     var isWorking: Bool { agentState == .running }
 
+    /// What the chrome draws for this pane while it works (#81), nil when it doesn't: Claude's
+    /// sprite when the progress comes from Claude Code, else a ring for a percentage, else an arc.
+    var workingMark: WorkingMark? {
+        guard isWorking else { return nil }
+        if progressFromClaude || titleSaysClaudeWorking { return .claude }
+        return progressPercent.map(WorkingMark.ring) ?? .arc
+    }
+
     /// e.g. `waiting · ~/git/dealer · main`. Empty parts are left out.
     var statusLine: String { status(path: Self.abbreviate) }
 
@@ -57,10 +65,98 @@ extension Pane {
 // (Attention.swift). Computed, never stored: the switcher entries pick it up in `refreshChrome()`.
 extension Tab {
     var isWorking: Bool { panes.contains(where: \.isWorking) }
+    var workingMark: WorkingMark? { WorkingMark.strongest(of: panes) }
 }
 
 extension Workspace {
     var isWorking: Bool { decks.contains { $0.tabs.contains(where: \.isWorking) } }
+    var workingMark: WorkingMark? { WorkingMark.strongest(of: decks.flatMap { $0.tabs.flatMap(\.panes) }) }
+}
+
+/// The mark a working element shows (#81, drawn by `RunningSpinner.draw`). Every one is
+/// `Theme.text`, never a hue: colours and outlines mean attention.
+enum WorkingMark: Equatable {
+    /// Claude Code is working: claude.ai's sprite (`SpinnerAnimation.claude`).
+    case claude
+    /// Some other program reports progress without a percentage (OSC 9;4;3): a turning arc.
+    case arc
+    /// A program reports a percentage (OSC 9;4;1;N, e.g. cargo): a ring filled to N (0…100).
+    case ring(Int)
+
+    /// Claude outranks other programs, and an open-ended arc outranks a ring (the user's call, #81).
+    var rank: Int {
+        switch self {
+        case .claude: return 2
+        case .arc: return 1
+        case .ring: return 0
+        }
+    }
+
+    /// The one roll-up for a set of panes (a tab, a workspace, or a group of workspaces): the
+    /// highest-ranked mark, and of several rings the least complete. Nil when none is working.
+    static func strongest(of panes: some Sequence<Pane>) -> WorkingMark? {
+        strongest(panes.compactMap(\.workingMark))
+    }
+
+    static func strongest(_ marks: some Sequence<WorkingMark>) -> WorkingMark? {
+        marks.reduce(nil) { best, m in
+            guard let best else { return m }
+            if m.rank != best.rank { return m.rank > best.rank ? m : best }
+            if case .ring(let a) = m, case .ring(let b) = best { return .ring(min(a, b)) }
+            return best
+        }
+    }
+}
+
+/// Who is reporting a pane's progress (#81). OSC 9;4 isn't Claude's: cargo and zig send it in every
+/// Dealer pane, and so do other coding agents (#81 has the survey). The pane's foreground process
+/// group says who; Claude Code's working title (`◐ `/`◑ `) is the fallback where it can't, e.g. a
+/// Claude on the far side of `ssh`.
+enum ProgressSource {
+    /// Interpreters a launcher script or an npm install runs Claude under: their next argument names it.
+    static let interpreters: Set<String> = ["sh", "bash", "zsh", "dash", "fish", "node", "bun", "deno"]
+
+    /// Whether one process is Claude Code, from its argv and executable path, never its process
+    /// name: a native install's name is its *version* (`2.1.304`), because `~/.local/bin/claude`
+    /// links to `~/.local/share/claude/versions/2.1.304`.
+    static func isClaude(path: String, argv: [String]) -> Bool {
+        func name(_ s: String) -> String { (s as NSString).lastPathComponent }
+        if path.contains("/claude/versions/") || path.contains("@anthropic-ai/claude-code") { return true }
+        guard let first = argv.first else { return false }
+        if name(first) == "claude" { return true }
+        guard argv.count > 1, interpreters.contains(name(first)) else { return false }
+        return name(argv[1]) == "claude" || argv[1].contains("@anthropic-ai/claude-code")
+    }
+
+    /// Whether any process in a foreground group is Claude Code. All members, not just the
+    /// leader: a launcher script that runs `claude` without `exec` leads the group itself.
+    static func isClaude(foregroundGroup pgid: Int32) -> Bool {
+        guard pgid > 0 else { return false }
+        let pids = Set([pgid] + ProcessTree.members(ofGroup: pgid))
+        return pids.contains { ProcessTree.command(of: $0).map { isClaude(path: $0.path, argv: $0.argv) } ?? false }
+    }
+
+    /// Self-test only: stands in for the process table.
+    static var foregroundOverride: ((Pane) -> Bool)?
+
+    /// Records one OSC 9;4 report on `pane` (`GhosttyRuntime`, PROGRESS_REPORT) and returns whether
+    /// what the chrome shows changed. Looks at the process table only when the foreground group
+    /// changed since the last look, so a chatty reporter (zig sends hundreds) costs one look per job.
+    static func note(_ pane: Pane, active: Bool, percent: Int?, foreground: Int32) -> Bool {
+        let before = (pane.isReportingProgress, pane.workingMark)
+        pane.isReportingProgress = active
+        pane.progressPercent = active ? percent : nil
+        if !active {
+            pane.progressForeground = 0
+            pane.progressFromClaude = false
+        } else if let override = foregroundOverride {
+            pane.progressFromClaude = override(pane)
+        } else if foreground != pane.progressForeground {
+            pane.progressForeground = foreground
+            pane.progressFromClaude = isClaude(foregroundGroup: foreground)
+        }
+        return before != (pane.isReportingProgress, pane.workingMark)
+    }
 }
 
 /// Cheap git branch lookup: reads `.git/HEAD` directly (worktrees included), no subprocess.

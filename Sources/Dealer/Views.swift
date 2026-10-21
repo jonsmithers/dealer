@@ -378,7 +378,7 @@ final class TabStripView: FlippedView {
             b.isActive = i == deck.activeIndex
             b.accent = showsDeckColor ? deck.color : nil
             b.attention = tab.attention
-            b.isRunning = tab.isWorking  // AgentStatus.swift
+            b.working = tab.workingMark  // AgentStatus.swift
             b.color = tab.color
             b.toolTip = tab.focusTarget?.statusLine  // AgentStatus.swift
         }
@@ -525,15 +525,16 @@ final class TabButton: FlippedView {
         }
     }
     let attentionFade = AttentionFadeState()
-    /// True while an agent in this tab is working (#64, RunningSpinner.swift): Claude's working mark in
+    /// Set while something in this tab is working (#64, #81, RunningSpinner.swift): its working mark in
     /// front of the title, in a slot the strip adds to the tab's width (`TabStripView.naturalWidth`).
     /// A tab already at its maximum, or shrunk to fit, gives the slot from its title instead.
-    var isRunning = false {
+    var working: WorkingMark? {
         didSet {
             if spinner.onChange == nil { spinner.onChange = { [weak self] in self?.needsDisplay = true } }
-            spinner.set(isRunning)
+            spinner.set(working)
         }
     }
+    var isRunning: Bool { working != nil }
     let spinner = RunningSpinnerState()
     private var hovering = false { didSet { needsDisplay = true } }
     private var hoveringClose = false { didSet { if hoveringClose != oldValue { needsDisplay = true } } }
@@ -610,8 +611,8 @@ final class TabButton: FlippedView {
         ]
         // The trailing slot is always reserved, so the title stays put when the × appears (#46).
         (title as NSString).draw(in: titleRect, withAttributes: attrs)
-        if spinner.isRunning {
-            RunningSpinner.draw(in: spinnerBox, phase: RunningSpinner.phase())
+        if let mark = spinner.mark {
+            RunningSpinner.draw(mark, in: spinnerBox, phase: RunningSpinner.phase())
         }
 
         if showsClose {

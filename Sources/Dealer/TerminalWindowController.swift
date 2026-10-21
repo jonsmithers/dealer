@@ -180,10 +180,12 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         let pane = Pane(workingDirectory: workingDirectory, command: command)
         pane.surface.onTitle = { [weak self, weak pane] title in
             guard let self, let pane else { return }
+            let claude = Pane.claudeWorkingPrefixes.contains { title.hasPrefix($0) }
             let title = Pane.terminalTitle(title)
             // Claude Code alternates ◐/◑ about once a second; stripped, the title holds still.
-            guard pane.shellTitle != title else { return }
+            guard pane.shellTitle != title || pane.titleSaysClaudeWorking != claude else { return }
             pane.shellTitle = title
+            pane.titleSaysClaudeWorking = claude  // a working mark's fallback (#81)
             self.refreshChrome()
         }
         pane.surface.onClose = { [weak self, weak pane] in

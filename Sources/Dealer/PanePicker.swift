@@ -201,7 +201,7 @@ final class PanePicker: NSView, NSTextFieldDelegate {
                 r.entry = shown[i]
                 if r.superview == nil { addSubview(r) }
             } else {
-                r.spinner.set(false)
+                r.spinner.set(nil)
                 r.removeFromSuperview()
             }
         }
@@ -244,7 +244,7 @@ final class PanePicker: NSView, NSTextFieldDelegate {
 final class PanePickerRow: NSView {
     var entry: PanePickerEntry? {
         didSet {
-            spinner.set(entry?.pane.agentState == .running)
+            spinner.set(entry?.pane.workingMark)
             needsDisplay = true
         }
     }
@@ -275,8 +275,8 @@ final class PanePickerRow: NSView {
         let lead: CGFloat = 12
         let slot = RunningSpinner.slot
         let top = CGRect(x: 0, y: 4, width: bounds.width, height: 20)
-        if spinner.isRunning {
-            RunningSpinner.draw(in: RunningSpinner.box(in: top, x: lead), phase: RunningSpinner.phase())
+        if let mark = spinner.mark {
+            RunningSpinner.draw(mark, in: RunningSpinner.box(in: top, x: lead), phase: RunningSpinner.phase())
         } else if e.pane.attention != .none {
             let d: CGFloat = 8
             AttentionStyle.draw(e.pane.attention, in: .zero, cornerRadius: 0,

@@ -272,13 +272,17 @@ final class GhosttyRuntime {
             return run { $0.refreshChrome() }
 
         case GHOSTTY_ACTION_PROGRESS_REPORT:
-            // OSC 9;4. Agents such as Claude Code report progress while they work: "running".
-            let active = action.action.progress_report.state != GHOSTTY_PROGRESS_STATE_REMOVE
-                && action.action.progress_report.state != GHOSTTY_PROGRESS_STATE_ERROR
+            // OSC 9;4. Agents such as Claude Code report progress while they work, and so do cargo,
+            // zig and other agents: "running", with a mark saying who (#81, `ProgressSource`).
+            let report = action.action.progress_report
+            let active = report.state != GHOSTTY_PROGRESS_STATE_REMOVE && report.state != GHOSTTY_PROGRESS_STATE_ERROR
+            // A percentage only for a determinate report; an indeterminate one may carry a dummy (Crush
+            // sends a random one so Ghostty's timeout keeps it alive).
+            let percent = report.state == GHOSTTY_PROGRESS_STATE_SET && report.progress >= 0 ? min(Int(report.progress), 100) : nil
             return run { wc in
-                guard let pane = view.pane, pane.isReportingProgress != active else { return }
-                pane.isReportingProgress = active
-                wc.refreshChrome()
+                guard let pane = view.pane else { return }
+                let fg = view.surface.map { Int32(truncatingIfNeeded: ghostty_surface_foreground_pid($0)) } ?? 0
+                if ProgressSource.note(pane, active: active, percent: percent, foreground: fg) { wc.refreshChrome() }
             }
 
         case GHOSTTY_ACTION_MOUSE_SHAPE:

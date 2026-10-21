@@ -72,9 +72,9 @@ extension TerminalWindowController {
             row.isActive = true
             let pill = WorkspaceButton(frame: CGRect(x: 0, y: 0, width: 120, height: WorkspaceBarView.pillHeight))
             pill.isActive = true
-            return [(tab, "tab", { tab.spinnerBox }, Theme.text, Theme.surface, { tab.isRunning = $0 }),
-                    (row, "row", { row.spinnerBox }, Theme.text, Theme.workspaceSelection, { row.isRunning = $0 }),
-                    (pill, "pill", { pill.spinnerBox }, Theme.text, Theme.workspaceSelection, { pill.isRunning = $0 })]
+            return [(tab, "tab", { tab.spinnerBox }, Theme.text, Theme.surface, { tab.working = $0 ? .claude : nil }),
+                    (row, "row", { row.spinnerBox }, Theme.text, Theme.workspaceSelection, { row.working = $0 ? .claude : nil }),
+                    (pill, "pill", { pill.spinnerBox }, Theme.text, Theme.workspaceSelection, { pill.working = $0 ? .claude : nil })]
         }
 
         /// Each element detached, in a known background, at rest and then running.
@@ -149,7 +149,7 @@ extension TerminalWindowController {
             }
             // A frozen clock draws one frame; different phases must draw different pixels.
             let tab = TabButton(frame: CGRect(x: 0, y: 0, width: 160, height: Theme.Metrics.tabHeight))
-            tab.title = "agent"; tab.isActive = true; tab.isRunning = true
+            tab.title = "agent"; tab.isActive = true; tab.working = .claude
             RunningSpinner.phaseOverride = 0
             let first = PixelProbe.pixels(tab, rect: tab.spinnerBox)
             RunningSpinner.phaseOverride = 0.17
@@ -159,7 +159,7 @@ extension TerminalWindowController {
             // The pulse: full strength at phase 0, about `dimmest` halfway, in the foreground colour
             // whatever the title's colour (an inactive tab's title is muted).
             let dim = TabButton(frame: CGRect(x: 0, y: 0, width: 160, height: Theme.Metrics.tabHeight))
-            dim.isActive = true; dim.isRunning = true
+            dim.isActive = true; dim.working = .claude
             for (phase, want) in [(CGFloat(0), CGFloat(1)), (0.5, RunningSpinner.dimmest)] {
                 RunningSpinner.phaseOverride = phase
                 let ink = inked(dim, dim.spinnerBox, stroke: Theme.text, base: Theme.surface)
@@ -173,12 +173,12 @@ extension TerminalWindowController {
             let tab = TabButton(frame: CGRect(x: 0, y: 0, width: 160, height: Theme.Metrics.tabHeight))
             tab.title = "agent"
             let rest = tab.titleRect
-            tab.isRunning = true
+            tab.working = .claude
             let running = tab.titleRect
             let pill = WorkspaceButton(frame: CGRect(x: 0, y: 0, width: 120, height: WorkspaceBarView.pillHeight))
             pill.number = "1"; pill.title = "ws"
             let pillRest = pill.idealWidth
-            pill.isRunning = true
+            pill.working = .claude
             let slot = RunningSpinner.slot
             return all([running.minX == rest.minX + slot ? nil : "the title should start \(slot)pt later, starts at \(running.minX) vs \(rest.minX)",
                         running.width == rest.width - slot ? nil : "the title should be \(slot)pt narrower, is \(running.width) vs \(rest.width)",

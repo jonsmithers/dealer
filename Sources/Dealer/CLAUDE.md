@@ -431,7 +431,10 @@
   sits on the element's outer edge. The self-test samples the top edge's centre pixel
   (`PixelProbe.isWaitingOutlined`), so don't inset the outline or draw it in a sublayer.
 - "running" is `Pane.isReportingProgress` (OSC 9;4 from `GHOSTTY_ACTION_PROGRESS_REPORT`), not a
-  process check; attention outranks it in `agentState`. `Pane.isWorking` is that rolled up
+  process check; attention outranks it in `agentState`. *Who* reports it (#81) is a process check:
+  `ProgressSource.note` records each report and decides Claude-or-not from the foreground process
+  group's argv/executable path (never `p_comm`: a native Claude's is its version), looking again
+  only when the group changes, with Claude's `◐`/`◑` title as the fallback. `Pane.isWorking` is that rolled up
   (`agentState == .running`, so a *waiting* pane doesn't count even though Claude keeps progress set
   while a dialog is open), and `Tab.isWorking` / `Workspace.isWorking` are the max over their panes,
   computed like attention's roll-up. `GitInfo.lookup` is main-thread only and
@@ -442,9 +445,13 @@
 
 ## The working spinner (`RunningSpinner.swift`, #64)
 
-- The only continual animation in the chrome: a turning asterisk (Claude Code's own `·✢✳✶✻✽`
-  cycle, drawn as vectors so glyph metrics can't make the chrome jitter) in the leading slot of a
-  tab button, sidebar row or pill whose `isWorking` says an agent is working there.
+- The only continual animation in the chrome, in the leading slot of a tab button, sidebar row,
+  pill or collapsed group header that holds a working pane. Which one is a `WorkingMark` (#81,
+  AgentStatus.swift): Claude's sprite (`SpinnerAnimation.claude`, #73) for Claude Code, a turning
+  arc for any other program, a ring filled to the percentage of a determinate report.
+  Roll-ups go through **one helper**, `WorkingMark.strongest` (Claude > arc > ring, the least
+  complete ring); tabs, workspaces and group headers all use it. Elements hold a
+  `working: WorkingMark?` (`isRunning` is derived) and draw through `RunningSpinner.draw(_:in:phase:)`.
 - **It is never a colour.** It draws in the element's own title colour, because colours and
   outlines on chrome mean attention (#7, #9). It is orthogonal to attention and sits on the
   opposite side of the element from the dot, so the two never collide; a *waiting* pane doesn't
@@ -462,7 +469,9 @@
 - Switches: `RunningSpinner.animating` is off in self-test mode (on for demos), like
   `AttentionFade.enabled`, and Reduce Motion leaves a standing asterisk and no timer
   (`RunningSpinner.spins`). `phaseOverride` renders a chosen frame for pixel checks.
-  Tests: `SelfTestSpinner.swift` (`DEALER_SELFTEST_ONLY=spinner:`, self-contained).
+  Tests: `SelfTestSpinner.swift` (`DEALER_SELFTEST_ONLY=spinner:`, self-contained) and
+  `SelfTestWorkingMarks.swift` (`marks:`, self-contained; `ProgressSource.foregroundOverride` fakes
+  the process table, and a live step uses a `claude` symlink to `/bin/sh`).
 
 ## Keeping the display awake (`Caffeinate.swift`, #69)
 

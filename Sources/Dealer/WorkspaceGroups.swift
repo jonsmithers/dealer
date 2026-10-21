@@ -421,14 +421,15 @@ final class GroupHeaderView: FlippedView {
         }
     }
     let attentionFade = AttentionFadeState()
-    var isRunning = false {
+    var working: WorkingMark? {
         didSet {
-            guard isRunning != oldValue else { return }
+            guard working != oldValue else { return }
             if spinner.onChange == nil { spinner.onChange = { [weak self] in self?.needsDisplay = true } }
-            spinner.set(isRunning)
-            superview?.needsLayout = true
+            spinner.set(working)
+            if (working == nil) != (oldValue == nil) { superview?.needsLayout = true }
         }
     }
+    var isRunning: Bool { working != nil }
     let spinner = RunningSpinnerState()
     private var hovering = false { didSet { needsDisplay = true } }
     private var tracker = SwitcherDragTracker()
@@ -505,8 +506,8 @@ final class GroupHeaderView: FlippedView {
         tri.fill()
 
         var x = padding + Self.triangleColumn
-        if spinner.isRunning {
-            RunningSpinner.draw(in: RunningSpinner.box(in: bounds, x: x), phase: RunningSpinner.phase())
+        if let mark = spinner.mark {
+            RunningSpinner.draw(mark, in: RunningSpinner.box(in: bounds, x: x), phase: RunningSpinner.phase())
             x += RunningSpinner.slot
         }
         let font = Theme.Fonts.groupHeader

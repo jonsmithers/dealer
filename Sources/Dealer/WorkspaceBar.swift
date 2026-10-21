@@ -67,7 +67,7 @@ final class WorkspaceBarView: FlippedView, WorkspaceDropTargets, ThemeApplying, 
             b.title = ws.displayName
             b.isActive = ws === c.activeWorkspace
             b.attention = ws.attention
-            b.isRunning = ws.isWorking  // AgentStatus.swift
+            b.working = ws.workingMark  // AgentStatus.swift
             b.color = ws.color
             b.isHidden = quiet || ws.group?.isCollapsed == true
         }
@@ -86,7 +86,7 @@ final class WorkspaceBarView: FlippedView, WorkspaceDropTargets, ThemeApplying, 
             l.count = c.members(of: g).count
             l.isActive = g.isCollapsed && c.activeWorkspace.group === g
             l.attention = g.isCollapsed ? c.attention(of: g) : .none
-            l.isRunning = g.isCollapsed && c.members(of: g).contains(where: \.isWorking)
+            l.working = g.isCollapsed ? WorkingMark.strongest(c.members(of: g).compactMap(\.workingMark)) : nil
         }
         needsLayout = true
     }
@@ -171,17 +171,18 @@ final class WorkspaceButton: FlippedView {
         }
     }
     let attentionFade = AttentionFadeState()
-    /// True while an agent in this workspace is working (#64, RunningSpinner.swift): Claude's working mark
+    /// Set while something in this workspace is working (#64, #81, RunningSpinner.swift): its working mark
     /// in front of the number. Unlike a tab, a pill is sized to its content, so it widens by the
     /// spinner's slot, the way it already does for the attention dot.
-    var isRunning = false {
+    var working: WorkingMark? {
         didSet {
-            guard isRunning != oldValue else { return }
+            guard working != oldValue else { return }
             if spinner.onChange == nil { spinner.onChange = { [weak self] in self?.needsDisplay = true } }
-            spinner.set(isRunning)
-            superview?.needsLayout = true
+            spinner.set(working)
+            if (working == nil) != (oldValue == nil) { superview?.needsLayout = true }
         }
     }
+    var isRunning: Bool { working != nil }
     let spinner = RunningSpinnerState()
     /// The workspace's color (#9): a dot before the number plus a faint tint.
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true; superview?.needsLayout = true } } }
@@ -273,8 +274,8 @@ final class WorkspaceButton: FlippedView {
         }
 
         var x = Self.padding + chipWidth
-        if spinner.isRunning {
-            RunningSpinner.draw(in: spinnerBox, phase: RunningSpinner.phase())
+        if let mark = spinner.mark {
+            RunningSpinner.draw(mark, in: spinnerBox, phase: RunningSpinner.phase())
             x += RunningSpinner.slot
         }
         if !number.isEmpty {

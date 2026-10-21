@@ -60,7 +60,7 @@ final class WorkspaceSidebarView: FlippedView, ThemeApplying, SwitcherDragHost {
             r.toolTip = pane.map(\.statusLine).flatMap { $0.isEmpty ? nil : $0 }
             r.isActive = ws === c.activeWorkspace
             r.attention = ws.attention
-            r.isRunning = ws.isWorking  // AgentStatus.swift
+            r.working = ws.workingMark  // AgentStatus.swift
             r.color = ws.color
             r.isHidden = ws.group?.isCollapsed == true
         }
@@ -79,7 +79,7 @@ final class WorkspaceSidebarView: FlippedView, ThemeApplying, SwitcherDragHost {
             // Collapsed, it stands in for its members: their attention, spinner and selection.
             h.isActive = g.isCollapsed && c.activeWorkspace.group === g
             h.attention = g.isCollapsed ? c.attention(of: g) : .none
-            h.isRunning = g.isCollapsed && c.members(of: g).contains(where: \.isWorking)
+            h.working = g.isCollapsed ? WorkingMark.strongest(c.members(of: g).compactMap(\.workingMark)) : nil
         }
         needsLayout = true
     }
@@ -160,14 +160,15 @@ final class WorkspaceRow: FlippedView {
         }
     }
     let attentionFade = AttentionFadeState()
-    /// True while an agent in this workspace is working (#64, RunningSpinner.swift): Claude's working mark
+    /// Set while something in this workspace is working (#64, #81, RunningSpinner.swift): its working mark
     /// between the number and the name.
-    var isRunning = false {
+    var working: WorkingMark? {
         didSet {
             if spinner.onChange == nil { spinner.onChange = { [weak self] in self?.needsDisplay = true } }
-            spinner.set(isRunning)
+            spinner.set(working)
         }
     }
+    var isRunning: Bool { working != nil }
     let spinner = RunningSpinnerState()
     /// The workspace's color (#9): a chip at the left edge plus a faint tint.
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true } } }
@@ -284,8 +285,8 @@ final class WorkspaceRow: FlippedView {
             (number as NSString).draw(at: CGPoint(x: x, y: titleY + (titleH - nh) / 2), withAttributes: numberAttrs)
         }
         x += Self.numberColumn
-        if spinner.isRunning && !isAddRow {
-            RunningSpinner.draw(in: spinnerBox, phase: RunningSpinner.phase())
+        if let mark = spinner.mark, !isAddRow {
+            RunningSpinner.draw(mark, in: spinnerBox, phase: RunningSpinner.phase())
             x += RunningSpinner.slot
         }
 

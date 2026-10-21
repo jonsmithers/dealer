@@ -53,7 +53,11 @@ enum ProcessTree {
     }
 
     /// Full argv of a process (KERN_PROCARGS2), or nil when it's gone or not ours.
-    static func arguments(of pid: Int32) -> [String]? {
+    static func arguments(of pid: Int32) -> [String]? { command(of: pid)?.argv }
+
+    /// The executable path the kernel recorded at exec, and the full argv (KERN_PROCARGS2), or nil
+    /// when the process is gone or not ours.
+    static func command(of pid: Int32) -> (path: String, argv: [String])? {
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
         var size = 0
         guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > 0 else { return nil }
@@ -61,8 +65,10 @@ enum ProcessTree {
         guard sysctl(&mib, 3, &buf, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else { return nil }
         let argc = buf.withUnsafeBytes { $0.load(as: Int32.self) }
         var i = MemoryLayout<Int32>.size
-        // Skip the executable path and the NUL padding after it.
+        // The executable path, then NUL padding.
+        let pathStart = i
         while i < size && buf[i] != 0 { i += 1 }
+        let path = String(decoding: buf[pathStart..<i], as: UTF8.self)
         while i < size && buf[i] == 0 { i += 1 }
         var args: [String] = []
         while args.count < argc && i < size {
@@ -71,7 +77,18 @@ enum ProcessTree {
             args.append(String(decoding: buf[start..<i], as: UTF8.self))
             i += 1
         }
-        return args
+        return (path, args)
+    }
+
+    /// The processes in one process group (KERN_PROC_PGRP): a terminal's foreground job.
+    static func members(ofGroup pgid: Int32) -> [Int32] {
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PGRP, pgid]
+        var size = 0
+        guard sysctl(&mib, UInt32(mib.count), nil, &size, nil, 0) == 0, size > 0 else { return [] }
+        size += size / 4
+        var procs = [kinfo_proc](repeating: kinfo_proc(), count: size / MemoryLayout<kinfo_proc>.stride)
+        guard sysctl(&mib, UInt32(mib.count), &procs, &size, nil, 0) == 0 else { return [] }
+        return procs.prefix(size / MemoryLayout<kinfo_proc>.stride).map(\.kp_proc.p_pid).filter { $0 > 0 }
     }
 
     /// Current working directory of a process, via proc_pidinfo.
