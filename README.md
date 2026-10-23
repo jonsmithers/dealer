@@ -203,6 +203,14 @@ workspace pills in top-bar mode. A deck too narrow for that keeps its strip. Emp
 including the space after a strip's tabs, still drags the window, and double-clicking it zooms or
 minimizes per System Settings. Tabs there drag and drop as usual. The change applies live.
 
+### Tab style
+
+Tabs are "connected" by default: the active tab joins its deck's content below it, with no seam,
+so it reads as one surface with its terminal (also from the titlebar row). On a translucent window
+the active tab is as translucent as its terminal. For the older look, rounded pill tabs floating in
+the strip over a separate content card, set `[tabs] style = "pill"` in [settings.toml](#settings).
+The change applies live.
+
 ### Colors
 
 Right-click a workspace (sidebar row or pill) or a tab for **Workspace Color** / **Tab Color**:
@@ -421,6 +429,9 @@ switcher = "sidebar"     # or "top" (pills in the titlebar)
 
 [window]
 tabs_in_titlebar = true  # put top-edge decks' tab strips in the titlebar row
+
+[tabs]
+style = "connected"      # or "pill": the active tab joins its deck's content, or floats as a pill
 
 [colors]
 auto_assign = false      # color new workspaces with the next unused swatch
