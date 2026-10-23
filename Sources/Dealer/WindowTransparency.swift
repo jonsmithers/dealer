@@ -82,8 +82,13 @@ extension WindowContentView {
     func layoutBackdrop() {
         backdrop.frame = bounds
         if subviews.first !== backdrop { addSubview(backdrop, positioned: .below, relativeTo: nil) }
-        let cards = subviews.compactMap { $0 as? DeckView }.filter { !$0.isHidden }
-            .map { $0.content.convert($0.content.bounds, to: backdrop) }
+        let cards = subviews.compactMap { $0 as? DeckView }.filter { !$0.isHidden }.map { dv -> CardHole in
+            // A connected active tab (#84) is cut out with its card, as one outline.
+            let tab = dv.squareTop && TabStyle.connectedMatchesTerminal && dv.strip.buttons.indices.contains(dv.deck.activeIndex)
+                ? dv.strip.buttons[dv.deck.activeIndex] : nil
+            return CardHole(card: dv.content.convert(dv.content.bounds, to: backdrop), squareTop: dv.squareTop,
+                            tab: tab.map { $0.convert($0.bounds, to: backdrop) })
+        }
         backdrop.layoutChrome(holes: cards)
     }
 }
@@ -115,7 +120,7 @@ final class WindowBackdropView: FlippedView, ThemeApplying {
         chrome.needsDisplay = true
     }
 
-    func layoutChrome(holes: [CGRect]) {
+    func layoutChrome(holes: [CardHole]) {
         chrome.frame = bounds
         chrome.holes = holes
         glassView?.frame = bounds
@@ -168,18 +173,27 @@ final class WindowBackdropView: FlippedView, ThemeApplying {
 /// deck cards (even-odd). Drawn in `draw(_:)`, not as a shape layer, so `PixelProbe` sees it.
 final class ChromeFillView: FlippedView {
     /// The deck cards, in this view's coordinates (the backdrop's).
-    var holes: [CGRect] = [] { didSet { if holes != oldValue { needsDisplay = true } } }
+    var holes: [CardHole] = [] { didSet { if holes != oldValue { needsDisplay = true } } }
 
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     override func draw(_ dirtyRect: NSRect) {
         let path = NSBezierPath(rect: bounds)
         let r = Theme.Metrics.deckRadius
-        for h in holes where h.width > 2 * r && h.height > 2 * r {
-            path.appendRoundedRect(h, xRadius: r, yRadius: r)
+        for h in holes where h.card.width > 2 * r && h.card.height > 2 * r {
+            if h.squareTop { path.append(ChromeShape.cardOutline(h.card, radius: r, squareTop: true, tab: h.tab)) }
+            else { path.appendRoundedRect(h.card, xRadius: r, yRadius: r) }  // pill: exactly as before
         }
         path.windingRule = .evenOdd
         Theme.fill(Theme.chrome).setFill()
         path.fill()
     }
+}
+
+/// One deck card cut out of the translucent chrome: its card, whether its top corners are square
+/// (connected tabs, #84), and the connected active tab joined on to it.
+struct CardHole: Equatable {
+    var card: CGRect
+    var squareTop = false
+    var tab: CGRect?
 }

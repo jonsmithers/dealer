@@ -65,6 +65,7 @@ enum Settings {
         "workspaces.switcher": .oneOf(WorkspaceSwitcherStyle.allCases.map(\.rawValue)),
         "colors.auto_assign": .bool,
         "window.tabs_in_titlebar": .bool,
+        "tabs.style": .oneOf(TabStyle.allCases.map(\.rawValue)),
         "colors.palette": .colorArray,
         "jobs.placement": .oneOf(["split", "tab"]),
         "jobs.size": .size,
@@ -278,6 +279,10 @@ enum Settings {
 
     /// `[window] tabs_in_titlebar` (#16): top-edge decks' tab strips sit in the titlebar row.
     static var tabsInTitlebar: Bool { bool("window.tabs_in_titlebar") ?? true }
+
+    /// `[tabs] style` (#84): "connected" (default; the active tab joins its deck's content) or
+    /// "pill". Read live (TabShape.swift).
+    static var tabStyle: TabStyle { string("tabs.style").flatMap(TabStyle.init(rawValue:)) ?? .connected }
 
     /// `[colors] auto_assign` (#9): new workspaces take the next unused swatch. Default false.
     static var autoAssignColors: Bool { bool("colors.auto_assign") ?? false }

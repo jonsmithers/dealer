@@ -20,10 +20,11 @@ extension TerminalWindowController {
         func up(_ pane: String) -> Bool { let d = deck(pane); return d.view.stripInTitlebar && d.view.strip.superview === contentView }
         func inDeck(_ pane: String) -> Bool { let d = deck(pane); return !d.view.stripInTitlebar && d.view.strip.superview === d.view }
         /// Aligned: the titlebar strip ends where its deck ends and starts at the deck or the clear line.
+        /// It fills the titlebar row, plus the connected style's 1pt over the card's border (#84).
         func aligned(_ pane: String) -> String? {
             let d = deck(pane), s = d.view.strip.frame, r = d.view.frame
             let ok = abs(s.maxX - r.maxX) < 0.5 && abs(s.minX - max(r.minX, self.titlebarClearX)) < 0.5
-                && s.minY == 0 && abs(s.height - self.deckArea.minY) < 0.5
+                && s.minY == 0 && abs(s.height - self.deckArea.minY - d.view.strip.style.overlap) < 0.5
             return ok ? nil : "\(pane)'s strip \(s) isn't aligned to its deck \(r)"
         }
         /// Nothing in the titlebar row overlaps the traffic lights, the sidebar toggle, the sidebar,

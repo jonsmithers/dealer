@@ -444,11 +444,11 @@ extension PaneView {
 
 extension TabButton {
     /// Where the badge sits: the close button's slot, which only shows on hover.
-    var attentionDotRect: CGRect { CGRect(x: closeRect.midX - 4, y: (bounds.height - 8) / 2, width: 8, height: 8) }
+    var attentionDotRect: CGRect { CGRect(x: closeRect.midX - 4, y: (bodyHeight - 8) / 2, width: 8, height: 8) }
 
     /// The outline stays while hovering; only the dot gives way to the close button.
     func drawAttentionDot(hidden: Bool) {
-        AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: Theme.Metrics.tabRadius,
+        AttentionStyle.draw(attentionFade.shown, in: bodyRect, shape: shape,
                             dotRect: hidden ? nil : attentionDotRect, alpha: attentionFade.alpha)
     }
 }
@@ -465,14 +465,18 @@ enum AttentionStyle {
 
     /// `alpha` < 1 while a cleared state fades out (#34).
     static func draw(_ attention: Attention, in rect: CGRect, cornerRadius: CGFloat, dotRect: CGRect?, alpha: CGFloat = 1) {
+        draw(attention, in: rect, shape: .rounded(cornerRadius), dotRect: dotRect, alpha: alpha)
+    }
+
+    /// The same for any `ChromeShape` (#84): a connected tab's outline leaves its bottom edge open,
+    /// where the tab runs into its content, and its tint fills down to that edge.
+    static func draw(_ attention: Attention, in rect: CGRect, shape: ChromeShape, dotRect: CGRect?, alpha: CGFloat = 1) {
         guard alpha > 0, let base = attention.color else { return }
         let color = base.withAlphaComponent(base.alphaComponent * alpha)
         if attention.outlined {
-            let inset = rect.insetBy(dx: outlineWidth / 2, dy: outlineWidth / 2)
-            let r = max(cornerRadius - outlineWidth / 2, 0)
-            let path = NSBezierPath(roundedRect: inset, xRadius: r, yRadius: r)
             color.withAlphaComponent(0.10 * alpha).setFill()
-            path.fill()
+            shape.fillPath(in: rect, inset: outlineWidth / 2).fill()
+            let path = shape.outlinePath(in: rect, inset: outlineWidth / 2)
             color.setStroke()
             path.lineWidth = outlineWidth
             path.stroke()

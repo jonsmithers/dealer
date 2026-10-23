@@ -780,6 +780,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             paneDividers.removeValue(forKey: key)?.forEach { $0.onDrag = nil; $0.removeFromSuperview() }
         }
 
+        raiseTitlebarStrips()  // #84: a connected strip overlaps its card
         layoutWorkspaceSidebar()
         layoutCaffeineIcon()
         contentView.raiseOverlays()

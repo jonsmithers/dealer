@@ -52,7 +52,8 @@ extension TerminalWindowController {
                 guard maxX - x >= Self.titlebarStripMinWidth else { continue }
                 let strip = deck.view.strip
                 if strip.superview !== contentView { contentView.addSubview(strip) }
-                strip.frame = CGRect(x: x, y: 0, width: maxX - x, height: area.minY)
+                deck.view.setTabStyle(.current)
+                strip.frame = CGRect(x: x, y: 0, width: maxX - x, height: area.minY + strip.style.overlap)
                 deck.view.stripInTitlebar = true
                 up.insert(ObjectIdentifier(deck))
                 upStrips.insert(ObjectIdentifier(strip))
@@ -66,8 +67,21 @@ extension TerminalWindowController {
         }
         for deck in allDecks where !up.contains(ObjectIdentifier(deck)) {
             let dv = deck.view
-            if dv.strip.superview !== dv { dv.addSubview(dv.strip, positioned: .below, relativeTo: dv.content) }
+            if dv.strip.superview !== dv { dv.addSubview(dv.strip, positioned: .above, relativeTo: dv.content) }
+            dv.setTabStyle(.current)
             dv.stripInTitlebar = false
+        }
+    }
+
+    /// A connected titlebar strip reaches 1pt over its deck's card (#84), so it must sit above the
+    /// deck view, which `layoutWindow` adds after placing the strips. Called after the decks.
+    func raiseTitlebarStrips() {
+        let subs = contentView.subviews
+        for deck in decks where deck.view.stripInTitlebar {
+            let s = deck.view.strip
+            guard s.superview === contentView, let si = subs.firstIndex(of: s),
+                  let di = subs.firstIndex(of: deck.view), si < di else { continue }
+            contentView.addSubview(s, positioned: .above, relativeTo: deck.view)
         }
     }
 

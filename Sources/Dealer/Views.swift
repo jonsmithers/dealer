@@ -279,8 +279,9 @@ final class DeckView: FlippedView, ThemeApplying {
         content.layer?.masksToBounds = true
         content.layer?.borderWidth = 1
         applyTheme()
-        addSubview(strip)
+        // The strip above the card: a connected strip (#84) reaches over the card's top border.
         addSubview(content)
+        addSubview(strip)
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -314,13 +315,26 @@ final class DeckView: FlippedView, ThemeApplying {
     /// card then fills the whole deck. Set by the controller, which also reparents the strip.
     var stripInTitlebar = false { didSet { if stripInTitlebar != oldValue { needsLayout = true } } }
 
+    /// Connected tabs (#84) sit on the card, so its top corners are square; pill tabs float over a
+    /// fully rounded card. Follows the strip's style, set by the controller with it.
+    var squareTop = false {
+        didSet {
+            guard squareTop != oldValue else { return }
+            content.layer?.maskedCorners = squareTop ? Self.bottomCorners : Self.allCorners
+        }
+    }
+    static let allCorners: CACornerMask = [.layerMinXMinYCorner, .layerMaxXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+    /// The bottom corners on screen. The card is a flipped view, and so is its layer's geometry:
+    /// max-Y is the bottom.
+    static let bottomCorners: CACornerMask = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+
     override func layout() {
         super.layout()
         if stripInTitlebar {
             content.frame = CGRect(x: 0, y: 0, width: max(bounds.width, 1), height: max(bounds.height, 1))
             return
         }
-        strip.frame = CGRect(x: 0, y: 0, width: bounds.width, height: Self.stripHeight)
+        strip.frame = CGRect(x: 0, y: 0, width: bounds.width, height: Self.stripHeight + strip.style.overlap)
         content.frame = CGRect(x: 0, y: Self.stripHeight, width: max(bounds.width, 1), height: max(bounds.height - Self.stripHeight, 1))
     }
 }
@@ -331,6 +345,11 @@ final class TabStripView: FlippedView {
     unowned let deck: Deck
     /// Whether tabs underline in the deck's color (several decks), set by the `DeckView`.
     var showsDeckColor = false { didSet { if showsDeckColor != oldValue { reload() } } }
+    /// Connected or pill (#84), set by the controller each layout pass (`placeTabStrips`). A
+    /// connected strip is `style.overlap` taller than its row, reaching over its card's top border.
+    var style: TabStyle = .pill {
+        didSet { if style != oldValue { buttons.forEach { $0.style = style }; needsLayout = true } }
+    }
     private(set) var buttons: [TabButton] = []
     /// The strip's "+" (internal for the demo pointer and tests).
     let addButton = HoverButton()
@@ -377,6 +396,7 @@ final class TabStripView: FlippedView {
             b.title = tab.title
             b.isActive = i == deck.activeIndex
             b.accent = showsDeckColor ? deck.color : nil
+            b.style = style
             b.attention = tab.attention
             b.working = tab.workingMark  // AgentStatus.swift
             b.color = tab.color
@@ -437,13 +457,25 @@ final class TabStripView: FlippedView {
         return widths
     }
 
-    private var tabY: CGFloat { (bounds.height - Theme.Metrics.tabHeight) / 2 }
+    private var tabY: CGFloat { (bounds.height - style.overlap - Theme.Metrics.tabHeight) / 2 }
 
+    /// A pill sits centred in the row; a connected tab (#84) runs from there down to the strip's
+    /// bottom (its content's top edge), plus the overlap row.
     func tabFrame(_ i: Int) -> CGRect {
         let widths = tabWidths
         let x = Self.inset + widths.prefix(i).reduce(0) { $0 + $1 + Theme.Metrics.tabSpacing }
         return CGRect(x: x, y: tabY, width: i < widths.count ? widths[i] : Theme.Metrics.tabMinWidth,
-                      height: Theme.Metrics.tabHeight)
+                      height: style == .connected ? bounds.height - tabY : Theme.Metrics.tabHeight)
+    }
+
+    /// The overlap row over the card's border belongs to the pane below, except under the active
+    /// tab (in the titlebar, empty strip space would otherwise drag the window from a pane's edge).
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard style.overlap > 0, !isHidden, let sv = superview else { return super.hitTest(point) }
+        let p = convert(point, from: sv)
+        if p.y >= bounds.height - style.overlap, !(buttons.indices.contains(deck.activeIndex)
+            && buttons[deck.activeIndex].frame.contains(p)) { return nil }
+        return super.hitTest(point)
     }
 
     override func layout() {
@@ -514,6 +546,19 @@ final class TabButton: FlippedView {
     var isActive = false { didSet { if isActive != oldValue { needsDisplay = true } } }
     /// Deck identity color, or nil in a single-deck window.
     var accent: NSColor? { didSet { if accent != oldValue { needsDisplay = true } } }
+    /// Connected or pill (#84, TabShape.swift), set by the strip. A connected tab's frame runs to the
+    /// strip's bottom plus `overlap`, the card border row the active tab paints over.
+    var style: TabStyle = .pill { didSet { if style != oldValue { needsDisplay = true } } }
+    var overlap: CGFloat { style.overlap }
+    /// The button's height without the overlap row: titles, the ×, the dot and the underline centre
+    /// on it.
+    var bodyHeight: CGFloat { bounds.height - overlap }
+    /// The outline the fill, tint and attention mark follow. Only an active connected tab reaches
+    /// into the overlap row; inactive ones stop at the strip's bottom edge.
+    var bodyRect: CGRect {
+        style == .connected && isActive ? bounds : CGRect(x: 0, y: 0, width: bounds.width, height: bodyHeight)
+    }
+    var shape: ChromeShape { style == .connected ? .connectedTab : .rounded(Theme.Metrics.tabRadius) }
     /// The tab's own color (#9): its underline (instead of the deck accent) and a faint tint.
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true } } }
     /// Badge for the most urgent pane in this tab (#4); drawn by `drawAttentionDot` in Attention.swift.
@@ -539,7 +584,7 @@ final class TabButton: FlippedView {
     private var hovering = false { didSet { needsDisplay = true } }
     private var hoveringClose = false { didSet { if hoveringClose != oldValue { needsDisplay = true } } }
     /// The × sits in the trailing slot (`Theme.Metrics.tabTrailingSlot`), 3pt from the edge.
-    var closeRect: CGRect { CGRect(x: bounds.width - 19, y: (bounds.height - 16) / 2, width: 16, height: 16) }
+    var closeRect: CGRect { CGRect(x: bounds.width - 19, y: (bodyHeight - 16) / 2, width: 16, height: 16) }
     /// Everything but the title (#46): leading pad plus the trailing ×/dot slot.
     static var chromeWidth: CGFloat { Theme.Metrics.tabLeadingPad + Theme.Metrics.tabTrailingSlot }
     /// Where the title is drawn (also read by the self-test). While an agent works, it starts after
@@ -548,7 +593,7 @@ final class TabButton: FlippedView {
         let font = Theme.Fonts.tabActive
         let h = ceil(font.ascender - font.descender)
         let lead = Theme.Metrics.tabLeadingPad + spinner.leading
-        return CGRect(x: lead, y: (bounds.height - h) / 2,
+        return CGRect(x: lead, y: (bodyHeight - h) / 2,
                       width: max(bounds.width - Self.chromeWidth - spinner.leading, 0), height: h)
     }
     /// The spinner's box, in the leading pad (also read by the self-test).
@@ -581,21 +626,33 @@ final class TabButton: FlippedView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let r = bounds
-        let radius = Theme.Metrics.tabRadius
+        let r = bodyRect
+        let connected = style == .connected
         // Tabs stay fully opaque on a translucent window (#67, the user's call: translucent tabs
         // were hard to tell apart). Inactive tabs then get a solid pill in the strip's own chrome
         // color, so each reads as a shape; opaque windows draw exactly as before (no pill).
-        let fill: NSColor? = isActive ? Theme.surface : hovering ? Theme.hover
+        // A connected active tab (#84) is part of its deck's content instead, so it takes the
+        // terminal's own background: opaque, the same surface; translucent, what the terminal
+        // paints (the background at the opacity, nothing under glass), over the chrome's cut-out.
+        let fill: NSColor? = isActive ? (connected ? Self.connectedFill : Theme.surface) : hovering ? Theme.hover
             : Theme.transparency.isTranslucent ? Theme.chrome : nil
         if let fill {
             fill.setFill()
-            NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius).fill()
+            shape.fillPath(in: r).fill()
+        }
+        // The card's hairline border carries on round a connected active tab (top and sides; the
+        // bottom is the seam it hides).
+        if connected && isActive {
+            Theme.hairline.setStroke()
+            let edge = shape.outlinePath(in: r, inset: 0.5)
+            edge.lineWidth = 1
+            edge.stroke()
         }
         // #9: a tab color tints the button and replaces the deck accent in the underline, which
         // then shows on inactive tabs too (fainter), so colored tabs are findable in the strip.
-        ColorStyle.drawTint(color, in: r, cornerRadius: radius)
-        if let underline = color.map({ isActive ? $0 : $0.withAlphaComponent(0.55) }) ?? (isActive ? accent : nil) {
+        // Connected (#84), the active tab's connection is the cue, so it drops the deck accent.
+        ColorStyle.drawTint(color, in: r, shape: shape)
+        if let underline = color.map({ isActive ? $0 : $0.withAlphaComponent(0.55) }) ?? (isActive && !connected ? accent : nil) {
             underline.setFill()
             NSBezierPath(roundedRect: underlineRect, xRadius: 1, yRadius: 1).fill()
         }
@@ -654,7 +711,14 @@ final class TabButton: FlippedView {
     }
 
     /// Where the underline sits (also sampled by the self-test).
-    var underlineRect: CGRect { CGRect(x: 10, y: bounds.height - 2, width: bounds.width - 20, height: 2) }
+    var underlineRect: CGRect { CGRect(x: 10, y: bodyHeight - 2, width: bounds.width - 20, height: 2) }
+
+    /// A connected active tab's fill: the terminal's background as the terminal paints it.
+    static var connectedFill: NSColor {
+        let t = Theme.transparency
+        guard t.isTranslucent, TabStyle.connectedMatchesTerminal else { return Theme.surface }
+        return t.blur.isGlass ? .clear : Theme.surface.withAlphaComponent(t.opacity)
+    }
 
     override func menu(for event: NSEvent) -> NSMenu? {
         guard let tab else { return nil }

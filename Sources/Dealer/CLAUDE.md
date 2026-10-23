@@ -139,6 +139,29 @@
   empty-space hit test, pick a point after the strip's last control; with several tabs a strip can
   be full.
 
+## Tab style (`TabShape.swift`, #84)
+
+- `[tabs] style`: "connected" (default) or "pill", read live through `TabStyle.current`. Both go
+  through one drawing path: a `ChromeShape` (a rounded rect, or a connected tab: rounded top,
+  square bottom, outline open at the bottom) is what the tab's fill, `ColorStyle.drawTint` and
+  `AttentionStyle.draw` follow. Don't add a second tab drawing path; extend the shape. Other
+  elements pass `cornerRadius:`, which forwards to `.rounded(r)`.
+- No seam: a connected strip is `style.overlap` (1pt) taller than its row and sits **above** the
+  card (in-deck: added after `content`; titlebar: `raiseTitlebarStrips()` after the decks are
+  added), so the active tab paints over the card's 1pt top border. The strip's `hitTest` gives that
+  row back to the pane except under the active tab. Height math (`chromeSize`) is unchanged.
+- The card's top corners go square through `DeckView.squareTop` (`maskedCorners`; the layer is
+  flipped, so max-Y is the bottom). PixelProbe's offscreen render ignores `maskedCorners`, so the
+  self-test checks the layer property; check corners by eye in screenshots.
+- Titlebar strips connect too (the user's call): the titlebar row ends where the top deck's card
+  begins.
+- A connected active tab is part of its terminal: `TabButton.connectedFill` paints what the
+  terminal paints on a translucent window (background at the opacity, nothing under glass), and
+  `layoutBackdrop` cuts it out of the chrome with its card (`CardHole`). One switch,
+  `TabStyle.connectedMatchesTerminal`, the user may flip; pill tabs stay opaque (#67) regardless.
+- Connected drops the deck accent underline on the active tab; `Tab.color` still tints and
+  underlines it. Tests: `SelfTestTabStyle.swift` (`DEALER_SELFTEST_ONLY=tab style:`).
+
 ## Workspaces (`Workspace.swift`, `WorkspaceSidebar.swift`, `WorkspaceBar.swift`, `WorkspaceSwitcher.swift`)
 
 - Moves into another workspace follow the usual order: detach, then `place(tab:in:)` /

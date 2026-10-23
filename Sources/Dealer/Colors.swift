@@ -69,11 +69,14 @@ extension Theme {
 enum ColorStyle {
     /// The tint, inset by the attention outline's width so a waiting outline stays outside it.
     static func drawTint(_ color: NSColor?, in rect: CGRect, cornerRadius: CGFloat) {
+        drawTint(color, in: rect, shape: .rounded(cornerRadius))
+    }
+
+    /// The same for any `ChromeShape` (#84: a connected tab's tint reaches its open bottom edge).
+    static func drawTint(_ color: NSColor?, in rect: CGRect, shape: ChromeShape) {
         guard let color else { return }
-        let inset = AttentionStyle.outlineWidth + 0.5
-        let r = rect.insetBy(dx: inset, dy: inset)
         Theme.colorTint(color).setFill()
-        NSBezierPath(roundedRect: r, xRadius: max(cornerRadius - inset, 0), yRadius: max(cornerRadius - inset, 0)).fill()
+        shape.fillPath(in: rect, inset: AttentionStyle.outlineWidth + 0.5).fill()
     }
 
     static func drawChip(_ color: NSColor?, in rect: CGRect) {

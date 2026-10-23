@@ -242,6 +242,11 @@ The GitHub repo is `jonsmithers/dealer`.
   at all on tabs (tint, underline, fill, or deck-color fallback). Tabs get color only from their own `Tab.color`; the
   per-deck underline stays and a tab color overrides it on that tab. `[colors] auto_assign`
   defaults to off.
+- Tabs are "connected" by default (#84, `[tabs] style`, "pill" is the old look): the active tab
+  joins its deck's content with no seam, also from the titlebar row, and drops the deck accent
+  underline (a tab color still shows). On translucent windows a connected active tab follows its
+  terminal's translucency (`TabStyle.connectedMatchesTerminal`, the user may revisit); pills stay
+  opaque.
 - Attention clears in the model at once, but its ring/outline/dot fade out (~0.8 s, plus a 0.5 s hold
   after ⌘⇧U or a notification click) so you see which pane called you (#34). Only those layers
   and drawings animate, never terminal surfaces. Reduce Motion skips the fade.

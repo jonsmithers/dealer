@@ -61,9 +61,11 @@ extension TerminalWindowController {
             func at(_ c: NSColor) -> NSColor { c.withAlphaComponent(c.alphaComponent * a) }
             var p: [String?] = []
             // Tabs are the exception: fully opaque at any opacity (#67 follow-up), with a solid
-            // chrome pill for inactive tabs while translucent (none when opaque, as before).
+            // chrome pill for inactive tabs while translucent (none when opaque, as before). A
+            // connected active tab (#84) shows what its terminal shows instead (`connectedFill`).
             if let b = dv.strip.buttons.first(where: { $0.isActive }) {
-                p.append(expect("active tab", PixelProbe.sample(b, at: CGPoint(x: 4, y: b.bounds.midY)), Theme.surface))
+                let want = b.style == .connected ? TabButton.connectedFill : Theme.surface
+                p.append(expect("active tab", PixelProbe.sample(b, at: CGPoint(x: 4, y: b.bounds.midY)), want))
             } else { p.append("no active tab button") }
             if let b = dv.strip.buttons.first(where: { !$0.isActive }) {
                 let pill = Theme.transparency.isTranslucent ? Theme.chrome : NSColor.clear
@@ -93,7 +95,13 @@ extension TerminalWindowController {
             let b = paneB().view, fill = contentView.backdrop.chrome
             let centre = b.convert(CGPoint(x: b.bounds.midX, y: b.bounds.midY), to: fill)
             let c = PixelProbe.sample(fill, at: centre)
-            return (c?.alphaComponent ?? 1) < 0.02 ? nil : "under a terminal the window should draw nothing, got \(hex(c))"
+            var p = [(c?.alphaComponent ?? 1) < 0.02 ? nil : "under a terminal the window should draw nothing, got \(hex(c))"]
+            // #84: a connected active tab is cut out with its card (its own fill is the terminal's).
+            if let a = deckView()?.strip.buttons.first(where: { $0.isActive }), a.style == .connected {
+                let tc = PixelProbe.sample(fill, at: a.convert(CGPoint(x: a.bounds.midX, y: a.bodyHeight / 2), to: fill))
+                p.append((tc?.alphaComponent ?? 1) < 0.02 ? nil : "under a connected active tab the window should draw nothing, got \(hex(tc))")
+            }
+            return all(p.compactMap { $0 }.isEmpty ? nil : p.compactMap { $0 }.joined(separator: "; "))
         }
         func windowIs(opaque: Bool) -> String? {
             guard let w = window else { return "no window" }
@@ -146,6 +154,7 @@ extension TerminalWindowController {
         }
 
         var opaqueBytes: [Data?] = []
+        var savedName: String?
         func chromeBytes() -> [Data?] {
             guard let dv = deckView() else { return [] }
             return [PixelProbe.pixels(dv.strip), activeRow().flatMap { PixelProbe.pixels($0) }, PixelProbe.pixels(paneA().view.bar)]
@@ -173,6 +182,14 @@ extension TerminalWindowController {
             self.split(paneA(), side: .right)
             t.named(self.focusedPane, "tpB")
             self.sidebarPreference = true
+            // Fixed titles: the shells retitle the tab, pane bar and sidebar row once they start,
+            // and step 11's byte comparison then failed on the changed text, not the drawing.
+            paneA().customTitle = "tpA"
+            paneB().customTitle = "tpB"
+            tab?.customTitle = "tp"
+            savedName = self.activeWorkspace.name
+            self.activeWorkspace.name = "tp"
+            self.refreshChrome()
             self.layoutNow()
             opaqueBytes = chromeBytes()
         }
@@ -234,7 +251,8 @@ extension TerminalWindowController {
         t.step("transparency: reloading back to no opacity removes the glass and renders as before, byte for byte", nil, {
             let now = chromeBytes()
             return all(read(Transparency()), windowIs(opaque: true), noGlass(), chromePixels(alpha: 1),
-                       now.count == 3 && !now.contains(nil) && now == opaqueBytes ? nil : "the strip, sidebar row and pane bar should render exactly as before")
+                       now.count == 3 && !now.contains(nil) && now == opaqueBytes ? nil
+                           : "the strip, sidebar row and pane bar should render exactly as before (differ: \((0..<min(now.count, opaqueBytes.count)).filter { now[$0] != opaqueBytes[$0] }), sizes \(now.map { $0?.count ?? -1 }) vs \(opaqueBytes.map { $0?.count ?? -1 }))")
         }) {
             Transparency.forceGlassFallback = false
             load("background-opacity = 0.85\nbackground-blur = macos-glass-regular\n")
@@ -244,6 +262,7 @@ extension TerminalWindowController {
             tab.flatMap { self.deck(of: $0) } == nil ? nil : "test tab should be closed"
         }) {
             if let tab { self.close(tab: tab) }
+            self.activeWorkspace.name = savedName
             self.sidebarPreference = nil
             GhosttyRuntime.configFileOverride = nil
             try? fm.removeItem(at: dir)
