@@ -338,18 +338,20 @@
 
 - `Theme` is the single source for chrome colors, metrics, fonts and animation timings. Don't
   hard-code colors or sizes in views. `Palette` is only a set of legacy forwards to `Theme`.
-- **Chrome by contrast (#87).** `Theme.chrome` is `chromeColor(background:foreground:)`: the
-  smallest mix toward black that puts the background `chromeContrast` off it: `[colors]
-  chrome_contrast` (`Settings.chromeContrast`, WCAG, default 1.35, 1.0–2.5), cached per
-  background/foreground/value. Its reload calls `applyTheme()` (`settingsDidChange`), since the
-  chrome is copied into the window background and layers. WCAG compresses dark pairs, so Kanso Mist (#22262d, the user's theme)
-  needs a near-black strip (#040405; 1.38:1 is its ceiling) and anything darker than about #252525
-  can't reach it: those mix toward their foreground instead (strip lighter than the terminal), and
-  `chromeDarkDirection = .lighten` does that for every dark theme. `Theme.hover` is
-  `chrome.mixed(with: surface, 0.5)`, strictly between, in both directions. Everything derived from
-  `chrome` (`paneBar`, `textMuted`/`textFaint`, `workspaceSelection`, `accentNeutral`) moves with
-  it. `SelfTestTabContrast.swift` (`tab contrast:`) checks the order and ratio on the formulas at
-  1.0–2.5 (attention outlines ≥ 3:1 up to 1.35) and on real tab buttons, a live reload, and the
+- **Chrome shade (#87).** `Theme.chrome` is `chromeColor(background:foreground:shade:)` with
+  `shade` = `[colors] chrome_contrast` (`Settings.chromeContrast`, −1…+1, default −0.3; out of range
+  is reported with the range, e.g. the old WCAG-style 1.35). Positive: `bg.mixed(with: pole, m)`,
+  the pole being black when `isDark`, else white. Negative: `bg.mixed(with: fg, |m| *
+  maxChromeMix)` (0.5). A black dark theme or white light one can't deepen. Its reload calls
+  `applyTheme()` (`settingsDidChange`), since the chrome is copied into the window background and
+  layers. Don't bring back a contrast-target solve: it flipped direction past what darkening could
+  reach (Kanso Mist at 1.38:1). `Theme.hover` is `chrome.mixed(with: surface, 0.5)`, between in both
+  directions. Everything derived from `chrome` (`paneBar`, `textMuted`/`textFaint`,
+  `workspaceSelection`, `accentNeutral`) moves with it. `SelfTestTabContrast.swift`
+  (`tab contrast:`) checks: monotonic over the range through the setting, 0 = background, hover
+  between, and at the default active-vs-strip ≥ 1.15:1 and attention outlines ≥ 3:1, except the
+  failed red in Ghostty's default dark and Nord (≈2.5:1, asserted ≥ 2.4; known exceptions: a bright
+  foreground raises the chrome toward the red); plus real tab buttons, a live reload, the
   translucent options.
 - **The theme changes live (#33).** `Theme.load` runs at launch, then `Theme.reload` runs from
   every CONFIG_CHANGE that ghostty sends (after ⌘⇧, / `reload_config`, or a color-scheme switch),

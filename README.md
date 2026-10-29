@@ -117,8 +117,10 @@ colors from your Ghostty theme (background/foreground, `unfocused-split-*`, `spl
 sidebar and gaps take the same opacity; text and outlines stay solid), and `background-blur`
 blurs what's behind it. On macOS 26, `background-blur = macos-glass-regular` or
 `macos-glass-clear` puts Liquid Glass behind the window (older macOS gets a plain blur instead).
-The chrome is shaded just far enough from the terminal's background that the active tab stands out;
-`[colors] chrome_contrast` in [settings.toml](#settings) sets how far (default 1.35, lower is subtler).
+The chrome (titlebar, tab strips, sidebar) is a shade off the terminal's background, so the active
+tab stands out; `[colors] chrome_contrast` in [settings.toml](#settings) sets it from -1 to 1
+(default -0.3; 0 is the background itself; in dark themes + is darker and - lighter, the reverse in
+light ones).
 After editing it, **⌘⇧,** (Dealer › Reload Configuration) applies the change live, as in Ghostty:
 terminals and chrome re-theme without restarting anything (see [Settings](#settings)).
 
@@ -440,7 +442,7 @@ style = "connected"      # or "pill": the active tab joins its deck's content, o
 [colors]
 auto_assign = false      # color new workspaces with the next unused swatch
 palette = ["#e06c75", "#98c379", "#61afef"]   # replaces the preset swatches
-chrome_contrast = 1.35   # how far the chrome stands off the terminal: 1.0 (none) to 2.5
+chrome_contrast = -0.3   # chrome shade, -1..1: 0 = the terminal; dark themes + darker, - lighter
 
 [attention]              # see the table under Attention for every state
 done = "outline"         # or "dot": done looks like waiting (blue outline) or gets a muted dot

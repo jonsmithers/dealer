@@ -106,7 +106,7 @@ Session of 2026-10-11..16 (these IDs are gone; the names are what to brief by):
 Session of 2026-10-28..29:
 - **ghostty-bump**: pin to the v1.4.0 tag (#85), tag version string for the pin check, zig 0.17.
 - **tab-underline**: active-tab deck underline on connected tabs and with one deck (#86).
-- **tab-contrast**: chrome by contrast target, `[colors] chrome_contrast`, hover ordering,
+- **tab-contrast**: chrome shade, `[colors] chrome_contrast` (a signed dial since chrome-signed), hover ordering,
   `TabStyle.translucent` options (#87).
 
 ## The user's preferences (learned)
@@ -137,7 +137,8 @@ Session of 2026-10-28..29:
   - #23 (theme-derived accent colors) is *not planned*; #33 (live config reload) is wanted;
   - README demos are recorded with **pill** tabs (`Demo.tabStyle`), though connected is the default;
   - the active tab's deck underline shows with any number of decks (#86);
-  - tab/chrome contrast: 1.35 default is fine, but they want it tunable (`[colors] chrome_contrast`, #87).
+  - tab/chrome contrast: tunable as a signed dial, `[colors] chrome_contrast` −1…+1, default −0.3
+    (#87; it replaced a WCAG target of 1.35 whose darken-to-lighten flip at 1.38 confused them).
 - They don't want outward surprises. They're fine with secrets-free GitHub comments and issue
   creation on their behalf.
 

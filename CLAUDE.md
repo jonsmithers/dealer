@@ -238,12 +238,13 @@ The GitHub repo is `jonsmithers/dealer`.
   vs dark follows the terminal background's luminance, not the macOS appearance. Focus is shown
   Ghostty-style by veiling unfocused panes (`unfocused-split-fill`/`-opacity`); pane rings are
   reserved for attention. Don't reintroduce focus borders.
-- The chrome (strip, titlebar, sidebar) is set by contrast, not a fixed mix (#87): the background
-  darkened until the active tab (the terminal background) is `[colors] chrome_contrast` (WCAG,
-  default 1.35, 1.0–2.5, read live) off it; a background too dark for that (at 1.35, about #252525
-  and below) lightens toward its foreground instead. Attention outlines keep 3:1 on the chrome up
-  to the default, not above about 1.5. A hovered tab sits halfway between strip and active tab, never past it. The self-test
-  (`tab contrast:`) checks both across dark, near-black and light themes.
+- The chrome (strip, titlebar, sidebar) is the terminal background shaded by one signed dial (#87),
+  `[colors] chrome_contrast` in −1…+1, default −0.3, read live: 0 is the background, + deepens it
+  away from the foreground (dark themes darker, light lighter), − raises it toward the foreground.
+  The magnitude is a plain mix fraction, so turning it moves the strip steadily one way; it never
+  flips direction by itself (the old WCAG-target solve flipped Kanso Mist past 1.38:1, the user's
+  complaint). A hovered tab sits halfway between strip and active tab, never past it. The
+  self-test (`tab contrast:`) checks both across dark, near-black and light themes.
 - Workspace and tab colors (#9) are a chip/underline plus a faint tint, never an outline (outlines
   mean attention). The one non-attention outline is the selected workspace's switcher entry: neutral
   (`Theme.text`, never a workspace or attention color), asked for by the user in #52, and it gives

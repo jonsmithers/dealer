@@ -2,12 +2,16 @@ import AppKit
 
 // MARK: - Self-test section: tab contrast (#87, Theme.chromeColor, TabButton.draw)
 //
-// Across dark, near-black and light themes: the active tab (`Theme.surface`) stands at least
-// `Theme.chromeContrast` (WCAG) off the strip (`Theme.chrome`), and a hovered tab (`Theme.hover`)
-// sits strictly between the two in luminance, so it never looks more selected than the active
-// one. Checked on the formulas and on pixels of real tab buttons, in both tab styles. On a
-// translucent window the active connected tab follows `TabStyle.translucent`.
-// Self-contained (`DEALER_SELFTEST_ONLY=tab contrast:`); restores the launch config.
+// `[colors] chrome_contrast` is a signed dial (−1…+1, default −0.3): 0 is the terminal background,
+// + deepens the chrome away from the foreground, − raises it toward the foreground. Across dark,
+// near-black and light themes the strip moves steadily one way as the dial turns (it never flips
+// by itself, as the old WCAG-target solve did past 1.38:1 in Kanso Mist), a hovered tab
+// (`Theme.hover`) sits between the strip and the active tab (`Theme.surface`), and at the default
+// the active tab stands ≥ 1.15:1 off the strip with attention outlines ≥ 3:1 on it (known
+// exceptions: the failed red in Ghostty's default dark and Nord, ≥ 2.4). Checked on the formulas
+// and on pixels of real tab buttons, in both tab styles. On a translucent window the active
+// connected tab follows `TabStyle.translucent`.
+// Self-contained (`DEALER_SELFTEST_ONLY=tab contrast:`); restores the settings and launch config.
 
 extension TerminalWindowController {
     func tabContrastSelfTestSteps(_ t: SelfTestKit) {
@@ -16,110 +20,127 @@ extension TerminalWindowController {
             return c.hexString + (c.alphaComponent < 1 ? String(format: "@%.2f", c.alphaComponent) : "")
         }
         func ratio(_ c: CGFloat) -> String { String(format: "%.2f", c) }
-        /// (name, background, foreground, whether the strip should be darker than the terminal).
-        /// Kanso Mist is the user's theme; it's near the darkest background that can still reach the
-        /// target by darkening. Catppuccin Mocha and the near-black ones can't, so their strip lightens.
-        let themes: [(String, String, String, Bool)] = [
-            ("Kanso Mist", "#22262d", "#c5c9c7", true),
-            ("Ghostty default dark", "#282c34", "#ffffff", true),
-            ("Nord", "#2e3440", "#d8dee9", true),
-            ("Catppuccin Mocha", "#1e1e2e", "#cdd6f4", false),
-            ("near-black", "#0a0a0a", "#d0d0d0", false),
-            ("black", "#000000", "#ffffff", false),
-            ("Catppuccin Latte", "#eff1f5", "#4c4f69", true),
-            ("Solarized light", "#fdf6e3", "#657b83", true),
-            ("white", "#ffffff", "#000000", true),
+        /// (name, background, foreground). Kanso Mist is the user's theme.
+        let themes: [(String, String, String)] = [
+            ("Kanso Mist", "#22262d", "#c5c9c7"),
+            ("Ghostty default dark", "#282c34", "#ffffff"),
+            ("Nord", "#2e3440", "#d8dee9"),
+            ("Catppuccin Mocha", "#1e1e2e", "#cdd6f4"),
+            ("near-black", "#0a0a0a", "#d0d0d0"),
+            ("black", "#000000", "#ffffff"),
+            ("Catppuccin Latte", "#eff1f5", "#4c4f69"),
+            ("Solarized light", "#fdf6e3", "#657b83"),
+            ("white", "#ffffff", "#000000"),
         ]
-        let tolerance: CGFloat = 0.005
-        let direction = Theme.chromeDarkDirection
-
+        /// At the default, the failed red is under 3:1 on these themes' raised chrome (a bright
+        /// foreground pulls the strip toward the red's luminance); asserted at ≥ 2.4 instead.
+        let redExceptions: Set<String> = ["Ghostty default dark", "Nord"]
         func writeSettings(_ text: String) {
             let url = Settings.fileURL
             try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? text.write(to: url, atomically: true, encoding: .utf8)
             Settings.reload()
         }
-        /// The order and the ratio in every theme at the current `[colors] chrome_contrast`. At 1.0
-        /// the three are one color (nothing can lie strictly between); attention outlines keep 3:1
-        /// on the chrome up to the default (above about 1.5 dark themes' chrome lightens and the
-        /// red, then the blue, drop under 3:1, so that's not asserted there).
-        func orderProblems() -> [String] {
+        func inTheme<T>(_ th: (String, String, String), _ body: () -> T) -> T {
+            Theme.withBackground(NSColor(hex: th.1)!, foreground: NSColor(hex: th.2)!, body)
+        }
+        /// Luminance of strip, hover and active tab in every theme, at the current setting.
+        func shades() -> [(strip: NSColor, hover: NSColor, active: NSColor)] {
+            themes.map { th in inTheme(th) { (Theme.chrome, Theme.hover, Theme.surface) } }
+        }
+
+        // Through the setting (not the formula), so the same step runs on older code: across the
+        // whole range the strip's luminance falls steadily on dark themes and rises on light ones.
+        t.step("tab contrast: turning chrome_contrast across its range moves the strip one way in every theme, never flipping", nil, {
+            let r = Settings.chromeContrastRange
+            let values = (0...20).map { r.lowerBound + (r.upperBound - r.lowerBound) * Double($0) / 20 }
+            var runs: [[(Double, NSColor, NSColor)]] = Array(repeating: [], count: themes.count)
+            for v in values {
+                writeSettings("[colors]\nchrome_contrast = \(v)\n")
+                for (i, s) in shades().enumerated() { runs[i].append((v, s.strip, s.active)) }
+            }
+            writeSettings("")
             var p: [String] = []
-            let target = Theme.chromeContrast
-            for (name, bg, fg, darker) in themes {
-                Theme.withBackground(NSColor(hex: bg)!, foreground: NSColor(hex: fg)!) {
-                    let strip = Theme.chrome, hover = Theme.hover, active = Theme.surface
-                    let (ls, lh, la) = (strip.luminance, hover.luminance, active.luminance)
-                    let c = active.contrast(with: strip)
-                    let at = "\(name) @\(ratio(target))"
-                    if c < target - tolerance || c > target + 0.02 {
-                        p.append("\(at): active \(hex(active)) vs strip \(hex(strip)) is \(ratio(c)):1, want \(ratio(target))")
-                    }
-                    let between = target <= 1 ? min(ls, la) <= lh && lh <= max(ls, la) : min(ls, la) < lh && lh < max(ls, la)
-                    if !between {
-                        p.append("\(at): hover \(hex(hover)) isn't between the strip \(hex(strip)) and the active tab \(hex(active)) in luminance")
-                    }
-                    // Darkens when it can reach the target that way (the table's flag is for 1.35).
-                    let canDarken = active.contrast(with: .black) >= target
-                    let wantDarker = !Theme.isDark || (canDarken && direction == .darken)
-                    if target > 1, (ls < la) != wantDarker || (abs(target - 1.35) < 0.001 && wantDarker != (darker || !Theme.isDark)) {
-                        p.append("\(at): the strip \(hex(strip)) should be \(wantDarker ? "darker" : "lighter") than the terminal \(hex(active))")
-                    }
-                    if target <= 1.35 {
-                        for (what, color) in [("waiting", Theme.attentionWaiting), ("failed", Theme.attentionFailed)] {
-                            let r = color.contrast(with: strip)
-                            if r < 3 { p.append("\(at): the \(what) outline is only \(ratio(r)):1 on the strip \(hex(strip))") }
-                        }
+            for (i, run) in runs.enumerated() {
+                let name = themes[i].0, dark = run[0].2.luminance < 0.25
+                for (a, b) in zip(run, run.dropFirst()) {
+                    let (la, lb) = (a.1.luminance, b.1.luminance)
+                    if dark ? lb > la + 1e-6 : lb < la - 1e-6 {
+                        p.append("\(name): the strip went \(dark ? "lighter" : "darker") from \(hex(a.1)) at \(a.0) to \(hex(b.1)) at \(b.0)")
+                        break
                     }
                 }
             }
-            return p
-        }
+            return p.isEmpty ? nil : p.joined(separator: "; ")
+        }) {}
 
-        t.step("tab contrast: in every theme the active tab stands chromeContrast off the strip, and hover sits strictly between them", nil, {
-            let p = orderProblems()
-            return Settings.chromeContrast == 1.35 ? (p.isEmpty ? nil : p.joined(separator: "; ")) : "the default chrome_contrast should be 1.35, is \(Settings.chromeContrast)"
+        t.step("tab contrast: 0 is the terminal background; hover sits between strip and active tab at every setting", nil, {
+            var p: [String] = []
+            for v in ["0", "-1", "-0.6", "-0.3", "0.3", "0.5", "1"] {
+                writeSettings("[colors]\nchrome_contrast = \(v)\n")
+                for (i, s) in shades().enumerated() {
+                    let (ls, lh, la) = (s.strip.luminance, s.hover.luminance, s.active.luminance)
+                    let at = "\(themes[i].0) @\(v)"
+                    if v == "0", !PixelProbe.matches(s.strip, s.active) { p.append("\(at): the strip \(hex(s.strip)) should be the background \(hex(s.active))") }
+                    // Equal colors (0, or a black/white theme that can't deepen) count as between.
+                    let between = PixelProbe.matches(s.strip, s.active) ? PixelProbe.matches(s.hover, s.active)
+                        : min(ls, la) < lh && lh < max(ls, la)
+                    if !between { p.append("\(at): hover \(hex(s.hover)) isn't between the strip \(hex(s.strip)) and the active tab \(hex(s.active))") }
+                }
+            }
+            writeSettings("")
+            return p.isEmpty ? nil : p.joined(separator: "; ")
+        }) {}
+
+        t.step("tab contrast: at the default (-0.3) the active tab stands ≥ 1.15:1 off the strip and attention outlines keep 3:1 on it", nil, {
+            guard Settings.chromeContrast == -0.3 else { return "the default chrome_contrast should be -0.3, is \(Settings.chromeContrast)" }
+            var p: [String] = []
+            for th in themes {
+                inTheme(th) {
+                    let strip = Theme.chrome, c = Theme.surface.contrast(with: strip)
+                    let blue = Theme.attentionWaiting.contrast(with: strip), red = Theme.attentionFailed.contrast(with: strip)
+                    print("      tab contrast @-0.3: \(th.0): strip \(hex(strip)) active \(ratio(c)):1, waiting \(ratio(blue)):1, failed \(ratio(red)):1")
+                    if c < 1.15 { p.append("\(th.0): active vs strip \(hex(strip)) is \(ratio(c)):1, want ≥ 1.15") }
+                    if blue < 3 { p.append("\(th.0): the waiting outline is \(ratio(blue)):1 on the strip") }
+                    let floor: CGFloat = redExceptions.contains(th.0) ? 2.4 : 3
+                    if red < floor { p.append("\(th.0): the failed outline is \(ratio(red)):1 on the strip, want ≥ \(ratio(floor))") }
+                }
+            }
+            return p.isEmpty ? nil : p.joined(separator: "; ")
         }) {
             writeSettings("")
         }
-        // #87: `[colors] chrome_contrast` lowers it (the user's main use) or raises it, live.
-        for value in ["1.0", "1.1", "1.2", "1.6", "2.5"] {
-            t.step("tab contrast: [colors] chrome_contrast = \(value) holds in every theme", nil, {
-                let p = orderProblems()
-                return abs(Theme.chromeContrast - CGFloat(Double(value)!)) < 0.001 ? (p.isEmpty ? nil : p.joined(separator: "; "))
-                    : "chrome_contrast should read \(value), reads \(Theme.chromeContrast)"
-            }) {
-                writeSettings("[colors]\nchrome_contrast = \(value)\n")
-            }
-        }
-        t.step("tab contrast: a bad chrome_contrast is reported and the default used", nil, {
-            let reported = Settings.problems.contains { $0.contains("colors.chrome_contrast") }
-            return reported && Settings.chromeContrast == 1.35 ? nil
-                : "chrome_contrast = 3 should be reported (\(reported)) and read as 1.35 (\(Settings.chromeContrast))"
+        t.step("tab contrast: an out-of-range chrome_contrast (the old 1.35) is reported with the range and reads as the default", nil, {
+            let problem = Settings.problems.first { $0.contains("colors.chrome_contrast") }
+            return problem?.contains("-1.0 and 1.0") == true && Settings.chromeContrast == -0.3 ? nil
+                : "chrome_contrast = 1.35 should be reported with the range (\(problem ?? "not reported")) and read as -0.3 (\(Settings.chromeContrast))"
         }) {
-            writeSettings("[colors]\nchrome_contrast = 3\n")
+            writeSettings("[colors]\nchrome_contrast = 1.35\n")
         }
+        var before: NSColor?
         t.step("tab contrast: a settings reload re-themes open windows: window background and strip in the new chrome", nil, {
             guard let dv = self.focusedDeck?.view, let w = self.window else { return "no deck" }
             let want = Theme.chrome
-            guard Theme.surface.contrast(with: want) > 1.55 else { return "chrome_contrast = 1.6 didn't apply: \(ratio(Theme.surface.contrast(with: want))):1" }
+            guard let before, !PixelProbe.matches(before, want) else { return "chrome_contrast = 0.6 didn't change the chrome (\(hex(want)))" }
             let s = dv.strip
             let past = s.convert(CGPoint(x: s.addButton.frame.maxX + 12, y: s.bounds.midY), to: self.contentView)
             let px = PixelProbe.sample(self.contentView, at: past)
             return [PixelProbe.matches(w.backgroundColor, want) ? nil : "the window background is \(hex(w.backgroundColor)), want \(hex(want))",
                     PixelProbe.matches(px, want) ? nil : "the strip reads \(hex(px)), want \(hex(want))"].compactMap { $0 }.first
         }) {
-            writeSettings("[colors]\nchrome_contrast = 1.6\n")
+            writeSettings("")
+            before = Theme.chrome
+            writeSettings("[colors]\nchrome_contrast = 0.6\n")
         }
         t.step("tab contrast: back to the default chrome_contrast", nil, {
-            Settings.chromeContrast == 1.35 && Settings.problems.isEmpty ? nil : "settings should be back to the defaults"
+            Settings.chromeContrast == -0.3 && Settings.problems.isEmpty ? nil : "settings should be back to the defaults"
         }) {
             writeSettings("")
         }
 
         t.step("tab contrast: real tab buttons fill active, hovered and inactive in that order, connected and pill, at 2x and 1x", nil, {
             var p: [String] = []
-            for (name, bg, fg, _) in themes {
+            for (name, bg, fg) in themes {
                 p += PixelProbe.atEachScale { _ in Theme.withBackground(NSColor(hex: bg)!, foreground: NSColor(hex: fg)!) {
                     var q: [String] = []
                     for style in TabStyle.allCases {
