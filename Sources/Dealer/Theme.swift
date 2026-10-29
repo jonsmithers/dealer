@@ -64,7 +64,7 @@ enum Theme {
     static var text: NSColor { foreground }
     static var textMuted: NSColor { foreground.mixed(with: chrome, 0.45) }
     static var textFaint: NSColor { foreground.mixed(with: chrome, 0.68) }
-    /// Accent for single-deck windows, where deck colors aren't shown.
+    /// Neutral accent: the pane grip in single-deck windows, workspace drop highlights.
     static var accentNeutral: NSColor { foreground.mixed(with: chrome, 0.35) }
     /// The selected workspace's switcher entry (#52): a neutral fill a fifth of the way from the
     /// chrome to the foreground, well past `hover` (7%), in light and dark themes. Never an

@@ -242,11 +242,13 @@ The GitHub repo is `jonsmithers/dealer`.
   way to an attention outline on the same entry. **A workspace's color shows only on its switcher entry**: the sidebar row, or
   the pill in top-bar mode (#15, #18; the user's call). Not in the deck area, and it has no effect
   at all on tabs (tint, underline, fill, or deck-color fallback). Tabs get color only from their own `Tab.color`; the
-  per-deck underline stays and a tab color overrides it on that tab. `[colors] auto_assign`
+  per-deck underline on the active tab stays, with any number of decks (#86, the user's call; it used
+  to need two), and a tab color overrides it on that tab. `[colors] auto_assign`
   defaults to off.
 - Tabs are "connected" by default (#84, `[tabs] style`, "pill" is the old look): the active tab
-  joins its deck's content with no seam, also from the titlebar row, and drops the deck accent
-  underline (a tab color still shows). On translucent windows a connected active tab follows its
+  joins its deck's content with no seam, also from the titlebar row, and draws the deck accent
+  underline (or its tab color) along its bottom edge, over the overlap row, where it meets the
+  terminal (#86; #84 had dropped it). On translucent windows a connected active tab follows its
   terminal's translucency (`TabStyle.connectedMatchesTerminal`, the user may revisit); pills stay
   opaque.
 - Attention clears in the model at once, but its ring/outline/dot fade out (~0.8 s, plus a 0.5 s hold

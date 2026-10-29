@@ -4,7 +4,8 @@ import AppKit
 
 extension TerminalWindowController {
     func titlebarAccentSelfTestSteps(_ t: SelfTestKit) {
-        /// The accent shows on pill tabs; connected tabs (#84, the default) drop it on the active tab.
+        /// The accent shows on pill tabs, and on connected ones (#84, the default) along the active
+        /// tab's bottom edge (#86).
         func setTabsInTitlebar(_ on: Bool, style: TabStyle? = nil) {
             let url = Settings.fileURL
             try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -39,16 +40,21 @@ extension TerminalWindowController {
             self.layoutNow()
             self.refreshChrome()  // reloads the strips after they moved into the titlebar
         }
-        t.step("titlebar accent: a connected active tab drops the deck accent (#84): its underline spot is the tab's own fill", nil, {
+        t.step("titlebar accent: a connected active tab underlines in its deck's color along its bottom edge, where it meets the card (#86), at 2x and 1x", nil, {
             let up = self.decks.filter { $0.view.stripInTitlebar && $0.view.strip.superview === self.contentView }
             guard up.count >= 2 else { return "expected two decks with titlebar strips, got \(up.count)" }
             let problems = PixelProbe.atEachScale { _ in
                 up.compactMap { d -> String? in
                     guard let b = activeButton(d) else { return "a titlebar strip has no active tab button" }
-                    guard b.style == .connected, b.accent != nil else { return "the tab should be connected and have an accent to drop" }
+                    guard b.style == .connected, b.accent != nil, b.color == nil else { return "the tab should be connected, uncolored, with an accent" }
                     let px = PixelProbe.sample(b, at: CGPoint(x: b.underlineRect.midX, y: b.underlineRect.midY))
-                    return PixelProbe.matches(px, Theme.surface) ? nil
-                        : "underline spot is \(px?.hexString ?? "nil"), want the tab's fill \(Theme.surface.hexString)"
+                    let edge = PixelProbe.sample(b, at: CGPoint(x: b.underlineRect.midX, y: b.bounds.maxY - 0.25))
+                    let p = [PixelProbe.matches(px, d.color) ? nil
+                                : "underline is \(px?.hexString ?? "nil"), want the deck's \(d.color.hexString)",
+                            PixelProbe.matches(edge, d.color) ? nil
+                                : "the tab's bottom edge (the overlap row) is \(edge?.hexString ?? "nil"), want the deck's \(d.color.hexString)"]
+                        .compactMap { $0 }
+                    return p.isEmpty ? nil : p.joined(separator: ", ")
                 }
             }
             return problems.isEmpty ? nil : problems.joined(separator: "; ")

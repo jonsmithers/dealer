@@ -173,13 +173,19 @@ extension TerminalWindowController {
             self.moveToNewTab(node("log"), deck: self.decks[0], index: 2)
         }
         step("⌘1", expect: "Deck0[*srv, db, log]") { self.gotoTab(index: 0) }
-        step("drop tab on pane edge: rejoins as a split", expect: "Deck0[*Row(srv, log), db]") {
+        step("drop tab on pane edge: rejoins as a split", expect: "Deck0[*Row(srv, log), db]",
+             check: { self.singleDeckUnderlineProblem() }) {  // #86: one deck still underlines its active tab
             self.merge(tab: tab(named: "log"), besidePane: p("srv"), side: .right)
         }
 
         // 4 · Decks
         step("drop pane on window edge: promote to deck", expect: "Row(Deck0[*srv, db], Deck1[*log])",
-             check: { self.decks[0].view.showsColor ? nil : "decks should be tinted once there are two" }) {
+             check: {
+                 // Each deck's tabs carry its own accent (#86: with one deck too), and the two differ.
+                 let acc = self.decks.map { d in d.view.strip.buttons.first?.accent?.hexString }
+                 return acc == self.decks.map(\.color.hexString) && Set(acc).count == 2 ? nil
+                     : "each deck's tabs should carry its own color, got \(acc)"
+             }) {
             self.promote(node("log"), side: .right, allowWholeDeck: true)
         }
         step("⌘T opens in the focused deck", expect: "Row(Deck0[*srv, db], Deck1[log, *tests])") {

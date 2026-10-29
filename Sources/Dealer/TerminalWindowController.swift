@@ -761,7 +761,6 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
                 deck.activeTab?.panes.forEach { if !$0.view.isHidden { $0.surface.setVisible(true) } }
             }
             dv.frame = r
-            dv.showsColor = decks.count > 1
             dv.layoutSubtreeIfNeeded()
             layout(deck: deck, zoomed: zoomed.flatMap { $0.1.deck === deck ? $0.1.node.leaf : nil })
         }

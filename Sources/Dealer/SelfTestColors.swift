@@ -38,7 +38,7 @@ extension TerminalWindowController {
         }
 
         // #15: everything except the sidebar row renders byte-for-byte the same with and without
-        // the workspace color: the band above the decks, each tab strip and each tab button. The scene has two decks (so deck-color underlines show), an
+        // the workspace color: the band above the decks, each tab strip and each tab button. The scene has two decks (two deck-color underlines), an
         // inactive tab, and a tab with its own color.
         var renders: [String: (Data?, Data?)] = [:]
         var pillsShown = false

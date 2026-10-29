@@ -159,8 +159,14 @@
   terminal paints on a translucent window (background at the opacity, nothing under glass), and
   `layoutBackdrop` cuts it out of the chrome with its card (`CardHole`). One switch,
   `TabStyle.connectedMatchesTerminal`, the user may flip; pill tabs stay opaque (#67) regardless.
-- Connected drops the deck accent underline on the active tab; `Tab.color` still tints and
-  underlines it. Tests: `SelfTestTabStyle.swift` (`DEALER_SELFTEST_ONLY=tab style:`).
+- The active tab's underline (#86) is the deck accent, or its `Tab.color`, in every window, one
+  deck included (`TabStripView` always sets `accent`; there is no deck-count gate). It sits at the
+  bottom of `bodyRect` (`underlineRect`): for a connected active tab that covers the overlap row, so
+  the line runs into the terminal; a pill's is unchanged. It's drawn after the fill and tint and
+  before `AttentionStyle.draw`, whose open bottom adds no stroke to it (only its 10% tint lies
+  over it). It's a line, not a chrome fill, so it never goes through `Theme.fill` and stays opaque
+  on a translucent connected tab. Tests: `SelfTestTabStyle.swift` (`DEALER_SELFTEST_ONLY=tab style:`),
+  the one-deck check in the walkthrough (`singleDeckUnderlineProblem`).
 
 ## Workspaces (`Workspace.swift`, `WorkspaceSidebar.swift`, `WorkspaceBar.swift`, `WorkspaceSwitcher.swift`)
 

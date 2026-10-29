@@ -206,7 +206,8 @@ minimizes per System Settings. Tabs there drag and drop as usual. The change app
 ### Tab style
 
 Tabs are "connected" by default: the active tab joins its deck's content below it, with no seam,
-so it reads as one surface with its terminal (also from the titlebar row). On a translucent window
+so it reads as one surface with its terminal (also from the titlebar row), and is underlined in its
+deck's color where it meets the terminal. On a translucent window
 the active tab is as translucent as its terminal. For the older look, rounded pill tabs floating in
 the strip over a separate content card, set `[tabs] style = "pill"` in [settings.toml](#settings).
 The change applies live.
@@ -217,7 +218,8 @@ Right-click a workspace (sidebar row or pill) or a tab for **Workspace Color** /
 preset swatches, **Custom…** (the system color panel) or **None**. A workspace's color shows only on
 its entry in the switcher (its sidebar row, or its pill in top-bar mode), as a chip and a faint
 tint. It doesn't appear in the deck area or on tabs. A colored tab gets a faint tint and an underline in its color, which replaces
-the deck's color on that tab. Uncolored tabs stay neutral. A tab's color moves with the tab;
+the deck's color on that tab. Uncolored tabs stay neutral, except for the active tab's underline in
+its deck's color. A tab's color moves with the tab;
 a workspace's color stays with the workspace. Colors are saved with the session. From a script:
 `dealer color -t workspace:2 teal`, `dealer color --tab '#e06c75'`, `dealer color --workspace none`.
 In settings.toml, `[colors] auto_assign = true` colors each new workspace with the next unused

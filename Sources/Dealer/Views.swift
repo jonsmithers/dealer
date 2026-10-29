@@ -306,11 +306,6 @@ final class DeckView: FlippedView, ThemeApplying {
         }
     }
 
-    /// True when the window has several decks and each shows its identity color.
-    /// Passed on to the strip, which keeps its own copy: in the titlebar row (#16) the strip's
-    /// superview isn't this deck view (#59).
-    var showsColor = false { didSet { if showsColor != oldValue { strip.showsDeckColor = showsColor } } }
-
     /// True while `strip` lives in the window's titlebar row (#16, TitlebarTabs.swift); the content
     /// card then fills the whole deck. Set by the controller, which also reparents the strip.
     var stripInTitlebar = false { didSet { if stripInTitlebar != oldValue { needsLayout = true } } }
@@ -343,8 +338,6 @@ final class DeckView: FlippedView, ThemeApplying {
 
 final class TabStripView: FlippedView {
     unowned let deck: Deck
-    /// Whether tabs underline in the deck's color (several decks), set by the `DeckView`.
-    var showsDeckColor = false { didSet { if showsDeckColor != oldValue { reload() } } }
     /// Connected or pill (#84), set by the controller each layout pass (`placeTabStrips`). A
     /// connected strip is `style.overlap` taller than its row, reaching over its card's top border.
     var style: TabStyle = .pill {
@@ -395,7 +388,7 @@ final class TabStripView: FlippedView {
             b.deck = deck
             b.title = tab.title
             b.isActive = i == deck.activeIndex
-            b.accent = showsDeckColor ? deck.color : nil
+            b.accent = deck.color  // #86: whatever the number of decks
             b.style = style
             b.attention = tab.attention
             b.working = tab.workingMark  // AgentStatus.swift
@@ -544,7 +537,7 @@ final class TabButton: FlippedView {
     weak var deck: Deck?
     var title = "" { didSet { if title != oldValue { needsDisplay = true } } }
     var isActive = false { didSet { if isActive != oldValue { needsDisplay = true } } }
-    /// Deck identity color, or nil in a single-deck window.
+    /// Deck identity color: the active tab's underline (#86: also in a single-deck window).
     var accent: NSColor? { didSet { if accent != oldValue { needsDisplay = true } } }
     /// Connected or pill (#84, TabShape.swift), set by the strip. A connected tab's frame runs to the
     /// strip's bottom plus `overlap`, the card border row the active tab paints over.
@@ -650,9 +643,9 @@ final class TabButton: FlippedView {
         }
         // #9: a tab color tints the button and replaces the deck accent in the underline, which
         // then shows on inactive tabs too (fainter), so colored tabs are findable in the strip.
-        // Connected (#84), the active tab's connection is the cue, so it drops the deck accent.
+        // A connected active tab (#86) draws it at its open bottom, where it meets the terminal.
         ColorStyle.drawTint(color, in: r, shape: shape)
-        if let underline = color.map({ isActive ? $0 : $0.withAlphaComponent(0.55) }) ?? (isActive && !connected ? accent : nil) {
+        if let underline = color.map({ isActive ? $0 : $0.withAlphaComponent(0.55) }) ?? (isActive ? accent : nil) {
             underline.setFill()
             NSBezierPath(roundedRect: underlineRect, xRadius: 1, yRadius: 1).fill()
         }
@@ -710,8 +703,9 @@ final class TabButton: FlippedView {
         c.close(tab: tab)
     }
 
-    /// Where the underline sits (also sampled by the self-test).
-    var underlineRect: CGRect { CGRect(x: 10, y: bodyHeight - 2, width: bounds.width - 20, height: 2) }
+    /// Where the underline sits (also sampled by the self-test): the bottom of `bodyRect`, so on a
+    /// connected active tab (#86) it covers the overlap row and runs into the terminal's top edge.
+    var underlineRect: CGRect { CGRect(x: 10, y: bodyRect.maxY - 2, width: bounds.width - 20, height: 2) }
 
     /// A connected active tab's fill: the terminal's background as the terminal paints it.
     static var connectedFill: NSColor {
