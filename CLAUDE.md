@@ -142,8 +142,10 @@ The GitHub repo is `jonsmithers/dealer`.
     when the demo prints `DEMO DONE`, *before* the app exits: a frame after the window closes would
     show the user's screen. `screencapture -v -l` isn't used because it records the real pointer
     and macOS swaps the traffic lights for a capture badge.
-  - Demos run with `tabs_in_titlebar = true` and `[colors] auto_assign = true` (one switch each,
-    `Demo.tabsInTitlebar` and `Demo.autoAssignColors`, written to the demo's temp settings; #79).
+  - Demos run with `tabs_in_titlebar = true`, `[colors] auto_assign = true` and `[tabs] style =
+    "pill"` (one switch each, `Demo.tabsInTitlebar`, `Demo.autoAssignColors` and `Demo.tabStyle`,
+    written to the demo's temp settings; #79). Pill tabs are the user's call for the README, though
+    connected is the app's default.
     The first workspace stays uncolored, as in normal use. Grab tabs with the `grip(…)` helper (lower half = tab drag; the upper
     half drags the window, #27). Captions sit in a band under the decks (`Demo.captionBand`, 0
     outside demos, subtracted in `deckArea`). Each caption logs `DEMO BEAT <tree>`, so a run

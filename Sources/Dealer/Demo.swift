@@ -22,6 +22,9 @@ enum Demo {
     /// above. As in normal use, a window's first workspace stays uncolored and each later one takes
     /// the next unused swatch. Flip this one switch to record without colors.
     static let autoAssignColors = true
+    /// Demos are recorded with pill tabs (`[tabs] style = "pill"`, the user's call), written next to
+    /// the above. Set it to `.connected` to record the default style instead.
+    static let tabStyle = TabStyle.pill
     /// A band under the decks that holds the demo's caption (0 outside demos). The titlebar row
     /// holds tabs, so the caption lives at the bottom, clear of every deck and drop target.
     static var captionBand: CGFloat { name == nil ? 0 : 34 }
@@ -342,6 +345,7 @@ extension TerminalWindowController {
         // Self-test mode points Settings at a temp config home, so this never touches the user's file.
         if Demo.tabsInTitlebar { Settings.write("window.tabs_in_titlebar", .bool(true)) }
         if Demo.autoAssignColors { Settings.write("colors.auto_assign", .bool(true)) }
+        Settings.write("tabs.style", .string(Demo.tabStyle.rawValue))
         window?.setContentSize(NSSize(width: 1000, height: 600))
         window?.center()
         // Recorded as a screen region (no real cursor, no capture badge), so nothing may cover it.
