@@ -1,4 +1,4 @@
-Dealer's patch to Ghostty's build, for Ghostty 81598385d608dda4946093d6d6a234d204a2f225 (#42).
+Dealer's patch to Ghostty's build, for Ghostty v1.4.0, 83fb95624b0439ee660c2679b43b38c8b63769cd (#42).
 Lets libghostty build with only the Command Line Tools. Applied by scripts/build-ghosttykit.sh to a
 temporary clone, never to your checkout. See scripts/ghostty-build/README.md.
 
@@ -12,11 +12,11 @@ One line per hunk:
   instead of `xcodebuild -create-xcframework` (Xcode only). Several libraries keep xcodebuild.
 
 diff --git a/src/build/Config.zig b/src/build/Config.zig
-index 71fa4d289..9055bbf61 100644
+index 24157293b..1f01dcecf 100644
 --- a/src/build/Config.zig
 +++ b/src/build/Config.zig
 @@ -20,6 +20,8 @@ const GitVersion = @import("GitVersion.zig");
- optimize: std.builtin.OptimizeMode,
+ optimize: std.lang.Optimize,
  target: std.Build.ResolvedTarget,
  xcframework_target: XCFrameworkTarget = .universal,
 +/// Dealer: a precompiled Ghostty.metallib to embed instead of running `xcrun metal`.
@@ -24,7 +24,7 @@ index 71fa4d289..9055bbf61 100644
  wasm_target: WasmTarget,
  
  /// Comptime interfaces
-@@ -186,6 +188,12 @@ pub fn init(b: *std.Build, appVersion: []const u8, libVersion: []const u8) !Conf
+@@ -191,6 +193,12 @@ pub fn init(b: *std.Build, appVersion: []const u8, libVersion: []const u8) !Conf
          "The target for the xcframework.",
      ) orelse .universal;
  
@@ -38,7 +38,7 @@ index 71fa4d289..9055bbf61 100644
      // Comptime Interfaces
      config.font_backend = b.option(
 diff --git a/src/build/GhosttyXCFramework.zig b/src/build/GhosttyXCFramework.zig
-index 3f3b97eb2..c835dd93f 100644
+index 14ec25a07..165582b45 100644
 --- a/src/build/GhosttyXCFramework.zig
 +++ b/src/build/GhosttyXCFramework.zig
 @@ -16,10 +16,11 @@ pub fn init(
@@ -56,7 +56,7 @@ index 3f3b97eb2..c835dd93f 100644
          Config.genericMacOSTarget(b, null),
      ));
 diff --git a/src/build/SharedDeps.zig b/src/build/SharedDeps.zig
-index 1f4143fcd..c0ee21cf5 100644
+index 8f4e23954..7a5ff00c0 100644
 --- a/src/build/SharedDeps.zig
 +++ b/src/build/SharedDeps.zig
 @@ -500,11 +500,17 @@ pub fn add(
@@ -83,33 +83,33 @@ index 1f4143fcd..c0ee21cf5 100644
  
      // Other dependencies, mostly pure Zig
 diff --git a/src/build/XCFrameworkStep.zig b/src/build/XCFrameworkStep.zig
-index 5f1b676fb..218013bc4 100644
+index 7570adee0..d290aafd7 100644
 --- a/src/build/XCFrameworkStep.zig
 +++ b/src/build/XCFrameworkStep.zig
-@@ -49,7 +49,25 @@ pub fn create(b: *std.Build, opts: Options) *XCFrameworkStep {
-     const run_create = run: {
-         const run = RunStep.create(b, b.fmt("xcframework {s}", .{opts.name}));
-         run.has_side_effects = true;
--        run.addArgs(&.{ "xcodebuild", "-create-xcframework" });
-+        // Dealer: one macOS library needs no `xcodebuild -create-xcframework` (Xcode only);
-+        // write the same layout and Info.plist with sh. Several libraries keep xcodebuild.
-+        if (opts.libraries.len == 1) run.addArgs(&.{ "/bin/sh", "-c",
-+            \\set -e
-+            \\while [ $# -gt 0 ]; do case $1 in -library) lib=$2 ;; -headers) hdr=$2 ;; -output) out=$2 ;; esac; shift 2; done
-+            \\arch=$(lipo -archs "$lib" | tr ' ' '_'); id=macos-$arch; name=$(basename "$lib")
-+            \\mkdir -p "$out/$id"; cp "$lib" "$out/$id/"; cp -R "$hdr" "$out/$id/Headers"
-+            \\archs=$(for a in $(lipo -archs "$lib"); do printf '<string>%s</string>' "$a"; done)
-+            \\cat > "$out/Info.plist" <<EOF
-+            \\<?xml version="1.0" encoding="UTF-8"?>
-+            \\<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-+            \\<plist version="1.0"><dict><key>AvailableLibraries</key><array><dict>
-+            \\<key>BinaryPath</key><string>$name</string><key>HeadersPath</key><string>Headers</string>
-+            \\<key>LibraryIdentifier</key><string>$id</string><key>LibraryPath</key><string>$name</string>
-+            \\<key>SupportedArchitectures</key><array>$archs</array><key>SupportedPlatform</key><string>macos</string>
-+            \\</dict></array><key>CFBundlePackageType</key><string>XFWK</string><key>XCFrameworkFormatVersion</key><string>1.0</string>
-+            \\</dict></plist>
-+            \\EOF
-+            , "sh" }) else run.addArgs(&.{ "xcodebuild", "-create-xcframework" });
-         for (opts.libraries) |lib| {
-             run.addArg("-library");
-             run.addFileArg(lib.library);
+@@ -53,7 +53,25 @@ pub fn create(b: *std.Build, opts: Options) *XCFrameworkStep {
+ 
+     const run = RunStep.create(b, b.fmt("xcframework {s}", .{opts.name}));
+     run.has_side_effects = true;
+-    run.addArgs(&.{ "xcodebuild", "-create-xcframework" });
++    // Dealer: one macOS library needs no `xcodebuild -create-xcframework` (Xcode only);
++    // write the same layout and Info.plist with sh. Several libraries keep xcodebuild.
++    if (opts.libraries.len == 1) run.addArgs(&.{ "/bin/sh", "-c",
++        \\set -e
++        \\while [ $# -gt 0 ]; do case $1 in -library) lib=$2 ;; -headers) hdr=$2 ;; -output) out=$2 ;; esac; shift 2; done
++        \\arch=$(lipo -archs "$lib" | tr ' ' '_'); id=macos-$arch; name=$(basename "$lib")
++        \\mkdir -p "$out/$id"; cp "$lib" "$out/$id/"; cp -R "$hdr" "$out/$id/Headers"
++        \\archs=$(for a in $(lipo -archs "$lib"); do printf '<string>%s</string>' "$a"; done)
++        \\cat > "$out/Info.plist" <<EOF
++        \\<?xml version="1.0" encoding="UTF-8"?>
++        \\<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++        \\<plist version="1.0"><dict><key>AvailableLibraries</key><array><dict>
++        \\<key>BinaryPath</key><string>$name</string><key>HeadersPath</key><string>Headers</string>
++        \\<key>LibraryIdentifier</key><string>$id</string><key>LibraryPath</key><string>$name</string>
++        \\<key>SupportedArchitectures</key><array>$archs</array><key>SupportedPlatform</key><string>macos</string>
++        \\</dict></array><key>CFBundlePackageType</key><string>XFWK</string><key>XCFrameworkFormatVersion</key><string>1.0</string>
++        \\</dict></plist>
++        \\EOF
++        , "sh" }) else run.addArgs(&.{ "xcodebuild", "-create-xcframework" });
+     for (opts.libraries) |lib| {
+         run.addArg("-library");
+         run.addFileArg(lib.library);

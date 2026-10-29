@@ -81,7 +81,7 @@ final class GhosttyRuntime {
     // MARK: Config reload (#33)
 
     /// Self-test only: load this one file instead of ghostty's default files. libghostty snapshots
-    /// the process environment at `ghostty_init` (zig 0.16), so a later `setenv("XDG_CONFIG_HOME")`
+    /// the process environment at `ghostty_init` (zig 0.16+), so a later `setenv("XDG_CONFIG_HOME")`
     /// no longer redirects it; and Dealer must not `setenv` after `ghostty_init` at all, because
     /// libghostty keeps pointing at the environ array that setenv may reallocate.
     static var configFileOverride: String?

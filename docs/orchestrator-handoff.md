@@ -18,7 +18,7 @@ explains current decisions. Keep it current.
 | Demo media | Orphan branch `media` (GIFs/MP4s), checked out at `~/git/myterm-wt/media-branch`. Never on master. Regenerate with `scripts/record-demo.sh`, then `--publish` (see CLAUDE.md). |
 | Pinned Ghostty build output | `vendor/GhosttyKit.xcframework` and `vendor/ghostty-resources/` (#41) in the main checkout, both git-ignored and shared by worktrees (the self-test finds the main checkout's resources by itself). Agents build at the pin in a `git clone --shared` with `build-ghosttykit.sh --out <tmp>`; the lead installs the result into the main `vendor/`. |
 | CLT-only Ghostty build (#42) | `scripts/ghostty-build/`: the per-pin Ghostty build patch, precompiled `Ghostty.metallib` + provenance, and a README (why, pin bumps, removal). |
-| Ghostty source | `~/git/ghostty`, the user's checkout, read-only. Since #43 the pin is `b1d9492` (upstream main, 2026-10-11, zig 0.16), which this checkout **doesn't contain** (it's at 822e84272, whose `ghostty.h` is identical). Reading the pin's source needs a `git clone --shared` + fetch in a scratch dir: a download, so ask first on metered wifi. |
+| Ghostty source | `~/git/ghostty`, the user's checkout, read-only. Since #85 the pin is the **v1.4.0 tag**, `83fb95624` (zig 0.17), which this checkout **doesn't contain** (it's at 822e84272, an ancestor whose `ghostty.h` lacks only `ghostty_surface_paste_text`). Reading the pin's source needs a `git clone --shared` + fetch in a scratch dir: a download, so ask first on metered wifi. |
 | cmux source | `~/git/cmux` (reference for agent integration). Read-only; branch switching allowed only with a clean tree, restored afterwards. |
 
 ## Merging and verifying

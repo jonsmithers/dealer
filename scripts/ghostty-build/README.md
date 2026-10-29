@@ -91,6 +91,8 @@ Once it's gone, building `vendor/` needs full Xcode plus its Metal Toolchain
 
 - The iOS hunks went at the zig 0.16 pin bump (b1d9492cf, #43): upstream 7a171895d stopped building
   iOS libraries.
+- At v1.4.0 (#85) the XCFrameworkStep hunk was rebased onto upstream's restructured step
+  (`out_path` union, headers as directory args); the sh writer itself is unchanged.
 - The rest goes if upstream adds a way to use a precompiled metallib and a path that doesn't need
   `xcodebuild`. Both would be reasonable to propose upstream. Until then, the patch is the only
   thing that can drift.

@@ -25,13 +25,17 @@ extension TerminalWindowController {
                 : "GhosttyVersion.pinnedCommit is \(GhosttyVersion.pinnedCommit), scripts/ghostty.version is \(file)"
         }) {}
 
-        t.step("ghostty: version parsing (commit after `+`, prefix match, no-commit builds pass)", nil, {
+        t.step("ghostty: version parsing (commit after `+`, prefix match, release tags, no-commit builds pass)", nil, {
             let pin = "243f7df7c131f9cc69bed4bc4586f5bf17b9d4fa"
             var problems: [String] = []
             if GhosttyVersion.commit(of: "1.3.2-main-+243f7df7c") != "243f7df7c" { problems.append("commit parse") }
             if GhosttyVersion.mismatch(version: "1.3.2-main-+243f7df7c", pin: pin) != nil { problems.append("match flagged") }
             if GhosttyVersion.mismatch(version: "1.3.2-main-+822e84272", pin: pin) == nil { problems.append("mismatch missed") }
             if GhosttyVersion.mismatch(version: "1.3.2-dev", pin: pin) != nil { problems.append("no-commit flagged") }
+            // A release tag's build (#85): build-ghosttykit.sh records the commit as `X.Y.Z+<hash>`.
+            if GhosttyVersion.commit(of: "1.4.0+243f7df7c131") != "243f7df7c131" { problems.append("tag commit parse") }
+            if GhosttyVersion.mismatch(version: "1.4.0+243f7df7c131", pin: pin) != nil { problems.append("tag match flagged") }
+            if GhosttyVersion.mismatch(version: "1.4.0+83fb95624b04", pin: pin) == nil { problems.append("tag mismatch missed") }
             return problems.isEmpty ? nil : problems.joined(separator: "; ")
         }) {}
 

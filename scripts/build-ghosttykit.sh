@@ -84,7 +84,7 @@ or rerun with --any-version to build this commit anyway."
   fi
 fi
 
-# zig: Ghostty's build.zig.zon says which version it needs (0.16.x for the pinned commit).
+# zig: Ghostty's build.zig.zon says which version it needs (0.17.x for the pinned commit).
 NEED=$(sed -n 's/.*minimum_zig_version *= *"\([0-9]*\.[0-9]*\).*/\1/p' "$GHOSTTY/build.zig.zon")
 if [ -z "${ZIG:-}" ]; then
   for z in "/opt/homebrew/opt/zig@$NEED/bin/zig" "/usr/local/opt/zig@$NEED/bin/zig" "$(command -v zig || true)"; do
@@ -174,7 +174,18 @@ echo "output:  $OUT/GhosttyKit.xcframework"
 # leaves the checkout's own zig-out alone; the framework itself always goes to macos/.
 STAGE=$(mktemp -d "${TMPDIR:-/tmp}/ghosttykit-prefix.XXXXXX")
 trap 'rm -rf "$STAGE" ${TREE:+"$TREE"}' EXIT
-BUILD="\"$ZIG\" build -p \"$STAGE\" -Demit-xcframework=true -Dxcframework-target=native -Demit-macos-app=false -Doptimize=ReleaseFast $EXTRA"
+# The pin check (#35) reads the commit from the version string Ghostty embeds. Off a tag that's
+# `X.Y.Z-<branch>+<hash>`, but at a release tag (v1.4.0, #85) Ghostty's build records a bare
+# `X.Y.Z`, so name the commit ourselves as semver build metadata: `X.Y.Z+<hash>` (no pre-release
+# part, so Ghostty still treats it as a stable release).
+VERSION_FLAG=
+if git -C "$GHOSTTY" describe --exact-match --tags "$HEAD" >/dev/null 2>&1; then
+  ZON_VERSION=$(sed -n 's/^ *\.version *= *"\([0-9][0-9.]*\)".*/\1/p' "$GHOSTTY/build.zig.zon" | head -1)
+  [ -n "$ZON_VERSION" ] || die "can't read .version from $GHOSTTY/build.zig.zon"
+  VERSION_FLAG="-Dversion-string=$ZON_VERSION+$(printf %.12s "$HEAD")"
+  echo "version: $ZON_VERSION+$(printf %.12s "$HEAD") (tagged release; the commit is added for the pin check)"
+fi
+BUILD="\"$ZIG\" build -p \"$STAGE\" -Demit-xcframework=true -Dxcframework-target=native -Demit-macos-app=false -Doptimize=ReleaseFast $VERSION_FLAG $EXTRA"
 if [ $DRY = 1 ]; then
   echo "dry run, would run in $SRC:"
   echo "  $BUILD"

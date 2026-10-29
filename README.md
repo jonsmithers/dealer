@@ -68,7 +68,7 @@ Demo videos are recorded with `scripts/record-demo.sh`.
 ## Build & run
 
 Prerequisites: macOS 14+, Xcode command-line tools (full Xcode isn't needed; see
-`scripts/ghostty-build/README.md`), zig 0.16, and a Ghostty checkout at the commit pinned in
+`scripts/ghostty-build/README.md`), zig 0.17, and a Ghostty checkout at the commit pinned in
 `scripts/ghostty.version`. The easiest place for it is next to this repo:
 
 ```sh
