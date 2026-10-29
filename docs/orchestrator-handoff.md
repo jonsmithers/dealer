@@ -135,7 +135,7 @@ Session of 2026-10-28..29:
   - no desktop banner while Dealer is the active app; a locked screen counts as away (#71);
   - clipboard follows ghostty: reads and unsafe pastes ask (#55, #72);
   - #23 (theme-derived accent colors) is *not planned*; #33 (live config reload) is wanted;
-  - README demos are recorded with **pill** tabs (`Demo.tabStyle`), though connected is the default;
+  - README demos are recorded with **connected** tabs, the default (`Demo.tabStyle`; pills until #87);
   - the active tab's deck underline shows with any number of decks (#86);
   - tab/chrome contrast: tunable as a signed dial, `[colors] chrome_contrast` −1…+1, default −0.3
     (#87; it replaced a WCAG target of 1.35 whose darken-to-lighten flip at 1.38 confused them).

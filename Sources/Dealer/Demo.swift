@@ -22,9 +22,9 @@ enum Demo {
     /// above. As in normal use, a window's first workspace stays uncolored and each later one takes
     /// the next unused swatch. Flip this one switch to record without colors.
     static let autoAssignColors = true
-    /// Demos are recorded with pill tabs (`[tabs] style = "pill"`, the user's call), written next to
-    /// the above. Set it to `.connected` to record the default style instead.
-    static let tabStyle = TabStyle.pill
+    /// Demos are recorded with connected tabs, the app's default (`[tabs] style`, the user's call;
+    /// they were pills before), written next to the above. Set it to `.pill` for the old look.
+    static let tabStyle = TabStyle.connected
     /// A band under the decks that holds the demo's caption (0 outside demos). The titlebar row
     /// holds tabs, so the caption lives at the bottom, clear of every deck and drop target.
     static var captionBand: CGFloat { name == nil ? 0 : 34 }
