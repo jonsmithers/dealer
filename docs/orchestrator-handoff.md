@@ -137,7 +137,7 @@ Session of 2026-10-28..29:
   - #23 (theme-derived accent colors) is *not planned*; #33 (live config reload) is wanted;
   - README demos are recorded with **connected** tabs, the default (`Demo.tabStyle`; pills until #87);
   - the active tab's deck underline shows with any number of decks (#86);
-  - tab/chrome contrast: tunable as a signed dial, `[colors] chrome_contrast` −1…+1, default −0.3
+  - tab/chrome contrast: tunable as a signed dial, `[colors] chrome_contrast` −1…+1, default +0.3
     (#87; it replaced a WCAG target of 1.35 whose darken-to-lighten flip at 1.38 confused them).
 - They don't want outward surprises. They're fine with secrets-free GitHub comments and issue
   creation on their behalf.

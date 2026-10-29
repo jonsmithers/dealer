@@ -2,13 +2,14 @@ import AppKit
 
 // MARK: - Self-test section: tab contrast (#87, Theme.chromeColor, TabButton.draw)
 //
-// `[colors] chrome_contrast` is a signed dial (−1…+1, default −0.3): 0 is the terminal background,
+// `[colors] chrome_contrast` is a signed dial (−1…+1, default +0.3): 0 is the terminal background,
 // + deepens the chrome away from the foreground, − raises it toward the foreground. Across dark,
 // near-black and light themes the strip moves steadily one way as the dial turns (it never flips
 // by itself, as the old WCAG-target solve did past 1.38:1 in Kanso Mist), a hovered tab
 // (`Theme.hover`) sits between the strip and the active tab (`Theme.surface`), and at the default
-// the active tab stands ≥ 1.15:1 off the strip with attention outlines ≥ 3:1 on it (known
-// exceptions: the failed red in Ghostty's default dark and Nord, ≥ 2.4). Checked on the formulas
+// dark themes' strips stand ≥ 1.08:1 off the active tab (light themes and black/near-black are
+// nearly flat there: only their direction is checked), with attention outlines ≥ 3:1 on every
+// theme's strip. Checked on the formulas
 // and on pixels of real tab buttons, in both tab styles. On a translucent window the active
 // connected tab follows `TabStyle.translucent`.
 // Self-contained (`DEALER_SELFTEST_ONLY=tab contrast:`); restores the settings and launch config.
@@ -32,9 +33,10 @@ extension TerminalWindowController {
             ("Solarized light", "#fdf6e3", "#657b83"),
             ("white", "#ffffff", "#000000"),
         ]
-        /// At the default, the failed red is under 3:1 on these themes' raised chrome (a bright
-        /// foreground pulls the strip toward the red's luminance); asserted at ≥ 2.4 instead.
-        let redExceptions: Set<String> = ["Ghostty default dark", "Nord"]
+        /// Nearly flat at the default (+0.3, the user's call): light themes, which deepen toward
+        /// white, and black/near-black, which can't deepen much. Only the strip's direction is
+        /// asserted for them; dark themes get a ratio floor.
+        let flatAtDefault: Set<String> = ["Catppuccin Latte", "Solarized light", "white", "near-black", "black"]
         func writeSettings(_ text: String) {
             let url = Settings.fileURL
             try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -92,18 +94,25 @@ extension TerminalWindowController {
             return p.isEmpty ? nil : p.joined(separator: "; ")
         }) {}
 
-        t.step("tab contrast: at the default (-0.3) the active tab stands ≥ 1.15:1 off the strip and attention outlines keep 3:1 on it", nil, {
-            guard Settings.chromeContrast == -0.3 else { return "the default chrome_contrast should be -0.3, is \(Settings.chromeContrast)" }
+        t.step("tab contrast: at the default (+0.3) dark strips stand ≥ 1.08:1 off the active tab, light ones are lighter or equal, and attention outlines keep 3:1", nil, {
+            guard Settings.chromeContrast == 0.3 else { return "the default chrome_contrast should be 0.3, is \(Settings.chromeContrast)" }
             var p: [String] = []
             for th in themes {
                 inTheme(th) {
                     let strip = Theme.chrome, c = Theme.surface.contrast(with: strip)
                     let blue = Theme.attentionWaiting.contrast(with: strip), red = Theme.attentionFailed.contrast(with: strip)
-                    print("      tab contrast @-0.3: \(th.0): strip \(hex(strip)) active \(ratio(c)):1, waiting \(ratio(blue)):1, failed \(ratio(red)):1")
-                    if c < 1.15 { p.append("\(th.0): active vs strip \(hex(strip)) is \(ratio(c)):1, want ≥ 1.15") }
+                    print("      tab contrast @+0.3: \(th.0): strip \(hex(strip)) active \(ratio(c)):1, waiting \(ratio(blue)):1, failed \(ratio(red)):1")
+                    if flatAtDefault.contains(th.0) {
+                        // Deepening: away from the foreground, never toward it.
+                        let (ls, la) = (strip.luminance, Theme.surface.luminance)
+                        if Theme.isDark ? ls > la + 1e-6 : ls < la - 1e-6 {
+                            p.append("\(th.0): the strip \(hex(strip)) should be \(Theme.isDark ? "darker" : "lighter") than or equal to the terminal")
+                        }
+                    } else if c < 1.08 {
+                        p.append("\(th.0): active vs strip \(hex(strip)) is \(ratio(c)):1, want ≥ 1.08")
+                    }
                     if blue < 3 { p.append("\(th.0): the waiting outline is \(ratio(blue)):1 on the strip") }
-                    let floor: CGFloat = redExceptions.contains(th.0) ? 2.4 : 3
-                    if red < floor { p.append("\(th.0): the failed outline is \(ratio(red)):1 on the strip, want ≥ \(ratio(floor))") }
+                    if red < 3 { p.append("\(th.0): the failed outline is \(ratio(red)):1 on the strip") }
                 }
             }
             return p.isEmpty ? nil : p.joined(separator: "; ")
@@ -112,8 +121,8 @@ extension TerminalWindowController {
         }
         t.step("tab contrast: an out-of-range chrome_contrast (the old 1.35) is reported with the range and reads as the default", nil, {
             let problem = Settings.problems.first { $0.contains("colors.chrome_contrast") }
-            return problem?.contains("-1.0 and 1.0") == true && Settings.chromeContrast == -0.3 ? nil
-                : "chrome_contrast = 1.35 should be reported with the range (\(problem ?? "not reported")) and read as -0.3 (\(Settings.chromeContrast))"
+            return problem?.contains("-1.0 and 1.0") == true && Settings.chromeContrast == 0.3 ? nil
+                : "chrome_contrast = 1.35 should be reported with the range (\(problem ?? "not reported")) and read as 0.3 (\(Settings.chromeContrast))"
         }) {
             writeSettings("[colors]\nchrome_contrast = 1.35\n")
         }
@@ -133,7 +142,7 @@ extension TerminalWindowController {
             writeSettings("[colors]\nchrome_contrast = 0.6\n")
         }
         t.step("tab contrast: back to the default chrome_contrast", nil, {
-            Settings.chromeContrast == -0.3 && Settings.problems.isEmpty ? nil : "settings should be back to the defaults"
+            Settings.chromeContrast == 0.3 && Settings.problems.isEmpty ? nil : "settings should be back to the defaults"
         }) {
             writeSettings("")
         }
@@ -163,8 +172,11 @@ extension TerminalWindowController {
                             where !PixelProbe.matches(got, want) {
                             q.append("\(what): the \(label) tab reads \(hex(got)), want \(hex(want))")
                         }
+                        // A strip that can't deepen (black, white at the default) equals the active
+                        // tab; the hovered one then equals both, which counts as between.
+                        let flat = PixelProbe.matches(px[2], px[0])
                         if let s = px[2]?.luminance, let hv = px[1]?.luminance, let ac = px[0]?.luminance,
-                           !(min(s, ac) < hv && hv < max(s, ac)) {
+                           flat ? !PixelProbe.matches(px[1], px[0]) : !(min(s, ac) < hv && hv < max(s, ac)) {
                             q.append("\(what): the hovered tab isn't between the inactive and the active one")
                         }
                     }

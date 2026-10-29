@@ -146,7 +146,7 @@ The GitHub repo is `jonsmithers/dealer`.
     "connected"` (one switch each, `Demo.tabsInTitlebar`, `Demo.autoAssignColors` and `Demo.tabStyle`,
     written to the demo's temp settings; #79). Connected tabs, the app's default, are the user's
     call for the README (they were pills before #87). The chrome shade is the default
-    `chrome_contrast` (−0.3).
+    `chrome_contrast` (+0.3).
     The first workspace stays uncolored, as in normal use. Grab tabs with the `grip(…)` helper (lower half = tab drag; the upper
     half drags the window, #27). Captions sit in a band under the decks (`Demo.captionBand`, 0
     outside demos, subtracted in `deckArea`). Each caption logs `DEMO BEAT <tree>`, so a run
@@ -240,7 +240,7 @@ The GitHub repo is `jonsmithers/dealer`.
   Ghostty-style by veiling unfocused panes (`unfocused-split-fill`/`-opacity`); pane rings are
   reserved for attention. Don't reintroduce focus borders.
 - The chrome (strip, titlebar, sidebar) is the terminal background shaded by one signed dial (#87),
-  `[colors] chrome_contrast` in −1…+1, default −0.3, read live: 0 is the background, + deepens it
+  `[colors] chrome_contrast` in −1…+1, default +0.3 (the user's call), read live: 0 is the background, + deepens it
   away from the foreground (dark themes darker, light lighter), − raises it toward the foreground.
   The magnitude is a plain mix fraction, so turning it moves the strip steadily one way; it never
   flips direction by itself (the old WCAG-target solve flipped Kanso Mist past 1.38:1, the user's

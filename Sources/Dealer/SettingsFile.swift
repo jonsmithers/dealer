@@ -77,7 +77,7 @@ enum SettingsFile {
     # foreground; negative raises it toward the foreground. Dark themes: + darker, - lighter; light
     # themes: the reverse. 1 is black (or white); -1 is halfway to the foreground. A black or white
     # background can't deepen any further.
-    # chrome_contrast = -0.3
+    # chrome_contrast = 0.3
 
     [jobs]
     # `dealer run <cmd>` (#21) opens a job: the command runs in a new shell next to yours, focus

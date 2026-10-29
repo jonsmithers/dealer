@@ -302,14 +302,14 @@ enum Settings {
     /// `[colors] chrome_contrast` (#87): how the chrome (titlebar, tab strips, sidebar, pane bars)
     /// is shaded off the terminal's background, a signed dial in `chromeContrastRange`
     /// (`Theme.chromeColor`). 0 = the background; + deepens it (dark themes darker, light lighter),
-    /// − raises it toward the foreground. Default −0.3. Outside the range (e.g. 1.35, the WCAG ratio
+    /// − raises it toward the foreground. Default +0.3 (the user's call). Outside the range (e.g. 1.35, the WCAG ratio
     /// it took before) it's reported, naming the range, and the default is used. Read live; a
     /// change re-themes every window.
     static var chromeContrast: Double {
         switch values["colors.chrome_contrast"] {
         case .integer(let n)?: return Double(n)
         case .float(let d)?: return d
-        default: return -0.3
+        default: return 0.3
         }
     }
     static let chromeContrastRange: ClosedRange<Double> = -1.0...1.0

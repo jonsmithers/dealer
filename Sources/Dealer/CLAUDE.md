@@ -339,7 +339,7 @@
 - `Theme` is the single source for chrome colors, metrics, fonts and animation timings. Don't
   hard-code colors or sizes in views. `Palette` is only a set of legacy forwards to `Theme`.
 - **Chrome shade (#87).** `Theme.chrome` is `chromeColor(background:foreground:shade:)` with
-  `shade` = `[colors] chrome_contrast` (`Settings.chromeContrast`, −1…+1, default −0.3; out of range
+  `shade` = `[colors] chrome_contrast` (`Settings.chromeContrast`, −1…+1, default +0.3; out of range
   is reported with the range, e.g. the old WCAG-style 1.35). Positive: `bg.mixed(with: pole, m)`,
   the pole being black when `isDark`, else white. Negative: `bg.mixed(with: fg, |m| *
   maxChromeMix)` (0.5). A black dark theme or white light one can't deepen. Its reload calls
@@ -349,10 +349,11 @@
   directions. Everything derived from `chrome` (`paneBar`, `textMuted`/`textFaint`,
   `workspaceSelection`, `accentNeutral`) moves with it. `SelfTestTabContrast.swift`
   (`tab contrast:`) checks: monotonic over the range through the setting, 0 = background, hover
-  between, and at the default active-vs-strip ≥ 1.15:1 and attention outlines ≥ 3:1, except the
-  failed red in Ghostty's default dark and Nord (≈2.5:1, asserted ≥ 2.4; known exceptions: a bright
-  foreground raises the chrome toward the red); plus real tab buttons, a live reload, the
-  translucent options.
+  between, and at the default dark strips ≥ 1.08:1 off the active tab (light themes and
+  black/near-black are nearly flat there; only their direction is checked) and attention outlines
+  ≥ 3:1 in every theme; plus real tab buttons, a live reload, the translucent options. Negative
+  values raise the chrome toward the foreground, and with a bright foreground the failed red drops
+  under 3:1 (≈2.5:1 at −0.3 in Ghostty's default dark and Nord).
 - **The theme changes live (#33).** `Theme.load` runs at launch, then `Theme.reload` runs from
   every CONFIG_CHANGE that ghostty sends (after ⌘⇧, / `reload_config`, or a color-scheme switch),
   and posts `Theme.didChange`. Each window's `applyTheme()` (ThemeReload.swift) walks its views,

@@ -62,7 +62,7 @@ enum Theme {
     /// looks more selected than the active one, in dark and light themes.
     static var hover: NSColor { chrome.mixed(with: surface, 0.5) }
 
-    /// `[colors] chrome_contrast` (#87), a signed dial in −1…+1, default −0.3.
+    /// `[colors] chrome_contrast` (#87), a signed dial in −1…+1, default +0.3.
     static var chromeShade: CGFloat { CGFloat(Settings.chromeContrast) }
 
     /// The chrome for a theme and a `shade` (`chromeShade`). 0 is the background itself. Positive
@@ -93,9 +93,9 @@ enum Theme {
     static var workspaceSelection: NSColor { chrome.mixed(with: foreground, 0.20) }
 
     /// Agent attention (#4, #7): needs input. The accent-blue outline on pane, tab and workspace.
-    /// Two shades: #5AA2FF on dark and #0B62D6 on light. At the default `chrome_contrast` (−0.3,
-    /// #87) they keep ≥ 3.2:1 on the chrome in the self-test's themes (Ghostty's default dark 3.3:1,
-    /// Kanso Mist 4.1:1, Catppuccin Latte 4.0:1), above WCAG's 3:1 for graphics.
+    /// Two shades: #5AA2FF on dark and #0B62D6 on light. At the default `chrome_contrast` (+0.3,
+    /// #87) they keep ≥ 5.1:1 on the chrome in the self-test's themes (Catppuccin Latte 5.2:1,
+    /// Nord 5.9:1, Kanso Mist 6.6:1), well above WCAG's 3:1 for graphics.
     static var attentionWaiting: NSColor {
         isDark ? NSColor(srgbRed: 0x5a / 255, green: 0xa2 / 255, blue: 0xff / 255, alpha: 1)
                : NSColor(srgbRed: 0x0b / 255, green: 0x62 / 255, blue: 0xd6 / 255, alpha: 1)
@@ -104,10 +104,10 @@ enum Theme {
     /// so it never competes with the waiting blue.
     static var attentionDone: NSColor { textMuted }
     /// Attention (#29): something failed (`dealer run` exited non-zero, a Claude API error, a shell
-    /// command failed). Same treatment as waiting, in red: #FF453A on dark (3.1:1 on Kanso Mist's
-    /// chrome at the default −0.3; under 3:1 where a bright foreground raises it: 2.5:1 in
-    /// Ghostty's default dark and Nord, #87's known exceptions), #C9190B on light (4.1:1 on
-    /// Catppuccin Latte's and white's chrome). Kept well away from the red workspace/tab swatch
+    /// command failed). Same treatment as waiting, in red: #FF453A on dark (≥ 4.5:1 on the chrome
+    /// at the default `chrome_contrast` +0.3: Nord 4.5:1, Kanso Mist 5.1:1; a negative dial raises
+    /// the chrome toward it, e.g. 2.5:1 at −0.3 in Ghostty's default dark), #C9190B on light (5.3:1
+    /// on Catppuccin Latte's chrome). Kept well away from the red workspace/tab swatch
     /// (#e06c75 / #c8414c, ≥ 59/255 on a channel). Colors are tints and chips, never outlines,
     /// and the failed dot also carries a `!` (AttentionStyle), so it isn't color-only.
     static var attentionFailed: NSColor {
