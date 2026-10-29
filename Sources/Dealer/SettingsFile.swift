@@ -72,6 +72,10 @@ enum SettingsFile {
     # auto_assign = false
     # Replace the preset swatches (numbered 1, 2, … in menus and `dealer color`).
     # palette = ["#e06c75", "#98c379", "#61afef", "#c678dd"]
+    # How far the chrome (titlebar, tab strips, sidebar, pane bars) stands off the terminal's
+    # background, as a WCAG contrast ratio between the two: 1.0 is none, about 1.6 is strong
+    # (1.0 to 2.5). Dark themes darken the chrome, or lighten it when they are too dark for that.
+    # chrome_contrast = 1.35
 
     [jobs]
     # `dealer run <cmd>` (#21) opens a job: the command runs in a new shell next to yours, focus

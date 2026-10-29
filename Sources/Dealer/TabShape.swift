@@ -20,11 +20,26 @@ enum TabStyle: String, CaseIterable {
     /// its deck the same way.
     static var current: TabStyle { Settings.tabStyle }
 
-    /// A connected active tab is part of its terminal, so on a translucent window it shows what the
-    /// terminal shows: the background at `background-opacity` (nothing under glass), cut out of the
-    /// chrome with its card. False: it stays opaque like pill tabs (#67). One switch; the user may
-    /// flip it after seeing it (#84). Pill tabs are opaque either way.
-    static var connectedMatchesTerminal = true
+    /// How connected tabs draw on a translucent window (#87). Pill tabs are opaque either way (#67).
+    enum Translucent {
+        /// The active tab is opaque, the terminal's background (#87 option a), over an opaque chrome
+        /// pill for each inactive tab: the same contrast as an opaque window.
+        case opaque
+        /// The active tab is part of its terminal (#84): it shows what the terminal shows (the
+        /// background at `background-opacity`, nothing under glass), cut out of the chrome with its
+        /// card, plus a faint foreground tint (`activeTint`, #87 option b) so it outranks the
+        /// opaque inactive pills.
+        case tinted
+        /// As `tinted`, but inactive tabs get no pill: only the active tab has a shape (#87 option c).
+        case clearInactive
+    }
+    /// One switch, the user's call after the #87 screenshots.
+    static var translucent: Translucent = .opaque
+    /// Whether a connected active tab shows its terminal through a translucent window (#84), cut out
+    /// of the chrome with its card, instead of an opaque fill.
+    static var connectedMatchesTerminal: Bool { translucent != .opaque }
+    /// The foreground tint over a translucent connected active tab (`.tinted`, `.clearInactive`).
+    static let activeTint: CGFloat = 0.08
 
     /// How far a connected strip reaches down into its deck's card: the card's 1pt hairline border
     /// (`DeckView.content`'s layer border), which the active tab paints over so there's no seam.

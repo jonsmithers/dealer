@@ -155,10 +155,13 @@
   self-test checks the layer property; check corners by eye in screenshots.
 - Titlebar strips connect too (the user's call): the titlebar row ends where the top deck's card
   begins.
-- A connected active tab is part of its terminal: `TabButton.connectedFill` paints what the
-  terminal paints on a translucent window (background at the opacity, nothing under glass), and
-  `layoutBackdrop` cuts it out of the chrome with its card (`CardHole`). One switch,
-  `TabStyle.connectedMatchesTerminal`, the user may flip; pill tabs stay opaque (#67) regardless.
+- On a translucent window a connected active tab follows one switch, `TabStyle.translucent` (#87):
+  `.opaque` (default) fills it with the opaque background like a pill; `.tinted` makes it part of
+  its terminal (`TabButton.connectedFill` paints what the terminal paints, background at the
+  opacity or nothing under glass, `layoutBackdrop` cuts it out of the chrome with its card,
+  `CardHole`) plus `TabButton.connectedTint` (foreground at `TabStyle.activeTint`); `.clearInactive`
+  is `.tinted` without inactive pills. `connectedMatchesTerminal` is derived from it. Pill tabs stay
+  opaque (#67) regardless.
 - The active tab's underline (#86) is the deck accent, or its `Tab.color`, in every window, one
   deck included (`TabStripView` always sets `accent`; there is no deck-count gate). It sits at the
   bottom of `bodyRect` (`underlineRect`): for a connected active tab that covers the overlap row, so
@@ -335,6 +338,19 @@
 
 - `Theme` is the single source for chrome colors, metrics, fonts and animation timings. Don't
   hard-code colors or sizes in views. `Palette` is only a set of legacy forwards to `Theme`.
+- **Chrome by contrast (#87).** `Theme.chrome` is `chromeColor(background:foreground:)`: the
+  smallest mix toward black that puts the background `chromeContrast` off it: `[colors]
+  chrome_contrast` (`Settings.chromeContrast`, WCAG, default 1.35, 1.0–2.5), cached per
+  background/foreground/value. Its reload calls `applyTheme()` (`settingsDidChange`), since the
+  chrome is copied into the window background and layers. WCAG compresses dark pairs, so Kanso Mist (#22262d, the user's theme)
+  needs a near-black strip (#040405; 1.38:1 is its ceiling) and anything darker than about #252525
+  can't reach it: those mix toward their foreground instead (strip lighter than the terminal), and
+  `chromeDarkDirection = .lighten` does that for every dark theme. `Theme.hover` is
+  `chrome.mixed(with: surface, 0.5)`, strictly between, in both directions. Everything derived from
+  `chrome` (`paneBar`, `textMuted`/`textFaint`, `workspaceSelection`, `accentNeutral`) moves with
+  it. `SelfTestTabContrast.swift` (`tab contrast:`) checks the order and ratio on the formulas at
+  1.0–2.5 (attention outlines ≥ 3:1 up to 1.35) and on real tab buttons, a live reload, and the
+  translucent options.
 - **The theme changes live (#33).** `Theme.load` runs at launch, then `Theme.reload` runs from
   every CONFIG_CHANGE that ghostty sends (after ⌘⇧, / `reload_config`, or a color-scheme switch),
   and posts `Theme.didChange`. Each window's `applyTheme()` (ThemeReload.swift) walks its views,
@@ -354,7 +370,7 @@
   `background-opacity`/`background-blur` (glass = the C API's -1/-2 sentinels; recheck on a pin
   bump). Translucent windows: chrome *fills* go through `Theme.fill(_:)` (alpha = opacity; the
   color itself when opaque, so opacity 1 renders byte for byte as before); text, outlines, dots,
-  glyphs and the spinner never do. Tab buttons are the exception (the user's call): fully opaque, with a solid `Theme.chrome` pill for inactive tabs while translucent. Nothing opaque may sit under a terminal: the content view's fill
+  glyphs and the spinner never do. Tab buttons are the exception (the user's call): fully opaque, with a solid `Theme.chrome` pill for inactive tabs while translucent (connected tabs: see `TabStyle.translucent`, #87). Nothing opaque may sit under a terminal: the content view's fill
   moves to `WindowBackdropView`'s chrome view, which cuts the deck cards out, the deck card and
   `PaneView` drop their backgrounds, and pane `DividerView`s paint their own gap
   (`paintsGap`). A new chrome fill uses `Theme.fill`; a new view under the panes must stay clear

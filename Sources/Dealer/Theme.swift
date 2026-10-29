@@ -50,14 +50,57 @@ enum Theme {
 
     // MARK: Derived chrome colors
 
-    /// Window, titlebar and tab-strip surface: a shade off the terminal background.
-    static var chrome: NSColor { background.mixed(with: .black, isDark ? 0.28 : 0.06) }
+    /// Window, titlebar and tab-strip surface: the terminal background shaded until the active tab
+    /// (`surface`) stands `chromeContrast` off it (#87), so the strip, the sidebar and the
+    /// titlebar read as one step away from the terminals in every theme (see `chromeColor`).
+    static var chrome: NSColor { chromeColor(background: background, foreground: foreground) }
     /// Raised surfaces that should match the terminal: active tab, pane bars.
     static var surface: NSColor { background }
     /// Pane bar background: between the surface and the chrome.
     static var paneBar: NSColor { surface.mixed(with: chrome, 0.4) }
-    /// Hover fill on chrome.
-    static var hover: NSColor { chrome.mixed(with: foreground, 0.07) }
+    /// Hover fill on chrome (#87): halfway from the strip to the active tab, so a hovered tab never
+    /// looks more selected than the active one, in dark and light themes.
+    static var hover: NSColor { chrome.mixed(with: surface, 0.5) }
+
+    /// The WCAG contrast between the active tab (`surface`) and the strip (`chrome`) (#87):
+    /// `[colors] chrome_contrast`, default 1.35:1, about where an active tab reads as its own shape
+    /// at a glance in the screenshots on #87 (the old fixed mix gave 1.13–1.17:1). WCAG ratios
+    /// compress dark pairs (its 0.05 flare term), so dark themes need a larger step in sRGB than
+    /// light ones for the same ratio.
+    static var chromeContrast: CGFloat { CGFloat(Settings.chromeContrast) }
+    /// Which way `chromeColor` moves a dark background (#87; the user's call after the screenshots).
+    static var chromeDarkDirection: ChromeDirection = .darken
+    enum ChromeDirection { case darken, lighten }
+
+    /// The chrome for a theme: `background` mixed toward black, by the smallest amount that puts it
+    /// `chromeContrast` off the background. Light themes always darken. A dark background that can't
+    /// reach the target by darkening (anything darker than about #252525: black, Catppuccin Mocha,
+    /// Tokyo Night), or any dark one when `chromeDarkDirection` is `.lighten`, is mixed toward its
+    /// foreground instead, so the strip is lighter than the terminal (the order flips; `hover` still
+    /// sits between). If even the foreground can't reach the target, the chrome is the foreground's
+    /// furthest step (`maxChromeMix`), never the background itself.
+    static func chromeColor(background bg: NSColor, foreground fg: NSColor) -> NSColor {
+        let target = chromeContrast
+        let key = [bg.hexString, fg.hexString, "\(chromeDarkDirection)", "\(target)"]
+        if let hit = chromeCache, hit.key == key { return hit.color }
+        func solve(toward other: NSColor, upTo limit: CGFloat) -> NSColor? {
+            guard bg.contrast(with: bg.mixed(with: other, limit)) >= target else { return nil }
+            var lo: CGFloat = 0, hi = limit
+            for _ in 0..<24 {
+                let mid = (lo + hi) / 2
+                if bg.contrast(with: bg.mixed(with: other, mid)) >= target { hi = mid } else { lo = mid }
+            }
+            return bg.mixed(with: other, hi)
+        }
+        let dark = bg.luminance < 0.25
+        let darkened = dark && chromeDarkDirection == .lighten ? nil : solve(toward: .black, upTo: 1)
+        let color = darkened ?? solve(toward: fg, upTo: maxChromeMix) ?? bg.mixed(with: fg, maxChromeMix)
+        chromeCache = (key, color)
+        return color
+    }
+    /// How far toward the foreground a lightened chrome may go (a low-contrast theme's fallback).
+    static let maxChromeMix: CGFloat = 0.5
+    private static var chromeCache: (key: [String], color: NSColor)?
     /// Separator lines on chrome (strip bottom edge, card edges).
     static var hairline: NSColor { foreground.withAlphaComponent(isDark ? 0.08 : 0.12) }
 
@@ -72,8 +115,9 @@ enum Theme {
     static var workspaceSelection: NSColor { chrome.mixed(with: foreground, 0.20) }
 
     /// Agent attention (#4, #7): needs input. The accent-blue outline on pane, tab and workspace.
-    /// Two shades keep ≥ 4.9:1 contrast against the chrome: #5AA2FF on dark (6.3:1 on the default
-    /// dark chrome) and #0B62D6 on light (4.9:1 on white-derived chrome).
+    /// Two shades: #5AA2FF on dark (7.2:1 on the default dark chrome) and #0B62D6 on light (4.2:1 on
+    /// white's chrome). Since #87's darker light-theme chrome and lightened near-black chrome they
+    /// keep ≥ 3.5:1 (Catppuccin Latte 3.7:1, Catppuccin Mocha 4.7:1), above WCAG's 3:1 for graphics.
     static var attentionWaiting: NSColor {
         isDark ? NSColor(srgbRed: 0x5a / 255, green: 0xa2 / 255, blue: 0xff / 255, alpha: 1)
                : NSColor(srgbRed: 0x0b / 255, green: 0x62 / 255, blue: 0xd6 / 255, alpha: 1)
@@ -82,8 +126,9 @@ enum Theme {
     /// so it never competes with the waiting blue.
     static var attentionDone: NSColor { textMuted }
     /// Attention (#29): something failed (`dealer run` exited non-zero, a Claude API error, a shell
-    /// command failed). Same treatment as waiting, in red: #FF453A on dark (4.8:1 on the default
-    /// dark chrome), #C9190B on light (5.1:1). Kept well away from the red workspace/tab swatch
+    /// command failed). Same treatment as waiting, in red: #FF453A on dark (5.6:1 on the default
+    /// dark chrome, 3.6:1 on Catppuccin Mocha's lightened one, #87), #C9190B on light (4.3:1 on
+    /// white's chrome, 3.8:1 on Catppuccin Latte's). Kept well away from the red workspace/tab swatch
     /// (#e06c75 / #c8414c, ≥ 59/255 on a channel). Colors are tints and chips, never outlines,
     /// and the failed dot also carries a `!` (AttentionStyle), so it isn't color-only.
     static var attentionFailed: NSColor {
@@ -309,6 +354,12 @@ extension NSColor {
         guard let c = usingColorSpace(.sRGB) else { return 0 }
         func lin(_ v: CGFloat) -> CGFloat { v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
         return 0.2126 * lin(c.redComponent) + 0.7152 * lin(c.greenComponent) + 0.0722 * lin(c.blueComponent)
+    }
+
+    /// WCAG contrast ratio with `other`, 1…21, either way round.
+    func contrast(with other: NSColor) -> CGFloat {
+        let (a, b) = (luminance, other.luminance)
+        return (max(a, b) + 0.05) / (min(a, b) + 0.05)
     }
 }
 

@@ -96,10 +96,15 @@ extension TerminalWindowController {
             let centre = b.convert(CGPoint(x: b.bounds.midX, y: b.bounds.midY), to: fill)
             let c = PixelProbe.sample(fill, at: centre)
             var p = [(c?.alphaComponent ?? 1) < 0.02 ? nil : "under a terminal the window should draw nothing, got \(hex(c))"]
-            // #84: a connected active tab is cut out with its card (its own fill is the terminal's).
+            // #84: a connected active tab that shows its terminal is cut out with its card (its own
+            // fill is the terminal's). #87: by default (`TabStyle.translucent == .opaque`) it's an
+            // opaque tab like the others, on the chrome.
             if let a = deckView()?.strip.buttons.first(where: { $0.isActive }), a.style == .connected {
                 let tc = PixelProbe.sample(fill, at: a.convert(CGPoint(x: a.bounds.midX, y: a.bodyHeight / 2), to: fill))
-                p.append((tc?.alphaComponent ?? 1) < 0.02 ? nil : "under a connected active tab the window should draw nothing, got \(hex(tc))")
+                let hole = (tc?.alphaComponent ?? 1) < 0.02
+                p.append(hole == TabStyle.connectedMatchesTerminal ? nil
+                         : hole ? "an opaque connected active tab should sit on the chrome, got a hole"
+                         : "under a connected active tab the window should draw nothing, got \(hex(tc))")
             }
             return all(p.compactMap { $0 }.isEmpty ? nil : p.compactMap { $0 }.joined(separator: "; "))
         }

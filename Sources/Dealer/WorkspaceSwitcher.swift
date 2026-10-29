@@ -93,6 +93,7 @@ extension TerminalWindowController {
         refreshChrome()
         // The attention look (#61) changes how unchanged marks draw: redraw every element.
         let keys = note.userInfo?["keys"] as? Set<String> ?? []
-        if keys.contains("attention.done") || keys.contains("attention.unread") { applyTheme() }
+        // #87: the chrome contrast changes every chrome color, also those copied into layers.
+        if keys.contains("attention.done") || keys.contains("attention.unread") || keys.contains("colors.chrome_contrast") { applyTheme() }
     }
 }

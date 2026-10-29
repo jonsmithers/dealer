@@ -576,6 +576,8 @@ final class TabButton: FlippedView {
     let spinner = RunningSpinnerState()
     private var hovering = false { didSet { needsDisplay = true } }
     private var hoveringClose = false { didSet { if hoveringClose != oldValue { needsDisplay = true } } }
+    /// Self-test hook (#87): posted events can't hover (tracking areas follow the real pointer).
+    func setHoveringForTest(_ on: Bool) { hovering = on }
     /// The × sits in the trailing slot (`Theme.Metrics.tabTrailingSlot`), 3pt from the edge.
     var closeRect: CGRect { CGRect(x: bounds.width - 19, y: (bodyHeight - 16) / 2, width: 16, height: 16) }
     /// Everything but the title (#46): leading pad plus the trailing ×/dot slot.
@@ -624,13 +626,22 @@ final class TabButton: FlippedView {
         // Tabs stay fully opaque on a translucent window (#67, the user's call: translucent tabs
         // were hard to tell apart). Inactive tabs then get a solid pill in the strip's own chrome
         // color, so each reads as a shape; opaque windows draw exactly as before (no pill).
-        // A connected active tab (#84) is part of its deck's content instead, so it takes the
-        // terminal's own background: opaque, the same surface; translucent, what the terminal
-        // paints (the background at the opacity, nothing under glass), over the chrome's cut-out.
-        let fill: NSColor? = isActive ? (connected ? Self.connectedFill : Theme.surface) : hovering ? Theme.hover
-            : Theme.transparency.isTranslucent ? Theme.chrome : nil
+        // A connected active tab (#84) takes the terminal's own background. On a translucent window
+        // it is opaque too by default (#87, `TabStyle.translucent == .opaque`); the other options
+        // paint what the terminal paints (the background at the opacity, nothing under glass) over
+        // the chrome's cut-out, with a faint foreground tint, and `.clearInactive` drops the pills.
+        // Hover (#87) is halfway from the strip to the active tab, never past it.
+        let translucent = Theme.transparency.isTranslucent
+        let clearInactive = translucent && connected && TabStyle.translucent == .clearInactive
+        let fill: NSColor? = isActive ? (connected ? Self.connectedFill : Theme.surface)
+            : hovering ? (clearInactive ? Theme.fill(Theme.hover) : Theme.hover)
+            : translucent && !clearInactive ? Theme.chrome : nil
         if let fill {
             fill.setFill()
+            shape.fillPath(in: r).fill()
+        }
+        if isActive, let tint = Self.connectedTint, connected {
+            tint.setFill()
             shape.fillPath(in: r).fill()
         }
         // The card's hairline border carries on round a connected active tab (top and sides; the
@@ -712,6 +723,12 @@ final class TabButton: FlippedView {
         let t = Theme.transparency
         guard t.isTranslucent, TabStyle.connectedMatchesTerminal else { return Theme.surface }
         return t.blur.isGlass ? .clear : Theme.surface.withAlphaComponent(t.opacity)
+    }
+    /// The faint foreground drawn over a connected active tab that shows its terminal (#87,
+    /// `TabStyle.activeTint`), so it stays the most prominent tab; nil when it's opaque.
+    static var connectedTint: NSColor? {
+        guard Theme.transparency.isTranslucent, TabStyle.connectedMatchesTerminal else { return nil }
+        return Theme.foreground.withAlphaComponent(TabStyle.activeTint)
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {

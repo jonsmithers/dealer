@@ -238,6 +238,12 @@ The GitHub repo is `jonsmithers/dealer`.
   vs dark follows the terminal background's luminance, not the macOS appearance. Focus is shown
   Ghostty-style by veiling unfocused panes (`unfocused-split-fill`/`-opacity`); pane rings are
   reserved for attention. Don't reintroduce focus borders.
+- The chrome (strip, titlebar, sidebar) is set by contrast, not a fixed mix (#87): the background
+  darkened until the active tab (the terminal background) is `[colors] chrome_contrast` (WCAG,
+  default 1.35, 1.0–2.5, read live) off it; a background too dark for that (at 1.35, about #252525
+  and below) lightens toward its foreground instead. Attention outlines keep 3:1 on the chrome up
+  to the default, not above about 1.5. A hovered tab sits halfway between strip and active tab, never past it. The self-test
+  (`tab contrast:`) checks both across dark, near-black and light themes.
 - Workspace and tab colors (#9) are a chip/underline plus a faint tint, never an outline (outlines
   mean attention). The one non-attention outline is the selected workspace's switcher entry: neutral
   (`Theme.text`, never a workspace or attention color), asked for by the user in #52, and it gives
@@ -250,9 +256,9 @@ The GitHub repo is `jonsmithers/dealer`.
 - Tabs are "connected" by default (#84, `[tabs] style`, "pill" is the old look): the active tab
   joins its deck's content with no seam, also from the titlebar row, and draws the deck accent
   underline (or its tab color) along its bottom edge, over the overlap row, where it meets the
-  terminal (#86; #84 had dropped it). On translucent windows a connected active tab follows its
-  terminal's translucency (`TabStyle.connectedMatchesTerminal`, the user may revisit); pills stay
-  opaque.
+  terminal (#86; #84 had dropped it). On translucent windows a connected active tab is opaque
+  like pills (#87, `TabStyle.translucent = .opaque`; `.tinted` shows the terminal through it
+  with a faint tint, `.clearInactive` also drops the inactive pills; the user may revisit).
 - Attention clears in the model at once, but its ring/outline/dot fade out (~0.8 s, plus a 0.5 s hold
   after ⌘⇧U or a notification click) so you see which pane called you (#34). Only those layers
   and drawings animate, never terminal surfaces. Reduce Motion skips the fade.

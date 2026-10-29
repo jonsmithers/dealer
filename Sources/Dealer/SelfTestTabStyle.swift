@@ -233,6 +233,8 @@ extension TerminalWindowController {
             return all([translucent, glass.map { "glass: " + $0 }])
         }) {
             if let tab = self.locate(t.pane("ts2"))?.tab { self.setColor(nil, tab: tab) }
+            // #87: opaque by default; this checks the option that shows the terminal (tinted).
+            TabStyle.translucent = .tinted
             loadConfig("background-opacity = 0.85\n")
         }
         t.step("tab style: connected in the titlebar: the active tab covers the card's border row, the rest of that row stays clear", nil, {
@@ -253,6 +255,7 @@ extension TerminalWindowController {
                         (subs.firstIndex(of: s) ?? -1) > (subs.firstIndex(of: d.view) ?? Int.max) ? nil : "the strip should sit above its deck view",
                         problems.isEmpty ? nil : problems.joined(separator: "; ")])
         }) {
+            TabStyle.translucent = .opaque
             loadConfig(nil)
             set(.connected, titlebar: true)
         }

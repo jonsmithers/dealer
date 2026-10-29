@@ -28,6 +28,8 @@ enum Settings {
         case size
         /// A duration in seconds, ≥ 0: an integer or a float.
         case seconds
+        /// A number (integer or float) in a closed range.
+        case number(ClosedRange<Double>)
 
         func validate(_ v: TOML.Value) -> String? {
             switch (self, v) {
@@ -37,6 +39,9 @@ enum Settings {
             case (.seconds, .integer(let n)): return n >= 0 ? nil : "must be 0 or more seconds"
             case (.seconds, .float(let d)): return d >= 0 && d.isFinite ? nil : "must be 0 or more seconds"
             case (.seconds, _): return "must be a number of seconds (5, 0.5 or 0), not \(v.typeName)"
+            case (.number(let r), .integer(let n)): return r.contains(Double(n)) ? nil : "must be between \(r.lowerBound) and \(r.upperBound)"
+            case (.number(let r), .float(let d)): return r.contains(d) ? nil : "must be between \(r.lowerBound) and \(r.upperBound)"
+            case (.number, _): return "must be a number, not \(v.typeName)"
             case (.size, _): return "must be rows (12), a percentage (\"30%\") or a fraction (\"0.3\"), not \(v.typeName)"
             case (.oneOf(let options), .string(let s)):
                 return options.contains(s) ? nil : "must be one of \(options.map { "\"\($0)\"" }.joined(separator: ", "))"
@@ -67,6 +72,7 @@ enum Settings {
         "window.tabs_in_titlebar": .bool,
         "tabs.style": .oneOf(TabStyle.allCases.map(\.rawValue)),
         "colors.palette": .colorArray,
+        "colors.chrome_contrast": .number(chromeContrastRange),
         "jobs.placement": .oneOf(["split", "tab"]),
         "jobs.size": .size,
         "jobs.close_on_success": .bool,
@@ -292,6 +298,19 @@ enum Settings {
         guard case .array(let a)? = values["colors.palette"] else { return nil }
         return a.compactMap { if case .string(let s) = $0 { return NSColor(hex: s) } else { return nil } }
     }
+
+    /// `[colors] chrome_contrast` (#87): the WCAG ratio between a terminal's background and the
+    /// chrome around it (titlebar, tab strips, sidebar; `Theme.chromeColor`). 1.0 = none, default
+    /// 1.35, about 1.6 is strong. Outside `chromeContrastRange` it's reported and the default used.
+    /// Read live; a change re-themes every window.
+    static var chromeContrast: Double {
+        switch values["colors.chrome_contrast"] {
+        case .integer(let n)?: return min(max(Double(n), chromeContrastRange.lowerBound), chromeContrastRange.upperBound)
+        case .float(let d)?: return min(max(d, chromeContrastRange.lowerBound), chromeContrastRange.upperBound)
+        default: return 1.35
+        }
+    }
+    static let chromeContrastRange: ClosedRange<Double> = 1.0...2.5
 
     /// `[jobs] placement` (#21): where `dealer run` puts a job: "split" (a short pane below the
     /// caller, default) or "tab" (a background tab next to the caller's).
