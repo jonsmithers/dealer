@@ -103,6 +103,12 @@ Session of 2026-10-11..16 (these IDs are gone; the names are what to brief by):
 - **caffeine**: `[power] caffeinate` + titlebar cup (#69). **blur**: transparency/blur/glass (#67),
   self-test ignoring the user's opacity. **bundle-warn**: zero-warning build, codesign failures (#70).
 
+Session of 2026-10-28..29:
+- **ghostty-bump**: pin to the v1.4.0 tag (#85), tag version string for the pin check, zig 0.17.
+- **tab-underline**: active-tab deck underline on connected tabs and with one deck (#86).
+- **tab-contrast**: chrome by contrast target, `[colors] chrome_contrast`, hover ordering,
+  `TabStyle.translucent` options (#87).
+
 ## The user's preferences (learned)
 
 - **Merge early**, small increments. Fan out in parallel; keep the user informed concisely.
@@ -128,7 +134,10 @@ Session of 2026-10-11..16 (these IDs are gone; the names are what to brief by):
     waiting dot carries a `?` (#65);
   - no desktop banner while Dealer is the active app; a locked screen counts as away (#71);
   - clipboard follows ghostty: reads and unsafe pastes ask (#55, #72);
-  - #23 (theme-derived accent colors) is *not planned*; #33 (live config reload) is wanted.
+  - #23 (theme-derived accent colors) is *not planned*; #33 (live config reload) is wanted;
+  - README demos are recorded with **pill** tabs (`Demo.tabStyle`), though connected is the default;
+  - the active tab's deck underline shows with any number of decks (#86);
+  - tab/chrome contrast: 1.35 default is fine, but they want it tunable (`[colors] chrome_contrast`, #87).
 - They don't want outward surprises. They're fine with secrets-free GitHub comments and issue
   creation on their behalf.
 
@@ -136,8 +145,8 @@ Session of 2026-10-11..16 (these IDs are gone; the names are what to brief by):
 
 - They run the bundled app (`scripts/bundle.sh && open build/Dealer.app`). It must be launched with
   `open`, not from a cmux shell (inherited `CMUX_*` broke Claude hooks in #12; scrubbed now).
-- Ghostty theme changes often (Frappé, GitHub Light Default, then Nord with
-  `background-opacity = 0.3` + `macos-glass-regular`). The self-test loads their real ghostty
+- Ghostty theme changes often (Frappé, GitHub Light Default, Nord; on 10-29 Kanso Mist with
+  `background-opacity = 0.5` + `macos-glass-regular`). The self-test loads their real ghostty
   config (opacity/blur are ignored there since 8e7cb58), so a theme change can surface in pixel
   steps. Shell: zsh with direnv, oh-my-posh and atuin. They **no longer** run Claude with
   `--dangerously-skip-permissions`.
@@ -146,6 +155,12 @@ Session of 2026-10-11..16 (these IDs are gone; the names are what to brief by):
   drop it (new signature). Agents must never run bundle.sh in the main checkout (it replaces the
   running app).
 - `~/.zshenv` exports a Claude OAuth token: **never grep or print it** (leaked twice; rotated).
+- Screen Recording: Dealer sessions lack it; launch `record-demo.sh` (or any capture) through
+  `open -na /Applications/Ghostty.app --args -e <script>`.
+- Sometimes on **metered wifi**: then no large downloads/uploads (dep fetches, clones, media); small
+  `gh` calls and code pushes are OK when they say so. Ask if unsure.
+- Pushing the `media` branch is blocked by the auto-mode classifier; the user pushes it themselves.
+  Video uploads for the README: `gh issue comment N -R jonsmithers/dealer --attach <file>.mp4` (user).
 
 ## Incidents to not repeat
 
@@ -171,21 +186,18 @@ Session of 2026-10-11..16 (these IDs are gone; the names are what to brief by):
 | Usage limits cut agents off before they committed (twice in a row) | Lead commits their worktree as WIP, then resumes them |
 | Teammate panes looked stuck: a teammate sees messages (the lead's or the user's) only between turns | Check its transcript/commits before calling it stuck; Esc in its pane delivers a queued message; replace it with a fresh agent briefed from its last commit |
 
-## State at hand-off (2026-10-16)
+## State at hand-off (2026-10-29)
 
-- **Master `cd0723b`, 410 self-test steps (~45 s per run), pushed.** `media` is at `95a7025`
-  (demos re-recorded 10-12).
-- **Open, waiting for the user's hand checks (in `TODO.md`):** #55 (clipboard read asks), #71
-  (banners/marks follow presence: lock screen, Dealer in front, away), #72 (unsafe paste asks).
-  #61 is landed and confirmed in use; close it on the user's word.
-- **Open, not assigned:** #73 (bigger, higher-contrast working spinner; filed by the user),
-  #53 (panes created hidden keep one window-sized buffer until first shown), #48 (1x-display pixel
-  check, waiting on a 1x confirmation), #57 (audit: only its no-brainers were wanted; done: #58,
-  #59, #60; left: extra-mouse-button guard, `typeText` non-ASCII, `controlSplit` zoom, `~`
-  abbreviation, drag highlight colour).
-- **Watch:** one merge.sh run hung after step 325 (edge split ⌘⇧P menu step) and timed out;
-  the retry passed.
-- No agents running. Worktrees: `myterm-wt/media-branch` only (plus this doc's, removed after merge).
+- **Master: #87 plus its doc follow-up, 507 self-test steps (~57 s per merge.sh run), pushed.** `media` is at
+  `f71c6a4` (pill-tab demos, 10-29); README video URLs point at the #86 comment uploads.
+- **Open, waiting for the user's hand checks (in `TODO.md`):** #85 (Ghostty v1.4.0: IME, sleep/wake,
+  look, no banner, shell integration), #86 (underline look + grip-dots decision), #87 (contrast
+  under real glass, real hover, `chrome_contrast` by hand).
+- **Watch:** `memory: a pane created out of view draws at its real size when first shown`
+  ("shown pane is still occluded") flakes ~40% on old and new frameworks; a candidate for its own
+  issue. One merge.sh run failed 3 unnamed steps on a README-only change (10-29), retry passed.
+- The previous vendor builds are kept in `.git/coord/vendor-old-*`.
+- No agents running. Worktrees: `myterm-wt/media-branch` only.
 - Generic skill: `~/git/orchestrate-issues` (GitHub `jonsmithers/orchestrate-issues`, private),
   symlinked as `~/.claude/skills/orchestrate-issues`. Add generic lessons there and Dealer-specific
   ones here.

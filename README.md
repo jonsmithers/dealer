@@ -117,6 +117,8 @@ colors from your Ghostty theme (background/foreground, `unfocused-split-*`, `spl
 sidebar and gaps take the same opacity; text and outlines stay solid), and `background-blur`
 blurs what's behind it. On macOS 26, `background-blur = macos-glass-regular` or
 `macos-glass-clear` puts Liquid Glass behind the window (older macOS gets a plain blur instead).
+The chrome is shaded just far enough from the terminal's background that the active tab stands out;
+`[colors] chrome_contrast` in [settings.toml](#settings) sets how far (default 1.35, lower is subtler).
 After editing it, **⌘⇧,** (Dealer › Reload Configuration) applies the change live, as in Ghostty:
 terminals and chrome re-theme without restarting anything (see [Settings](#settings)).
 
@@ -208,7 +210,7 @@ minimizes per System Settings. Tabs there drag and drop as usual. The change app
 Tabs are "connected" by default: the active tab joins its deck's content below it, with no seam,
 so it reads as one surface with its terminal (also from the titlebar row), and is underlined in its
 deck's color where it meets the terminal. On a translucent window
-the active tab is as translucent as its terminal. For the older look, rounded pill tabs floating in
+tabs stay opaque. For the older look, rounded pill tabs floating in
 the strip over a separate content card, set `[tabs] style = "pill"` in [settings.toml](#settings).
 The change applies live.
 
@@ -438,6 +440,7 @@ style = "connected"      # or "pill": the active tab joins its deck's content, o
 [colors]
 auto_assign = false      # color new workspaces with the next unused swatch
 palette = ["#e06c75", "#98c379", "#61afef"]   # replaces the preset swatches
+chrome_contrast = 1.35   # how far the chrome stands off the terminal: 1.0 (none) to 2.5
 
 [attention]              # see the table under Attention for every state
 done = "outline"         # or "dot": done looks like waiting (blue outline) or gets a muted dot
