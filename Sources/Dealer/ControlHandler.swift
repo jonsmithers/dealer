@@ -229,6 +229,13 @@ enum ControlHandler {
             "focused": p === focused,
             "workspace_focus": p === ws.validFocusedPane,
             "visible": p.view.window != nil && !p.view.isHiddenOrHasHiddenAncestor,
+            "agent_state": p.agentState.rawValue,
+            "progress": [
+                "reporting": p.isReportingProgress,
+                "percent": p.progressPercent ?? NSNull(),
+                "from_claude": p.progressFromClaude,
+                "foreground_pgid": Int(p.progressForeground),
+            ] as [String: Any],
         ]
         guard let s = p.surface.surface else { return d }
         let size = ghostty_surface_size(s)

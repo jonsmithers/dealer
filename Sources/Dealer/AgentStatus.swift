@@ -207,6 +207,8 @@ enum ProgressSource {
             armTimeout(pane)
             return
         }
+        NSLog("Dealer: pane %d progress dropped after %.0f s without a report: foreground group %d, reporter's group %d",
+              pane.id, timeout, fg, pane.progressForeground)
         guard note(pane, active: false, percent: nil, foreground: fg) else { return }
         AppDelegate.shared.windowControllers.first { $0.locate(pane) != nil }?.refreshChrome()
     }
