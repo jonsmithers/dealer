@@ -185,6 +185,34 @@ extension TerminalWindowController {
         }) {
             call("notify", ["target": "\(ids["c2"]!)", "state": "failed", "title": "t", "body": "b"])
         }
+        t.step("cli: status sets OSC 7501 records (#89), list shows them, and a report the spec would discard is an error", nil, {
+            let p = t.pane("c2")
+            self.clearAttention(p, cause: "selftest")  // the notify steps above left it failed
+            defer { ProgramStatus.receive("", on: p, source: "selftest"); self.clearAttention(p, cause: "selftest") }
+            var problems: [String?] = []
+            _ = call("status", ["target": "\(ids["c2"]!)", "state": "working", "id": "build", "progress": "40", "app": "cargo"])
+            _ = call("status", ["target": "\(ids["c2"]!)", "state": "blocked", "id": "build/deploy", "kind": "auth", "title": "Deploy", "msg": "Sign in"])
+            problems.append(p.agentState == .waiting ? nil : "blocked child: state \(p.agentState)")
+            let list = ControlHandler.handle(["cmd": "list"])
+            let panes = ((((list["result"] as? [String: Any])?["windows"] as? [[String: Any]]) ?? [])
+                .flatMap { $0["workspaces"] as? [[String: Any]] ?? [] }.flatMap { $0["decks"] as? [[String: Any]] ?? [] }
+                .flatMap { $0["tabs"] as? [[String: Any]] ?? [] }.flatMap { $0["panes"] as? [[String: Any]] ?? [] })
+            let recs = panes.first { $0["id"] as? Int == ids["c2"] }?["program_status"] as? [[String: Any]] ?? []
+            let deploy = recs.first { $0["id"] as? String == "build/deploy" }
+            problems.append(recs.count == 2 && deploy?["app"] as? String == "cargo" && deploy?["msg"] as? String == "Sign in"
+                            && deploy?["kind"] as? String == "auth" ? nil : "list --json program_status: \(recs)")
+            let text = CLI.tree(list["result"] as? [String: Any] ?? [:])
+            problems.append(text.contains("status blocked id=build/deploy kind=auth app=cargo \"Deploy\": Sign in") ? nil : "list text lacks the record line")
+            for bad: [String: Any] in [["state": "sleeping"], ["state": "done", "id": "a//b"], ["state": "done", "kind": "x"],
+                                       ["state": "done", "app": "a:b"], ["state": "done", "title": String(repeating: "t", count: 200)]] {
+                let r = ControlHandler.handle(["cmd": "status", "args": bad.merging(["target": "\(ids["c2"]!)"]) { a, _ in a }])
+                if r["ok"] as? Bool != false { problems.append("status \(bad) should fail") }
+            }
+            _ = call("status", ["target": "\(ids["c2"]!)", "state": "clear"])
+            problems.append(p.programStatus.isEmpty ? nil : "status clear left records")
+            let found = problems.compactMap { $0 }
+            return all(found.isEmpty ? nil : found.joined(separator: "; "))
+        }) {}
         t.step("cli: bad targets fail", nil, {
             let bad = ControlHandler.handle(["cmd": "focus", "args": ["target": "pane:999999"]])
             let gone = ControlHandler.handle(["cmd": "create", "caller": 999999])
@@ -208,7 +236,8 @@ extension TerminalWindowController {
                     if !["--json", "--socket"].contains(flag), CLI.options[c]?.contains(flag) != true { missing.append("\(c) \(flag)") }
                 }
             }
-            return all(rejects("notify", ["--cwd", "/tmp"]), rejects("notify", ["hello"]), rejects("run", ["--name", "x", "true"]),
+            return all(rejects("notify", ["--cwd", "/tmp"]), rejects("notify", ["hello"]), rejects("status", []),
+                       rejects("status", ["done", "--body", "x"]), rejects("run", ["--name", "x", "true"]),
                        rejects("create", ["--tab"]),
                        missing.isEmpty ? nil : "documented but rejected: \(missing.joined(separator: ", "))",
                        (try? CLI.parse("run", ["--cwd", "/tmp", "ls", "--name"]).1["command"] as? String) == "ls --name"

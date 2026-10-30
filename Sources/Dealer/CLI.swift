@@ -6,7 +6,7 @@ import Foundation
 enum CLI {
     static let commands: Set<String> = [
         "identify", "list", "ls", "find", "create", "new", "send-text", "send", "focus", "resize",
-        "rename", "color", "notify", "close", "run", "job-done", "diagnose", "help", "--help", "-h",
+        "rename", "color", "notify", "status", "close", "run", "job-done", "diagnose", "help", "--help", "-h",
     ]
 
     /// True when this process should act as the CLI rather than launch the app.
@@ -36,6 +36,9 @@ enum CLI {
       rename [-t T] [--tab | --workspace] [TITLE]  empty title follows the terminal again
       color [-t T] [--tab | --workspace] COLOR|none  swatch name or number, or #rrggbb
       notify [-t T] [--state unread|done|waiting|failed|none] [--title T] [--body B]
+      status [-t T] idle|working|done|blocked|error|clear [--id ID] [--kind permission|question|auth]
+             [--progress N] [--app NAME] [--title T] [--msg M]
+                                                 set a program status record, as OSC 7501 would
       close [-t T]
       run [-t T | --here] [--split | --tab] [--size 12|30%] [--keep] [--quiet] [--focus] [--title T] [--cwd DIR] CMD...
                                                  run CMD in a job pane (focus stays) in the workspace
@@ -117,6 +120,7 @@ enum CLI {
             "rename": target.union(["--tab", "--workspace", "--pane"]),
             "color": target.union(["--tab", "--workspace", "--pane"]),
             "notify": target.union(["--state", "--title", "--body", "--internal-log-source"]),
+            "status": target.union(["--id", "--kind", "--progress", "--app", "--title", "--msg"]),
             "close": target,
             "run": target.union(focus).union(["--here", "--split", "--tab", "--size", "--bias", "--keep", "--quiet",
                                               "--title", "--cwd"]),
@@ -206,6 +210,11 @@ enum CLI {
             case "--pane": a["level"] = "pane"
             case "--state": a["state"] = try val()
             case "--body": a["body"] = try val()
+            case "--id": a["id"] = try val()
+            case "--kind": a["kind"] = try val()
+            case "--progress": a["progress"] = try val()
+            case "--app": a["app"] = try val()
+            case "--msg": a["msg"] = try val()
             // Internal, undocumented: only Dealer's Claude Code hook script passes it, to label its
             // calls in the notification log (#56). Not part of the CLI users should learn.
             case "--internal-log-source": a["source"] = try val()
@@ -258,6 +267,9 @@ enum CLI {
             a["color"] = positional[0]
         case "notify":
             if let p = positional.first { throw Usage(message: "unexpected argument '\(p)' (the text goes in --body)") }
+        case "status":
+            guard positional.count == 1 else { throw Usage(message: "status takes one state: idle, working, done, blocked, error or clear") }
+            a["state"] = positional[0]
         case "identify", "list", "find", "resize", "diagnose":
             if !positional.isEmpty { throw Usage(message: "unexpected argument '\(positional[0])'") }
         default:
@@ -326,6 +338,16 @@ enum CLI {
         }
     }
 
+    /// One OSC 7501 record for `list` (#89): `blocked id=deploy kind=auth app=terraform "Plan": Apply?`.
+    static func statusLine(_ rec: [String: Any]) -> String {
+        var s = rec["state"] as? String ?? "?"
+        if let id = rec["id"] as? String, !id.isEmpty { s += " id=\(id)" }
+        for k in ["kind", "progress", "app"] { if let v = rec[k], !(v is NSNull) { s += " \(k)=\(v)" } }
+        if let t = rec["title"] as? String { s += " \"\(t)\"" }
+        if let m = rec["msg"] as? String { s += ": \(m)" }
+        return s
+    }
+
     static func tree(_ r: [String: Any]) -> String {
         var s = ""
         func short(_ p: String) -> String { WorkingDirectory.tilde(p) }
@@ -344,6 +366,9 @@ enum CLI {
                             s += "        pane:\(p["id"]!)\(mark) \"\(p["title"] as? String ?? "")\" cwd=\(cwd)\n"
                             if let fg = p["foreground"] as? [String: Any] {
                                 s += "          fg [\(fg["pid"] ?? "?")] \(fg["command"] as? String ?? "")\n"
+                            }
+                            for rec in p["program_status"] as? [[String: Any]] ?? [] {
+                                s += "          status \(statusLine(rec))\n"
                             }
                         }
                     }

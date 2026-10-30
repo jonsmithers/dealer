@@ -30,6 +30,7 @@ enum ControlHandler {
             case "rename": result = try rename(args, ctx)
             case "color": result = try color(args, ctx)
             case "notify": result = try notify(args, ctx)
+            case "status": result = try status(args, ctx)
             case "close": result = try close(args, ctx)
             case "run": result = try ControlJobs.run(args, ctx)
             case "job-done": result = try ControlJobs.done(args, ctx)
@@ -236,6 +237,18 @@ enum ControlHandler {
                 "from_claude": p.progressFromClaude,
                 "foreground_pgid": Int(p.progressForeground),
             ] as [String: Any],
+            // OSC 7501 records (#89), root first; text sanitized, `app` inherited.
+            "program_status": p.programStatus.sorted.map { r -> [String: Any] in
+                [
+                    "id": r.id,
+                    "state": r.state.rawValue,
+                    "kind": r.kind?.rawValue ?? NSNull(),
+                    "progress": r.progress ?? NSNull(),
+                    "app": p.programStatus.app(of: r.id) ?? NSNull(),
+                    "title": r.title ?? NSNull(),
+                    "msg": r.msg ?? NSNull(),
+                ]
+            },
         ]
         guard let s = p.surface.surface else { return d }
         let size = ghostty_surface_size(s)
@@ -693,6 +706,36 @@ enum ControlHandler {
         let title = args["title"] as? String
         let body = args["body"] as? String
         try ControlNotify.post(pane: pane, in: loc.wc, state: state, title: title, body: body, event: notifyEvent(args))
+        return ["pane": pane.id]
+    }
+
+    // MARK: - status (#89)
+
+    /// Sets a program status record on the target pane as an OSC 7501 report would: the same
+    /// parser, limits and mapping (ProgramStatus.swift). `title` and `msg` are plain text here.
+    static func status(_ args: [String: Any], _ ctx: Context) throws -> [String: Any] {
+        let loc = try resolve(args["target"], ctx)
+        guard let pane = loc.focusPane else { throw Failure(message: "no pane to set a status on") }
+        let state = args["state"] as? String ?? ""
+        var pairs = ["state=\(state)"]
+        for key in ["id", "kind", "progress", "app"] {
+            guard let v = args[key].map({ "\($0)" }) else { continue }
+            // A report would read these as absent; a script asking for them deserves an error.
+            if v.contains(":") || v.contains("=") || v.contains(where: \.isWhitespace) {
+                throw Failure(message: "--\(key) can't contain ':', '=' or spaces")
+            }
+            if key == "kind", ProgramStatus.Kind(rawValue: v) == nil { throw Failure(message: "--kind is permission, question or auth") }
+            if key == "progress", !(Int(v).map { (0...100).contains($0) } ?? false) { throw Failure(message: "--progress is 0 to 100") }
+            if key == "app", v.utf8.count > ProgramStatus.maxAppBytes || v.contains("/") { throw Failure(message: "--app is a name of at most \(ProgramStatus.maxAppBytes) bytes: letters, digits, _ . + -") }
+            pairs.append("\(key)=\(v)")
+        }
+        for key in ["title", "msg"] {
+            guard let v = args[key] as? String else { continue }
+            pairs.append("\(key)=\(Data(v.utf8).base64EncodedString())")
+        }
+        if let e = ProgramStatus.receive(pairs.joined(separator: ":"), on: pane, source: "status") {
+            throw Failure(message: "status not set: \(e.description)")
+        }
         return ["pane": pane.id]
     }
 

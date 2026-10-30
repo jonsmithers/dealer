@@ -400,6 +400,19 @@ The pane bar shows the pane's status on the right: agent state, cwd and git bran
   With macOS **Reduce Motion** on, the mark stands still at full brightness.
 - **waiting** / **done**: from attention.
 
+**Program status (OSC 7501, #89).** Any program can say what it's doing with the
+[Program Status Protocol](https://www.superlogical.com/rex/docs/build/program-status), e.g.
+`printf '\e]7501;state=blocked:kind=permission\e\\'`. `working` makes the pane *running* (a ring for a
+`progress` percentage, Claude's mark for `app=claude-code`, else the arc); `blocked` makes it
+*waiting*, with the `kind` and `msg` in the status line and notification; `done` and `error` mark it
+*done* and *failed*; `idle` and `clear` lower what it set. Unlike the other sources, a program can
+take its own mark back: `blocked` then `working` clears *waiting*. A blocked pane shows *waiting* in
+its status line even while you're looking at it (without the ring). Records with an `id`
+(`build/test`) roll up to the pane, the highest state winning. `working` and `blocked` go at the
+next prompt or when the program exits. Once a pane has used OSC 7501, its OSC 9;4 is ignored until a
+full reset. `dealer status` sets records from a script and `dealer list` shows them (docs/cli.md).
+This needs Dealer's small patch to libghostty, which `scripts/build-ghosttykit.sh` applies.
+
 **Keep the display awake while agents work** (#69): with `[power] caffeinate = true` in
 [settings.toml](#settings) (off by default; applies live), Dealer holds a macOS power assertion
 whenever any tab or workspace in any window shows the working mark, and for 30 s after the
