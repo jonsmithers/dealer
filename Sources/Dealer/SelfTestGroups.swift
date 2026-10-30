@@ -115,7 +115,7 @@ extension TerminalWindowController {
             return all(expect("a [Proj+: *d c] b"),
                        !shown(rowView("c")) && !shown(rowView("d")) ? nil : "members should be hidden",
                        h.count == 2 ? nil : "count \(h.count)",
-                       h.isActive ? nil : "the header should carry the selected outline while the active workspace is inside",
+                       h.isActive ? nil : "the header should carry the selection bar while the active workspace is inside",
                        shown(rowView("b")) && (rowView("b")?.frame.minY ?? 0) > h.frame.maxY ? nil : "b should follow the header",
                        sb.dropTarget(at: CGPoint(x: h.frame.midX, y: h.frame.midY)) == nil ? nil : "a header is no drop target")
         }) {

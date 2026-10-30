@@ -23,13 +23,13 @@ extension TerminalWindowController {
             return b.indices.contains(i) ? b[i] : nil
         }
         func row(_ i: Int) -> WorkspaceRow? { sb.row(at: i) as? WorkspaceRow }
-        func chip(_ i: Int) -> CGRect? { row(i).map { WorkspaceRow.chipRect(in: $0.bounds) } }
         let teal = NSColor(hex: "#11a08f")!, red = NSColor(hex: "#d03040")!
 
+        // #90: the selected row shows its color as the selection bar, plus the tint; there are no chips.
         t.step("colors: a workspace color shows on its sidebar row", nil, {
             all(row(0)?.color?.sameColor(as: teal) == true ? nil : "row 1 should carry the color",
                 row(1)?.color == nil ? nil : "row 2 should stay neutral",
-                shows(row(0), chip(0), teal, "row 1's chip"))
+                shows(row(0), row(0)?.selectionBarRect, teal, "row 1's selection bar"))
         }) {
             self.newWorkspace(nil)
             t.named(self.focusedPane, "k2")
@@ -87,10 +87,10 @@ extension TerminalWindowController {
         }
         // #18: the workspace's entry is colored in both switcher modes: the row in the sidebar and
         // the pill in the top bar. A pill in the waiting blue still doesn't read as outlined.
-        var pillChip: NSColor?, pillTintDiffers = false, bluePillOutlined = true
+        var pillBar: NSColor?, pillTintDiffers = false, bluePillOutlined = true
         t.step("colors: in top-bar mode the workspace's pill shows its color", nil, {
             all(pillsShown ? nil : "pills should have been showing",
-                PixelProbe.matches(pillChip, teal) ? nil : "pill 1's chip should be \(teal.hexString), is \(pillChip?.hexString ?? "nil")",
+                PixelProbe.matches(pillBar, teal) ? nil : "pill 1's selection bar should be \(teal.hexString), is \(pillBar?.hexString ?? "nil")",
                 pillTintDiffers ? nil : "pill 1 should be tinted (it renders the same as uncolored)",
                 bluePillOutlined ? "a waiting-blue pill must not read as outlined" : nil)
         }) {
@@ -103,7 +103,7 @@ extension TerminalWindowController {
             let plain = PixelProbe.pixels(pill)
             self.setColor(teal, workspace: self.workspaces[0])
             self.layoutNow()
-            pillChip = pill.flatMap { p in PixelProbe.sample(p, at: CGPoint(x: p.chipRect.midX, y: p.chipRect.midY)) }
+            pillBar = pill.flatMap { p in PixelProbe.sample(p, at: CGPoint(x: p.selectionBarRect.midX, y: p.selectionBarRect.midY)) }
             pillTintDiffers = PixelProbe.pixels(pill) != plain
             self.setColor(Theme.attentionWaiting, workspace: self.workspaces[0])
             self.layoutNow()
@@ -163,8 +163,7 @@ extension TerminalWindowController {
         t.step("colors: None restores the default look", nil, {
             all(row(0)?.color == nil && row(1)?.color == nil ? nil : "rows should be neutral",
                 tabButton("srv")?.color == nil ? nil : "srv's tab should be neutral",
-                PixelProbe.matches(PixelProbe.sample(row(0), at: CGPoint(x: chip(0)?.midX ?? 0, y: chip(0)?.midY ?? 0)),
-                                   NSColor(hex: "#ff0000"), tolerance: 0.2) ? "row 1's chip should be gone" : nil)
+                shows(row(0), row(0)?.selectionBarRect, Theme.text, "row 1's selection bar, back to the text color"))
         }) {
             self.setAttention(.none, on: t.pane("k3"))
             self.workspaces.forEach { self.setColor(nil, workspace: $0) }

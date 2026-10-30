@@ -74,7 +74,11 @@ extension TerminalWindowController {
             pill.isActive = true
             return [(tab, "tab", { tab.spinnerBox }, Theme.text, Theme.surface, { tab.working = $0 ? .claude : nil }),
                     (row, "row", { row.spinnerBox }, Theme.text, Theme.workspaceSelection, { row.working = $0 ? .claude : nil }),
-                    (pill, "pill", { pill.spinnerBox }, Theme.text, Theme.workspaceSelection, { pill.working = $0 ? .claude : nil })]
+                    // The selected pill's bar (#90) runs along its bottom edge, just under the slot's last row:
+                    // look only above it.
+                    (pill, "pill", { let b = pill.spinnerBox; return CGRect(x: b.minX, y: b.minY, width: b.width,
+                                                                              height: min(b.height, pill.selectionBarRect.minY - b.minY)) },
+                     Theme.text, Theme.workspaceSelection, { pill.working = $0 ? .claude : nil })]
         }
 
         /// Each element detached, in a known background, at rest and then running.

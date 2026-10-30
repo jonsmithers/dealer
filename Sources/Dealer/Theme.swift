@@ -87,9 +87,9 @@ enum Theme {
     static var textFaint: NSColor { foreground.mixed(with: chrome, 0.68) }
     /// Neutral accent: the pane grip in single-deck windows, workspace drop highlights.
     static var accentNeutral: NSColor { foreground.mixed(with: chrome, 0.35) }
-    /// The selected workspace's switcher entry (#52): a neutral fill a fifth of the way from the
-    /// chrome to the foreground, well past `hover` (7%), in light and dark themes. Never an
-    /// outline (outlines mean attention) and never an attention color.
+    /// The selected workspace's switcher entry (#52, #90): a neutral fill a fifth of the way from the
+    /// chrome to the foreground, well past `hover` (7%), in light and dark themes, under the
+    /// selection bar. Never an outline (outlines mean attention) and never an attention color.
     static var workspaceSelection: NSColor { chrome.mixed(with: foreground, 0.20) }
 
     /// Agent attention (#4, #7): needs input. The accent-blue outline on pane, tab and workspace.
@@ -108,7 +108,7 @@ enum Theme {
     /// at the default `chrome_contrast` +0.3: Nord 4.5:1, Kanso Mist 5.1:1; a negative dial raises
     /// the chrome toward it, e.g. 2.5:1 at −0.3 in Ghostty's default dark), #C9190B on light (5.3:1
     /// on Catppuccin Latte's chrome). Kept well away from the red workspace/tab swatch
-    /// (#e06c75 / #c8414c, ≥ 59/255 on a channel). Colors are tints and chips, never outlines,
+    /// (#e06c75 / #c8414c, ≥ 59/255 on a channel). Colors are tints and bars, never outlines,
     /// and the failed dot also carries a `!` (AttentionStyle), so it isn't color-only.
     static var attentionFailed: NSColor {
         isDark ? NSColor(srgbRed: 0xff / 255, green: 0x45 / 255, blue: 0x3a / 255, alpha: 1)
@@ -163,13 +163,11 @@ enum Theme {
         /// The attention dot on sidebar rows and pills: 8pt like a tab's (was 6), so the waiting `?`
         /// and the failed `!` stay legible at 1x (#65).
         static let switcherDotSize: CGFloat = 8
-        /// The selected workspace's bar at the left edge of its sidebar row or pill (#52), in the
-        /// workspace's color or `Theme.text`. Unselected colored rows keep a 3pt chip.
-        static let workspaceBarWidth: CGFloat = 5
+        /// The selected workspace's bar (#90), in the workspace's color or `Theme.text`: its width at
+        /// the right edge of a sidebar row or header, and its height along the bottom of a pill.
+        /// Unselected entries have no chip or bar; their color is the tint alone.
+        static let workspaceBarWidth: CGFloat = 4
         static let workspacePillBarWidth: CGFloat = 3
-        /// The selected entry's neutral outline (#52): the attention outline's width and path, so an
-        /// attention outline covers it exactly.
-        static var workspaceSelectionOutline: CGFloat { AttentionStyle.outlineWidth }
         static let paneBarHeight: CGFloat = 20
         /// The hover-only × on a pane bar (#24).
         static let paneBarCloseSize: CGFloat = 16

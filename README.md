@@ -221,8 +221,8 @@ The change applies live.
 
 Right-click a workspace (sidebar row or pill) or a tab for **Workspace Color** / **Tab Color**:
 preset swatches, **Custom…** (the system color panel) or **None**. A workspace's color shows only on
-its entry in the switcher (its sidebar row, or its pill in top-bar mode), as a chip and a faint
-tint. It doesn't appear in the deck area or on tabs. A colored tab gets a faint tint and an underline in its color, which replaces
+its entry in the switcher (its sidebar row, or its pill in top-bar mode), as a faint
+tint, plus the selection bar while it's the workspace you're in. It doesn't appear in the deck area or on tabs. A colored tab gets a faint tint and an underline in its color, which replaces
 the deck's color on that tab. Uncolored tabs stay neutral, except for the active tab's underline in
 its deck's color. A tab's color moves with the tab;
 a workspace's color stays with the workspace. Colors are saved with the session. From a script:

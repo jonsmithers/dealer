@@ -21,12 +21,12 @@ protocol WorkspaceDropTargets: NSView {
 
 extension WorkspaceSidebarView: WorkspaceDropTargets {}
 
-/// How both switchers mark the selected workspace (#52): a strong neutral fill, a bar at the left
-/// edge (the workspace's color, or the text color without one), a heavier title, and a neutral
-/// `Theme.text` outline (the user asked for it). The outline sits exactly where an attention
-/// outline goes and gives way to it: a waiting/failed entry shows only its colored outline, and
-/// the neutral one cross-fades back in as the attention fades (#34). The fill is inset like the
-/// color tint, inside both outlines.
+/// How both switchers mark the selected workspace (#90, replacing #52's outline): the
+/// `Theme.workspaceSelection` fill inset like the color tint, a heavier title, and a bar in the
+/// workspace's color (`Theme.text` without one) along one edge: a sidebar row's right edge (the one
+/// facing the decks) and a pill's bottom edge. There is no selection outline: outlines mean
+/// attention, and an attention outline is drawn around a selected entry as around any other. The
+/// bar sits inside the outline's path, so the two never overlap.
 enum SelectionStyle {
     static var inset: CGFloat { AttentionStyle.outlineWidth + 0.5 }
 
@@ -36,24 +36,25 @@ enum SelectionStyle {
         NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius).fill()
     }
 
-    /// The neutral selection outline at `bounds`' edge, at `alpha` (1 − the attention outline's
-    /// alpha, so the two never stack). Same width and path as `AttentionStyle`'s outline.
-    static func drawOutline(in bounds: CGRect, cornerRadius: CGFloat, attention: Attention, attentionAlpha: CGFloat) {
-        let alpha = attention.outlined ? 1 - min(max(attentionAlpha, 0), 1) : 1
-        guard alpha > 0 else { return }
-        let w = Theme.Metrics.workspaceSelectionOutline
-        let path = NSBezierPath(roundedRect: bounds.insetBy(dx: w / 2, dy: w / 2),
-                                xRadius: max(cornerRadius - w / 2, 0), yRadius: max(cornerRadius - w / 2, 0))
-        path.lineWidth = w
-        Theme.text.withAlphaComponent(alpha).setStroke()
-        path.stroke()
+    static func barColor(_ workspaceColor: NSColor?) -> NSColor { workspaceColor ?? Theme.text }
+
+    /// The bar on a sidebar row or a sidebar group header: at the right edge, inside the attention
+    /// outline, `verticalInset` from the top and bottom.
+    static func rowBarRect(in bounds: CGRect, verticalInset: CGFloat = 5) -> CGRect {
+        let w = Theme.Metrics.workspaceBarWidth
+        return CGRect(x: bounds.maxX - inset - w, y: bounds.minY + verticalInset, width: w, height: bounds.height - verticalInset * 2)
     }
 
-    static func barColor(_ workspaceColor: NSColor?) -> NSColor { workspaceColor ?? Theme.text }
+    /// The bar on a pill or a top-bar group label: along the bottom edge (the views are flipped),
+    /// inside the attention outline.
+    static func pillBarRect(in bounds: CGRect) -> CGRect {
+        let h = Theme.Metrics.workspacePillBarWidth, side: CGFloat = 7
+        return CGRect(x: bounds.minX + side, y: bounds.maxY - inset - h, width: max(bounds.width - side * 2, 0), height: h)
+    }
 
     static func drawBar(_ workspaceColor: NSColor?, in rect: CGRect) {
         barColor(workspaceColor).setFill()
-        let r = rect.width / 2
+        let r = min(rect.width, rect.height) / 2
         NSBezierPath(roundedRect: rect, xRadius: r, yRadius: r).fill()
     }
 }

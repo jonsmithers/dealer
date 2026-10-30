@@ -647,7 +647,7 @@ extension TerminalWindowController {
             let build = addTab("build", in: focusedDeck)
             if let d = focusedDeck, let t = d.tabs.first { select(tab: t, in: d) }
             // No workspace here may wear an attention color (red failed, orange that reads as red,
-            // blue waiting): a chip that matches an outline muddies what this demo teaches. So these
+            // blue waiting): a tint or bar that matches an outline muddies what this demo teaches. So these
             // take auto_assign's swatches with those skipped (demo only; auto_assign is unchanged).
             var calm = Theme.swatches.filter { !["red", "orange", "blue"].contains($0.name) }.map(\.color).makeIterator()
             for (ws, p) in [("billing", "ledger"), ("docs", "notes"), ("mobile", "simulator")] {

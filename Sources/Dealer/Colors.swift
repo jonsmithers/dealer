@@ -4,7 +4,8 @@ import AppKit
 //
 // A color is an optional NSColor on `Workspace.color` / `Tab.color`, persisted as "#rrggbb".
 // A workspace color shows ONLY on its switcher entry, the sidebar row or the top-bar pill, as a
-// chip plus a faint tint (#15, #18): not in the deck area, and never on tabs. A tab color shows on its own tab button
+// faint tint, plus the selection bar on the selected entry (#15, #18, #90; no chip): not in the
+// deck area, and never on tabs. A tab color shows on its own tab button
 // as the underline plus a faint tint (overriding the deck color there). Colors are never drawn as
 // an outline: that look belongs to #7's attention (AttentionStyle), and the tint is inset so the
 // attention outline always sits outside it.
@@ -32,7 +33,7 @@ extension NSColor {
 }
 
 extension Theme {
-    /// The preset swatches offered in color menus, tuned per light/dark so chips and tints read
+    /// The preset swatches offered in color menus, tuned per light/dark so bars and tints read
     /// on either chrome. `[colors] palette` in settings.toml replaces them (named by number).
     static var swatches: [(name: String, color: NSColor)] {
         if let custom = Settings.colorPalette, !custom.isEmpty {
@@ -77,12 +78,6 @@ enum ColorStyle {
         guard let color else { return }
         Theme.colorTint(color).setFill()
         shape.fillPath(in: rect, inset: AttentionStyle.outlineWidth + 0.5).fill()
-    }
-
-    static func drawChip(_ color: NSColor?, in rect: CGRect) {
-        guard let color else { return }
-        color.setFill()
-        NSBezierPath(roundedRect: rect, xRadius: min(rect.width, rect.height) / 2, yRadius: min(rect.width, rect.height) / 2).fill()
     }
 
     static func swatchImage(_ color: NSColor) -> NSImage {

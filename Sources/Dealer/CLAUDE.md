@@ -193,7 +193,7 @@
   through `SwitcherDragHost`/`SwitcherLayout.drop`; compute entries on demand, never store them
   in a view (AppKit keeps a closed window's views, and stored entries leaked its workspaces, #43).
   A collapsed header (`GroupHeaderView`) carries its members' rolled-up attention, spinner and the
-  neutral selected outline; groups have no color. Session: `WindowSnapshot.groups` +
+  selection bar (#90, `Theme.text`); groups have no color. Session: `WindowSnapshot.groups` +
   `WorkspaceSnapshot.group` (an index), both optional, so files decode both ways.
 - `WindowSnapshot.sidebar` is optional (absent = automatic); keep it that way so older files
   decode. Don't persist the automatic value as an explicit one.
@@ -208,13 +208,17 @@
   `visibleWorkspaceSwitchers`, before the edge bands (the pills lie in the titlebar row, which is
   otherwise the top-edge promote band). A new switcher style only needs to conform.
 - Both draw attention only through `AttentionStyle.draw` (#7 owns the look), called last in `draw`.
-- Both mark the selected workspace through `SelectionStyle` (WorkspaceSwitcher.swift, #52): the
-  `Theme.workspaceSelection` fill inset like the color tint, a left bar in the workspace color or
-  `Theme.text`, `Theme.Fonts.workspaceActive`, and a neutral `Theme.text` outline (the user asked
-  for it). The outline has the attention outline's width and path and yields to it: on an outlined entry
-  (waiting, failed, and done/unread when `[attention]` outlines them) only the colored outline shows (selection alpha = 1 − attention alpha, so it
-  cross-fades back during #34's fade). Draw it just before `AttentionStyle.draw`, never after.
-  Change both switchers together; `SelfTestSelection.swift` checks both.
+- Both mark the selected workspace through `SelectionStyle` (WorkspaceSwitcher.swift, #90, which
+  replaced #52's outline): the `Theme.workspaceSelection` fill inset like the color tint,
+  `Theme.Fonts.workspaceActive`, and a bar in the workspace color or `Theme.text`
+  (`SelectionStyle.drawBar`): `rowBarRect` at a sidebar row's or header's right edge
+  (`workspaceBarWidth`, 4pt), `pillBarRect` along a pill's or label pill's bottom edge
+  (`workspacePillBarWidth`, 3pt), both inside the attention outline's path. **No selection outline,
+  and no color chip on any entry** (the user's call on #90): outlines are attention's alone, and an
+  unselected colored entry shows only its tint. A sidebar group header keeps 4pt of extra right
+  padding so its count and dot clear the bar. Change both switchers together;
+  `SelfTestSelection.swift` checks both (bar edge and color, no outline, no chip, attention still
+  outlined on a selected entry).
 
 ## Settings (`Settings.swift`, `SettingsFile.swift`, `TOML.swift`, `SettingsBanner.swift`)
 
@@ -285,7 +289,8 @@
   (`moveToNewTab`, promoting a pane) start uncolored, and dropping a tab onto a pane
   (`merge(tab:)`) or a fold that splits it into another tab dissolves it and its color.
 - Draw colors only through `ColorStyle.drawTint` (inset by `AttentionStyle.outlineWidth`, so the
-  attention outline stays outside it) and `drawChip`, and call `AttentionStyle.draw` after them. The
+  attention outline stays outside it), a tab's underline, and `SelectionStyle.drawBar` on the selected
+  switcher entry (#90; there is no chip any more), and call `AttentionStyle.draw` after them. The
   self-test checks that a waiting-blue workspace or tab doesn't read as outlined.
 - Swatches come from `Theme.swatches` (light/dark variants, or `[colors] palette`). Parse
   user-given colors with `Theme.parseColor` (CLI and settings share it).
@@ -467,7 +472,7 @@
   `waitUntil` on their end state. A fade step must first wait out the reveal window
   (`AttentionFade.timing().hold == 0`) if a ⌘⇧U step may precede it.
 - Look (#7, #61): `Attention.outlined` is the single answer to "outline or dot", and `Attention.color`
-  the colour; every drawer (pane ring, `AttentionStyle`, `SelectionStyle`'s yield, the status line)
+  the colour; every drawer (pane ring, `AttentionStyle`, the status line)
   reads them, never the state directly. `waiting` and `failed` are always outlined; `done` follows
   `[attention] done` (default "outline") and `unread` follows `[attention] unread` (default "dot"),
   read live. Outlined means the pane ring plus an outline, tint and dot on the tab and workspace entry;

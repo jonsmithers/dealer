@@ -80,7 +80,7 @@ extension TerminalWindowController {
             let past = dv.strip.convert(CGPoint(x: dv.strip.addButton.frame.maxX + 12, y: dv.strip.bounds.midY), to: contentView)
             p.append(expect("strip chrome", PixelProbe.sample(contentView, at: past), at(Theme.chrome)))
             if let row = activeRow() {
-                p.append(expect("sidebar row", PixelProbe.sample(row, at: CGPoint(x: row.bounds.maxX - 4, y: row.bounds.midY)), at(Theme.workspaceSelection)))
+                p.append(expect("sidebar row", PixelProbe.sample(row, at: CGPoint(x: row.bounds.maxX - 14, y: row.bounds.midY)), at(Theme.workspaceSelection)))
             } else { p.append("no active sidebar row") }
             let bar = paneA().view.bar
             p.append(expect("pane bar", PixelProbe.sample(bar, at: CGPoint(x: bar.bounds.maxX - 3, y: bar.bounds.midY)), at(Theme.paneBar)))

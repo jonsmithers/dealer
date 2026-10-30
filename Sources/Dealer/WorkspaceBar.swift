@@ -184,7 +184,7 @@ final class WorkspaceButton: FlippedView {
     }
     var isRunning: Bool { working != nil }
     let spinner = RunningSpinnerState()
-    /// The workspace's color (#9): a dot before the number plus a faint tint.
+    /// The workspace's color (#9): a faint tint, and the selection bar's color (#90).
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true; superview?.needsLayout = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
     private var tracker = SwitcherDragTracker()
@@ -215,19 +215,12 @@ final class WorkspaceButton: FlippedView {
     private var numberWidth: CGFloat { number.isEmpty ? 0 : ceil((number as NSString).size(withAttributes: numberAttrs).width) + 6 }
     private var dotWidth: CGFloat { attentionFade.shown > .none ? Self.dotSize + 6 : 0 }
 
-    private var chipWidth: CGFloat { color == nil || isAddButton ? 0 : 10 }
-    /// Where the color dot sits (also sampled by the self-test).
-    var chipRect: CGRect { CGRect(x: Self.padding, y: (bounds.height - 6) / 2, width: 6, height: 6) }
-    /// The selected pill's bar (#52), in the left padding: the sidebar's bar, narrower, since a
-    /// pill has no room for a wider one without shifting its text.
-    var barRect: CGRect {
-        let w = Theme.Metrics.workspacePillBarWidth
-        return CGRect(x: 3, y: 6, width: w, height: bounds.height - 12)
-    }
+    /// The selected pill's bar (#90), along its bottom edge (also sampled by the self-test).
+    var selectionBarRect: CGRect { SelectionStyle.pillBarRect(in: bounds) }
 
     var idealWidth: CGFloat {
         if isAddButton { return 24 }
-        return Self.padding * 2 + chipWidth + spinner.leading + numberWidth
+        return Self.padding * 2 + spinner.leading + numberWidth
             + ceil((title as NSString).size(withAttributes: titleAttrs).width) + dotWidth
     }
 
@@ -236,8 +229,8 @@ final class WorkspaceButton: FlippedView {
         let d = Self.dotSize
         return CGRect(x: bounds.width - Self.padding - d, y: (bounds.height - d) / 2, width: d, height: d)
     }
-    /// The spinner's box, after the colour chip (self-test hook).
-    var spinnerBox: CGRect { RunningSpinner.box(in: bounds, x: Self.padding + chipWidth) }
+    /// The spinner's box, in front of the number (self-test hook).
+    var spinnerBox: CGRect { RunningSpinner.box(in: bounds, x: Self.padding) }
 
     override var mouseDownCanMoveWindow: Bool { false }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -255,8 +248,7 @@ final class WorkspaceButton: FlippedView {
         }
         if !isAddButton {
             ColorStyle.drawTint(color, in: bounds, cornerRadius: radius)
-            ColorStyle.drawChip(color, in: chipRect)
-            if selected { SelectionStyle.drawBar(color, in: barRect) }
+            if selected { SelectionStyle.drawBar(color, in: selectionBarRect) }
         }
 
         if isAddButton {
@@ -273,7 +265,7 @@ final class WorkspaceButton: FlippedView {
             return
         }
 
-        var x = Self.padding + chipWidth
+        var x = Self.padding
         if let mark = spinner.mark {
             RunningSpinner.draw(mark, in: spinnerBox, phase: RunningSpinner.phase())
             x += RunningSpinner.slot
@@ -293,10 +285,6 @@ final class WorkspaceButton: FlippedView {
         let w = bounds.width - x - Self.padding - dotWidth
         (title as NSString).draw(in: CGRect(x: x, y: (bounds.height - h) / 2, width: max(w, 0), height: h), withAttributes: attrs)
 
-        if isActive {
-            SelectionStyle.drawOutline(in: bounds, cornerRadius: Theme.Metrics.tabRadius,
-                                       attention: attentionFade.shown, attentionAlpha: attentionFade.alpha)
-        }
         if attentionFade.shown > .none {
             // #7 owns the look: waiting outlines the pill, done/unread get a muted dot (Attention.swift).
             AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: Theme.Metrics.tabRadius,

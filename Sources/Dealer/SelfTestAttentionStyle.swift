@@ -144,7 +144,7 @@ extension TerminalWindowController {
             self.layoutNow()
         }
 
-        t.step("attention style: a selected row and pill marked done show blue on every edge, not the neutral selection outline (dark and light, 2x and 1x)", nil, {
+        t.step("attention style: a selected row and pill marked done show blue on every edge (dark and light, 2x and 1x)", nil, {
             var p: [String] = []
             for (name, bg) in [("dark", NSColor(hex: "#303446")!), ("light", NSColor(hex: "#eff1f5")!)] {
                 p += PixelProbe.atEachScale { _ in Theme.withBackground(bg) {

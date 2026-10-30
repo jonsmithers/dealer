@@ -402,8 +402,8 @@ struct SwitcherDragTracker {
 /// A group's entry in a switcher (#80): a disclosure triangle and the group's name. Click to
 /// collapse or expand, double-click to rename, drag to move the whole group, right-click for its
 /// menu. While collapsed it stands in for its members: their rolled-up attention (outline or dot,
-/// like a workspace entry), the working spinner, a member count (sidebar), and the neutral selected outline
-/// when the active workspace is inside. Groups have no color (#80), so it never draws one.
+/// like a workspace entry), the working spinner, a member count (sidebar), and the selection bar
+/// (#90) when the active workspace is inside. Groups have no color (#80), so it never draws one.
 final class GroupHeaderView: FlippedView {
     enum Style { case row, pill }
     var style: Style = .row
@@ -411,7 +411,7 @@ final class GroupHeaderView: FlippedView {
     var title = "" { didSet { if title != oldValue { needsDisplay = true; superview?.needsLayout = true } } }
     var isCollapsed = false { didSet { if isCollapsed != oldValue { needsDisplay = true; superview?.needsLayout = true } } }
     var count = 0 { didSet { if count != oldValue { needsDisplay = true } } }
-    /// Collapsed with the active workspace inside: the neutral selected outline (#52).
+    /// Collapsed with the active workspace inside: the selection bar (#90), as on a selected entry.
     var isActive = false { didSet { if isActive != oldValue { needsDisplay = true } } }
     var attention: Attention = .none {
         didSet {
@@ -436,6 +436,9 @@ final class GroupHeaderView: FlippedView {
     private var skipToggle = false
 
     private var padding: CGFloat { style == .row ? 10 : 9 }
+    /// Right of the count and dot. A sidebar header leaves room for the selection bar at its right
+    /// edge (#90), always, so the count doesn't shift when the header becomes active.
+    private var trailingPadding: CGFloat { style == .row ? padding + 4 : padding }
     private static let triangleColumn: CGFloat = 16
     private static var dotSize: CGFloat { Theme.Metrics.switcherDotSize }
 
@@ -465,14 +468,19 @@ final class GroupHeaderView: FlippedView {
 
     /// A label pill's width (top bar).
     var idealWidth: CGFloat {
-        padding * 2 + Self.triangleColumn + spinner.leading
+        padding + trailingPadding + Self.triangleColumn + spinner.leading
             + ceil((title as NSString).size(withAttributes: titleAttrs).width) + countWidth + dotWidth
     }
 
     /// The attention dot at the right end (also read by the self-test).
     var attentionDotRect: CGRect {
         let d = Self.dotSize
-        return CGRect(x: bounds.width - padding - d, y: (bounds.height - d) / 2, width: d, height: d)
+        return CGRect(x: bounds.width - trailingPadding - d, y: (bounds.height - d) / 2, width: d, height: d)
+    }
+
+    /// The selection bar (#90): a sidebar header's right edge, a label pill's bottom edge (self-test hook).
+    var selectionBarRect: CGRect {
+        style == .row ? SelectionStyle.rowBarRect(in: bounds, verticalInset: 4) : SelectionStyle.pillBarRect(in: bounds)
     }
 
     /// The disclosure triangle's box (self-test hook).
@@ -512,16 +520,15 @@ final class GroupHeaderView: FlippedView {
         }
         let font = Theme.Fonts.groupHeader
         let h = ceil(font.ascender - font.descender)
-        let right = bounds.width - padding - dotWidth - countWidth
+        let right = bounds.width - trailingPadding - dotWidth - countWidth
         (title as NSString).draw(in: CGRect(x: x, y: (bounds.height - h) / 2, width: max(right - x, 0), height: h), withAttributes: titleAttrs)
         if !countText.isEmpty {
             let cf = countAttrs[.font] as! NSFont
             let ch = ceil(cf.ascender - cf.descender)
             (countText as NSString).draw(at: CGPoint(x: right + 6, y: (bounds.height - ch) / 2), withAttributes: countAttrs)
         }
-        if isActive {
-            SelectionStyle.drawOutline(in: bounds, cornerRadius: radius, attention: attentionFade.shown, attentionAlpha: attentionFade.alpha)
-        }
+        // #90: the selection bar in `Theme.text` (groups have no color); no outline.
+        if isActive { SelectionStyle.drawBar(nil, in: selectionBarRect) }
         if attentionFade.shown > .none {
             AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: radius, dotRect: attentionDotRect, alpha: attentionFade.alpha)
         }

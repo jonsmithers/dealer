@@ -170,20 +170,15 @@ final class WorkspaceRow: FlippedView {
     }
     var isRunning: Bool { working != nil }
     let spinner = RunningSpinnerState()
-    /// The workspace's color (#9): a chip at the left edge plus a faint tint.
+    /// The workspace's color (#9): a faint tint, and the selection bar's color (#90).
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
     private var tracker = SwitcherDragTracker()
 
     private static let padding: CGFloat = 10
 
-    /// Where the color chip sits (also sampled by the self-test). The selected row's bar (#52) is
-    /// wider and taller, on the same center.
-    static func chipRect(in bounds: CGRect, active: Bool = false) -> CGRect {
-        guard active else { return CGRect(x: 4, y: 7, width: 3, height: bounds.height - 14) }
-        let w = Theme.Metrics.workspaceBarWidth
-        return CGRect(x: 5.5 - w / 2, y: 5, width: w, height: bounds.height - 10)
-    }
+    /// The selected row's bar (#90), at the right edge (also sampled by the self-test).
+    var selectionBarRect: CGRect { SelectionStyle.rowBarRect(in: bounds) }
     private static var dotSize: CGFloat { Theme.Metrics.switcherDotSize }
     /// The faint ⌃N number's column, in front of the name.
     private static let numberColumn: CGFloat = 16
@@ -258,8 +253,7 @@ final class WorkspaceRow: FlippedView {
         }
         if !isAddRow {
             ColorStyle.drawTint(color, in: bounds, cornerRadius: radius)
-            if selected { SelectionStyle.drawBar(color, in: Self.chipRect(in: bounds, active: true)) }
-            else { ColorStyle.drawChip(color, in: Self.chipRect(in: bounds)) }
+            if selected { SelectionStyle.drawBar(color, in: selectionBarRect) }
         }
 
         let (titleY, titleH) = titleMetrics
@@ -296,10 +290,6 @@ final class WorkspaceRow: FlippedView {
         if hasDetail {
             (detail as NSString).draw(in: CGRect(x: x, y: titleY + titleH + 1, width: max(bounds.width - Self.padding - x, 0), height: detailH),
                                       withAttributes: detailAttrs)
-        }
-        if isActive && !isAddRow {
-            SelectionStyle.drawOutline(in: bounds, cornerRadius: Theme.Metrics.tabRadius,
-                                       attention: attentionFade.shown, attentionAlpha: attentionFade.alpha)
         }
         if dot {
             // #7: waiting outlines the whole row; done/unread get a muted dot only (Attention.swift).
