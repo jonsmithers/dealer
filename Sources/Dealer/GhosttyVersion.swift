@@ -8,8 +8,15 @@ enum GhosttyVersion {
     /// Must equal `scripts/ghostty.version`; the self-test enforces that.
     static let pinnedCommit = "83fb95624b0439ee660c2679b43b38c8b63769cd"
 
-    /// The version libghostty was built with, e.g. `1.3.2-main-+243f7df7c` (git describe), or
-    /// `1.4.0+83fb95624b04` for a release tag (build-ghosttykit.sh adds the commit there, #85).
+    /// Must equal `scripts/ghostty-build/runtime.version`; the self-test enforces that. The
+    /// pre-release tag build-ghosttykit.sh stamps on a library built with Dealer's runtime patch
+    /// (#89: OSC 7501 reaches us as GHOSTTY_ACTION_PROGRAM_STATUS). A stock library at the pinned
+    /// commit lacks it, and gets the banner.
+    static let runtimeMarker = "dealer.1"
+
+    /// The version libghostty was built with: `1.4.0-dealer.1+83fb95624b04` from
+    /// build-ghosttykit.sh (version, runtime-patch marker, commit). Ghostty's own build records
+    /// `1.3.2-main-+243f7df7c` (git describe) off a tag and a bare `1.4.0` at one.
     static var linked: String {
         let info = ghostty_info()
         guard let p = info.version else { return "" }
@@ -23,13 +30,23 @@ enum GhosttyVersion {
         return c.count >= 7 && c.allSatisfy(\.isHexDigit) ? String(c) : nil
     }
 
-    /// A user-facing description of the mismatch, or nil when `version` is the pinned commit or
-    /// records no commit at all (that case is only logged).
-    static func mismatch(version: String, pin: String = pinnedCommit) -> String? {
+    /// Whether `version` carries the runtime-patch marker: `X.Y.Z-<marker>+<commit>`.
+    static func hasRuntimePatch(_ version: String, marker: String = runtimeMarker) -> Bool {
+        version.contains("-\(marker)+")
+    }
+
+    /// A user-facing description of the mismatch, or nil when `version` is the pinned commit with
+    /// the runtime patch, or records no commit at all (that case is only logged).
+    static func mismatch(version: String, pin: String = pinnedCommit, marker: String = runtimeMarker) -> String? {
         guard let c = commit(of: version) else { return nil }
-        if pin.lowercased().hasPrefix(c.lowercased()) { return nil }
-        return "GhosttyKit is Ghostty \(version), but Dealer is pinned to \(pin.prefix(9)) "
-            + "(scripts/ghostty.version). Expect broken or odd terminal behavior. "
+        guard pin.lowercased().hasPrefix(c.lowercased()) else {
+            return "GhosttyKit is Ghostty \(version), but Dealer is pinned to \(pin.prefix(9)) "
+                + "(scripts/ghostty.version). Expect broken or odd terminal behavior. "
+                + "Rebuild it with scripts/build-ghosttykit.sh."
+        }
+        if hasRuntimePatch(version, marker: marker) { return nil }
+        return "GhosttyKit is Ghostty \(version), the pinned commit but without Dealer's runtime patch "
+            + "(\(marker)), so program status (OSC 7501) won't work. "
             + "Rebuild it with scripts/build-ghosttykit.sh."
     }
 
@@ -54,6 +71,18 @@ enum GhosttyVersion {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("scripts/ghostty.version")
+        return firstValue(of: url)
+    }
+
+    /// `scripts/ghostty-build/runtime.version` in the source tree, like `sourcePin()`.
+    static func sourceRuntimeMarker() -> String? {
+        firstValue(of: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("scripts/ghostty-build/runtime.version"))
+    }
+
+    /// The first line that isn't blank or a `#` comment.
+    private static func firstValue(of url: URL) -> String? {
         guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
         return text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
             .first { !$0.isEmpty && !$0.hasPrefix("#") }

@@ -6,11 +6,15 @@
 #   --out DIR        where to put GhosttyKit.xcframework (default: <repo>/vendor)
 #   --any-version    build even if the checkout isn't at the commit in scripts/ghostty.version
 #   --dry-run        resolve everything and print what would run; don't build or copy
-#   --no-patch       build Ghostty's stock way, which needs full Xcode + its Metal Toolchain
+#   --no-patch       skip the #42 build patch (Ghostty's stock build), which needs full Xcode + its
+#                    Metal Toolchain. The runtime patch (#89) is applied either way.
 #   --compile-metallib  regenerate scripts/ghostty-build/<pin>.metallib first (needs Xcode's metal)
 #
 # By default this needs only zig and the Command Line Tools: Ghostty is built from a temporary
 # clone with Dealer's patch and a precompiled shader library (scripts/ghostty-build/README.md).
+# Dealer's runtime patch (OSC 7501 program status, #89) is always applied in that clone, never in
+# your checkout, and the library is stamped `X.Y.Z-<marker>+<hash12>` (marker in
+# scripts/ghostty-build/runtime.version), which check-ghostty.sh and the app require.
 #
 # The checkout is found in this order: --ghostty / positional / $GHOSTTY_SRC, then a `ghostty`
 # directory next to this repo (next to the main checkout too, when run from a git worktree),
@@ -110,16 +114,26 @@ fi
 if [ $COMPILE_METALLIB = 1 ]; then need_xcode_tool metal --compile-metallib; fi
 command -v lipo >/dev/null 2>&1 || die "lipo not found: install the Command Line Tools (xcode-select --install)."
 
+# Every build happens in a temporary `git clone --shared` of the checkout at $HEAD, patched there:
+# your checkout is never modified or moved.
+GB="$REPO/scripts/ghostty-build"
+SHORT=$(printf %.12s "$HEAD")
+SRC=$GHOSTTY
+TREE=
+clone_tree() {
+  [ -n "$TREE" ] && return
+  TREE=$(mktemp -d "${TMPDIR:-/tmp}/ghostty-patched.XXXXXX")
+  git clone -q --shared "$GHOSTTY" "$TREE"
+  git -C "$TREE" -c advice.detachedHead=false checkout -q --detach "$HEAD"
+  SRC=$TREE
+}
+
 # =================================================================================================
 # Building without Xcode (#42). Everything for this lives in scripts/ghostty-build/; its README.md
 # explains each file and how to remove the mechanism (this block and the two options above).
 # Sets SRC, the tree to build in (a patched temporary clone), and EXTRA, extra zig build flags.
 # =================================================================================================
-GB="$REPO/scripts/ghostty-build"
-SHORT=$(printf %.12s "$HEAD")
-SRC=$GHOSTTY
 EXTRA=
-TREE=
 shaders_sha256() { git -C "$GHOSTTY" show "$HEAD:src/renderer/shaders/shaders.metal" | shasum -a 256 | cut -d' ' -f1; }
 compile_metallib() {  # regenerate $GB/$SHORT.metallib and its provenance from the checkout
   IR=$(mktemp "${TMPDIR:-/tmp}/ghostty-ir.XXXXXX")
@@ -154,18 +168,30 @@ $SHORT.metallib was compiled from ($WANT). Regenerate it on a Mac with Xcode: --
     || die "$GB/$SHORT.metallib doesn't match the metallib_sha256 in $SHORT.metallib.txt"
   EXTRA="-Dmetallib=\"$GB/$SHORT.metallib\""
   if [ $DRY = 1 ]; then SRC="<temporary clone of $GHOSTTY with $SHORT.patch>"; return; fi
-  TREE=$(mktemp -d "${TMPDIR:-/tmp}/ghostty-patched.XXXXXX")
-  git clone -q --shared "$GHOSTTY" "$TREE"
-  git -C "$TREE" -c advice.detachedHead=false checkout -q --detach "$HEAD"
+  clone_tree
   git -C "$TREE" apply "$GB/$SHORT.patch" || die "$GB/$SHORT.patch doesn't apply to Ghostty $HEAD"
-  SRC=$TREE
 }
 if [ $COMPILE_METALLIB = 1 ] && [ $DRY = 0 ]; then compile_metallib; fi
 if [ $NOPATCH = 0 ]; then prepare_patched_tree; fi
 # ===================================== end of the #42 block ======================================
 
+# Dealer's runtime patch (#89): changes what libghostty does (OSC 7501 reaches ghostty.h as
+# GHOSTTY_ACTION_PROGRAM_STATUS), unlike the #42 build patch, so it's applied with --no-patch too.
+# The marker names the patch level; bump it in runtime.version whenever the patch changes.
+MARKER=$(grep -v '^#' "$GB/runtime.version" | tr -d '[:space:]')
+[ -n "$MARKER" ] || die "no marker in $GB/runtime.version"
+[ -f "$GB/$SHORT.runtime.patch" ] || die "no $GB/$SHORT.runtime.patch for Ghostty $HEAD. After a pin bump,
+rebase it (\"Runtime patch\" in scripts/ghostty-build/README.md)."
+if [ $DRY = 1 ]; then
+  if [ $NOPATCH = 0 ]; then SRC="<temporary clone of $GHOSTTY with $SHORT.patch and $SHORT.runtime.patch>"
+  else SRC="<temporary clone of $GHOSTTY with $SHORT.runtime.patch>"; fi
+else
+  clone_tree
+  git -C "$TREE" apply "$GB/$SHORT.runtime.patch" || die "$GB/$SHORT.runtime.patch doesn't apply to Ghostty $HEAD"
+fi
+
 echo "ghostty: $GHOSTTY @ $HEAD"
-if [ $NOPATCH = 1 ]; then echo "build:   stock (needs Xcode), in the checkout"
+if [ $NOPATCH = 1 ]; then echo "build:   $SRC, stock build steps (needs Xcode)"
 else echo "build:   $SRC + -Dmetallib (no Xcode needed)"; fi
 echo "zig:     $ZIG ($HAVE)"
 echo "output:  $OUT/GhosttyKit.xcframework"
@@ -174,17 +200,17 @@ echo "output:  $OUT/GhosttyKit.xcframework"
 # leaves the checkout's own zig-out alone; the framework itself always goes to macos/.
 STAGE=$(mktemp -d "${TMPDIR:-/tmp}/ghosttykit-prefix.XXXXXX")
 trap 'rm -rf "$STAGE" ${TREE:+"$TREE"}' EXIT
-# The pin check (#35) reads the commit from the version string Ghostty embeds. Off a tag that's
-# `X.Y.Z-<branch>+<hash>`, but at a release tag (v1.4.0, #85) Ghostty's build records a bare
-# `X.Y.Z`, so name the commit ourselves as semver build metadata: `X.Y.Z+<hash>` (no pre-release
-# part, so Ghostty still treats it as a stable release).
-VERSION_FLAG=
-if git -C "$GHOSTTY" describe --exact-match --tags "$HEAD" >/dev/null 2>&1; then
-  ZON_VERSION=$(sed -n 's/^ *\.version *= *"\([0-9][0-9.]*\)".*/\1/p' "$GHOSTTY/build.zig.zon" | head -1)
-  [ -n "$ZON_VERSION" ] || die "can't read .version from $GHOSTTY/build.zig.zon"
-  VERSION_FLAG="-Dversion-string=$ZON_VERSION+$(printf %.12s "$HEAD")"
-  echo "version: $ZON_VERSION+$(printf %.12s "$HEAD") (tagged release; the commit is added for the pin check)"
-fi
+# The pin check (#35) reads the commit from the version string Ghostty embeds, and requires the
+# runtime patch's marker (#89): always `X.Y.Z-<marker>+<hash12>` (e.g. `1.4.0-dealer.1+83fb95624b04`).
+# Ghostty's own string would be `X.Y.Z-<branch>+<hash>` off a tag and a bare `X.Y.Z` at a release
+# tag (#85). The pre-release part only makes Ghostty's release_channel `tip`, which seeds nothing
+# but `auto-update-channel` (Sparkle, unused by Dealer). Never put the marker after the hash:
+# GhosttyVersion.commit(of:) would then find no commit and the banner would stay silent.
+ZON_VERSION=$(git -C "$GHOSTTY" show "$HEAD:build.zig.zon" | sed -n 's/^ *\.version *= *"\([0-9][0-9.]*\)".*/\1/p' | head -1)
+[ -n "$ZON_VERSION" ] || die "can't read .version from build.zig.zon at $HEAD"
+VERSION_STRING="$ZON_VERSION-$MARKER+$SHORT"
+VERSION_FLAG="-Dversion-string=$VERSION_STRING"
+echo "version: $VERSION_STRING"
 BUILD="\"$ZIG\" build -p \"$STAGE\" -Demit-xcframework=true -Dxcframework-target=native -Demit-macos-app=false -Doptimize=ReleaseFast $VERSION_FLAG $EXTRA"
 if [ $DRY = 1 ]; then
   echo "dry run, would run in $SRC:"

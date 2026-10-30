@@ -1,9 +1,11 @@
 #!/bin/sh
 # Checks that a GhosttyKit.xcframework was built from the Ghostty commit pinned in
 # scripts/ghostty.version (#35). Reads the version string Ghostty's build embeds in the library
-# (e.g. `1.3.2-main-+243f7df7c`, or `1.4.0+83fb95624b04` for a release tag), so no separate stamp file can go stale. When the framework
-# matches, it also checks the ghostty-resources directory next to it (#41) by its ghostty-commit
-# stamp, which build-ghosttykit.sh writes in the same run.
+# (`1.4.0-dealer.1+83fb95624b04`: version, Dealer's runtime-patch marker, commit), so no separate
+# stamp file can go stale. The marker (scripts/ghostty-build/runtime.version, #89) must be there too:
+# a stock library at the pinned commit lacks OSC 7501 program status. When the framework matches,
+# it also checks the ghostty-resources directory next to it (#41) by its ghostty-commit stamp,
+# which build-ghosttykit.sh writes in the same run.
 #
 # Usage: scripts/check-ghostty.sh [path/to/GhosttyKit.xcframework]   (default: vendor/)
 # Exit status: 0 match, 1 mismatch or missing, 2 the library records no commit (warning only).
@@ -12,6 +14,7 @@ set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 FW=${1:-$REPO/vendor/GhosttyKit.xcframework}
 PIN=$(grep -v '^#' "$REPO/scripts/ghostty.version" | tr -d '[:space:]')
+MARKER=$(grep -v '^#' "$REPO/scripts/ghostty-build/runtime.version" | tr -d '[:space:]')
 
 LIB=$(ls "$FW"/*/libghostty*.a 2>/dev/null | head -1 || true)
 if [ -z "$LIB" ]; then
@@ -26,7 +29,17 @@ if [ -z "$VERSION" ]; then
 fi
 case $PIN in
   "$COMMIT"*)
-    echo "GhosttyKit OK: $VERSION matches the pin"
+    case $VERSION in
+      *-"$MARKER"+*) echo "GhosttyKit OK: $VERSION matches the pin, with Dealer's runtime patch" ;;
+      *)
+        MSG="GhosttyKit at $FW is Ghostty $VERSION: the pinned commit, but not built with Dealer's runtime
+patch $MARKER (#89), so program status (OSC 7501) won't reach Dealer. Rebuild it with
+scripts/build-ghosttykit.sh, which applies the patch (see scripts/ghostty-build/README.md)."
+        [ "${GHOSTTY_ANY_VERSION:-}" = 1 ] && { echo "WARNING: $MSG" >&2; exit 0; }
+        echo "error: $MSG
+Set GHOSTTY_ANY_VERSION=1 to proceed anyway." >&2
+        exit 1 ;;
+    esac
     # Ghostty's resources next to it (#41), stamped by build-ghosttykit.sh with their commit.
     RES=$(dirname "$FW")/ghostty-resources
     if [ ! -d "$RES" ]; then

@@ -1,0 +1,199 @@
+Dealer's runtime patch to Ghostty, for Ghostty v1.4.0, 83fb95624b0439ee660c2679b43b38c8b63769cd (#89).
+OSC 7501 (Program Status Protocol) reaches the embedder. Ghostty parses and validates OSC 7501
+(src/terminal/osc/parsers/program_status.zig), but its app runtime drops it ("Unimplemented" in
+termio's stream handler). Applied by scripts/build-ghosttykit.sh to a temporary clone, never to your
+checkout; the library is then stamped with the marker in runtime.version. See README.md.
+
+One line per hunk:
+- ghostty.h (struct): ghostty_action_program_status_s, the report body (data, len), 16 bytes, so
+  ghostty_action_u keeps its 24-byte size.
+- ghostty.h (union): its member, last.
+- ghostty.h (tag): GHOSTTY_ACTION_PROGRAM_STATUS, appended last so every other tag keeps its value.
+- Surface.zig: the program_status surface message becomes the apprt action.
+- action.zig (field), action.zig (key, last), action.zig (ProgramStatus): the action and its C value.
+- gtk application.zig: listed as unimplemented.
+- apprt/surface.zig: program_status surface message, a WriteReq like pwd_change.
+- stream_handler.zig (dispatch): stop ignoring .program_status.
+- stream_handler.zig (fullReset): RIS sends an empty body, which no program can send (the parser
+  requires `state`), so the embedder can tell a full reset from a program's own `state=clear`.
+- stream_handler.zig (programStatus): answers the support query on the read thread, before the reply
+  to a following CSI c is queued, with Ghostty's query_reply; passes a report's validated body on.
+
+diff --git a/include/ghostty.h b/include/ghostty.h
+index 9a12b9cad..55a825815 100644
+--- a/include/ghostty.h
++++ b/include/ghostty.h
+@@ -686,6 +686,13 @@ typedef enum {
+   GHOSTTY_INSPECTOR_HIDE,
+ } ghostty_action_inspector_e;
+ 
++// apprt.action.ProgramStatus.C (Dealer, #89): an OSC 7501 report body, valid during the
++// callback; empty after a full reset (RIS).
++typedef struct {
++  const char* data;
++  size_t len;
++} ghostty_action_program_status_s;
++
+ // apprt.action.ExportTerminalIO.C
+ typedef struct {
+   const char* contents;
+@@ -1016,6 +1023,7 @@ typedef enum {
+   GHOSTTY_ACTION_COPY_TITLE_TO_CLIPBOARD,
+   GHOSTTY_ACTION_MOVE_TAB_TO_NEW_WINDOW,
+   GHOSTTY_ACTION_RESIZE_WINDOW,
++  GHOSTTY_ACTION_PROGRAM_STATUS,
+ } ghostty_action_tag_e;
+ 
+ typedef union {
+@@ -1060,6 +1068,7 @@ typedef union {
+   ghostty_action_search_selected_s search_selected;
+   ghostty_action_readonly_e readonly;
+   ghostty_action_open_config_e open_config;
++  ghostty_action_program_status_s program_status;
+ } ghostty_action_u;
+ 
+ typedef struct {
+diff --git a/src/Surface.zig b/src/Surface.zig
+index 369bb2399..d6335f4d6 100644
+--- a/src/Surface.zig
++++ b/src/Surface.zig
+@@ -1120,6 +1120,17 @@ pub fn handleMessage(self: *Surface, msg: Message) !void {
+             },
+         },
+ 
++        .program_status => |w| {
++            defer w.deinit();
++            _ = self.rt_app.performAction(
++                .{ .surface = self },
++                .program_status,
++                .{ .data = w.slice() },
++            ) catch |err| {
++                log.warn("apprt failed to report program status err={}", .{err});
++            };
++        },
++
+         .pwd_change => |w| {
+             defer w.deinit();
+ 
+diff --git a/src/apprt/action.zig b/src/apprt/action.zig
+index 708898e76..936a127bb 100644
+--- a/src/apprt/action.zig
++++ b/src/apprt/action.zig
+@@ -364,6 +364,9 @@ pub const Action = union(Key) {
+     /// split or the window is fullscreen.
+     resize_window: ResizeWindow,
+ 
++    /// Dealer: an OSC 7501 program status report. See `ProgramStatus`.
++    program_status: ProgramStatus,
++
+     /// Sync with: ghostty_action_tag_e
+     pub const Key = enum(c_int) {
+         quit,
+@@ -436,6 +439,7 @@ pub const Action = union(Key) {
+         copy_title_to_clipboard,
+         move_tab_to_new_window,
+         resize_window,
++        program_status,
+ 
+         test "ghostty.h Action.Key" {
+             try lib.checkGhosttyHEnum(Key, "GHOSTTY_ACTION_");
+@@ -632,6 +636,23 @@ pub const Inspector = enum(c_int) {
+     }
+ };
+ 
++/// Dealer: an OSC 7501 report body, everything after `7501;`, already validated by
++/// terminal.osc.program_status (limits, base64, control characters, ids). Only valid
++/// for the duration of the action callback. A full reset (RIS) sends an empty body.
++pub const ProgramStatus = struct {
++    data: []const u8,
++
++    // Sync with: ghostty_action_program_status_s
++    pub const C = extern struct {
++        data: [*]const u8,
++        len: usize,
++    };
++
++    pub fn cval(self: ProgramStatus) C {
++        return .{ .data = self.data.ptr, .len = self.data.len };
++    }
++};
++
+ /// Terminal IO inspector contents to export. The contents are only valid for
+ /// the duration of the action callback.
+ pub const ExportTerminalIO = struct {
+diff --git a/src/apprt/gtk/class/application.zig b/src/apprt/gtk/class/application.zig
+index 08d5d7c30..41fd3239c 100644
+--- a/src/apprt/gtk/class/application.zig
++++ b/src/apprt/gtk/class/application.zig
+@@ -807,6 +807,7 @@ pub const Application = extern struct {
+ 
+             // Unimplemented
+             .secure_input,
++            .program_status,
+             .close_all_windows,
+             .float_window,
+             .toggle_visibility,
+diff --git a/src/apprt/surface.zig b/src/apprt/surface.zig
+index 3b1a04d8a..f3542e92c 100644
+--- a/src/apprt/surface.zig
++++ b/src/apprt/surface.zig
+@@ -134,6 +134,9 @@ pub const Message = union(enum) {
+     /// The terminal has reported a change in the working directory.
+     pwd_change: WriteReq,
+ 
++    /// Dealer: an OSC 7501 report body (after `7501;`), validated by the parser.
++    program_status: WriteReq,
++
+     /// The terminal encountered a bell character.
+     ring_bell,
+ 
+diff --git a/src/termio/stream_handler.zig b/src/termio/stream_handler.zig
+index 0f1ee50f7..0370c4bf8 100644
+--- a/src/termio/stream_handler.zig
++++ b/src/termio/stream_handler.zig
+@@ -379,13 +379,13 @@ pub const StreamHandler = struct {
+             .apc_put => self.apc.feed(self.alloc, value),
+             .apc_put_slice => self.apc.feedSlice(self.alloc, value.bytes),
+             .kitty_clipboard => try self.kittyClipboard(value),
++            .program_status => try self.programStatus(value),
+ 
+             // Unimplemented
+             .title_push,
+             .title_pop,
+             .kitty_dnd,
+             .osc_unknown,
+-            .program_status,
+             => {},
+         }
+     }
+@@ -931,6 +931,8 @@ pub const StreamHandler = struct {
+         self: *StreamHandler,
+     ) !void {
+         self.terminal.fullReset();
++        // Dealer: RIS removes every OSC 7501 record. An empty body means a full reset.
++        self.surfaceMessageWriter(.{ .program_status = .{ .stable = "" } });
+         try self.setMouseShape(.text);
+ 
+         // Full reset clears Kitty clipboard session grants.
+@@ -1943,6 +1945,21 @@ pub const StreamHandler = struct {
+         // the read() syscall.
+     }
+ 
++    /// Dealer: OSC 7501. Answer the support query here, on the read thread, so the
++    /// reply is queued before the reply to a following `CSI c`. Pass reports, already
++    /// validated by the parser, to the apprt as their raw body.
++    fn programStatus(self: *StreamHandler, cmd: terminal.osc.Command.ProgramStatus) !void {
++        switch (cmd) {
++            .query => |t| switch (t) {
++                inline else => |tt| self.messageWriter(.{ .write_stable = "\x1b]7501;" ++
++                    terminal.osc.program_status.query_reply ++ comptime tt.string() }),
++            },
++            .report => |r| self.surfaceMessageWriter(.{
++                .program_status = try apprt.surface.Message.WriteReq.init(self.alloc, r.data),
++            }),
++        }
++    }
++
+     /// Display a GUI progress report.
+     fn progressReport(self: *StreamHandler, report: terminal.osc.Command.ProgressReport) void {
+         self.surfaceMessageWriter(.{ .progress_report = report });

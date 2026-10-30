@@ -86,7 +86,8 @@ directory, set `DEALER_GHOSTTY_RESOURCES_DIR`. It refuses to build a different c
 libghostty's embedding API changes often. `--dry-run` shows what it would do.
 
 The pin is enforced against the framework you actually have in `vendor/` (#35):
-`scripts/check-ghostty.sh` compares the commit recorded in the library with the pin, and
+`scripts/check-ghostty.sh` compares the commit recorded in the library with the pin (and requires
+the marker of Dealer's small runtime patch to Ghostty, which passes OSC 7501 program status on; #89), and
 `scripts/bundle.sh` refuses to bundle on a mismatch (`GHOSTTY_ANY_VERSION=1` overrides).
 The self-test fails on a mismatch, and at launch the app shows a red banner if the linked
 Ghostty isn't the pinned one.

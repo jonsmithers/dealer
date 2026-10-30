@@ -1,0 +1,4 @@
+# The pre-release tag stamped on libghostty built with Dealer's runtime patch (#89), as in
+# `1.4.0-dealer.1+83fb95624b04`. Bump the number whenever <pin12>.runtime.patch changes behavior,
+# and GhosttyVersion.runtimeMarker with it (the self-test checks that they agree).
+dealer.1

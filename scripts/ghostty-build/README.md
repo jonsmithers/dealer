@@ -47,15 +47,46 @@ locally. Only regenerating the metallib needs Xcode, and only when the shaders c
 | `<pin12>.patch` | The patch to Ghostty's `src/build/`, applied to a temporary clone (never your checkout). Its header explains each hunk. |
 | `<pin12>.metallib` | `Ghostty.metallib` compiled from the pin's `shaders.metal`, byte-identical to the stock build's. Passed as `-Dmetallib`. |
 | `<pin12>.metallib.txt` | Provenance: pin, `shaders_sha256` (checked before every build), `metallib_sha256` (checked), the Xcode/metal versions, and the regenerate command. |
+| `<pin12>.runtime.patch` | Dealer's runtime patch (#89, below), applied to the same temporary clone. Its header explains each hunk. |
+| `runtime.version` | The marker stamped on a library built with the runtime patch (`dealer.1`). |
 
-`build-ghosttykit.sh` options: `--no-patch` builds the stock way (needs Xcode), to compare against
-or fall back to. `--compile-metallib` regenerates the metallib and provenance (needs Xcode).
+`build-ghosttykit.sh` options: `--no-patch` skips the #42 build patch and uses Ghostty's stock
+build steps (needs Xcode), to compare against or fall back to. It still applies the runtime patch,
+in a temporary clone too. `--compile-metallib` regenerates the metallib and provenance (needs Xcode).
+
+## Runtime patch (#89)
+
+Unlike the build patch, `<pin12>.runtime.patch` changes what libghostty does. Ghostty parses and
+validates OSC 7501 (Program Status Protocol) since v1.4.0, but only libghostty-vt passes it on; the
+app runtime that Dealer embeds drops it. The patch passes each report's validated body to the
+embedder as `GHOSTTY_ACTION_PROGRAM_STATUS`, sends `state=clear` on a full reset, and answers the
+support query (`OSC 7501 ; ?`) on the read thread, where the reply is queued before the reply to a
+following `CSI c`. Dealer couldn't answer it in time from the app side.
+
+- **ABI:** the new tag is the last in `ghostty_action_tag_e` and the new union member is 16 bytes,
+  so `ghostty_action_u` keeps its size. A patched library works with Swift code that predates it.
+  Swift that uses the tag needs the patched header.
+- **Marker:** `build-ghosttykit.sh` always passes `-Dversion-string=X.Y.Z-<marker>+<pin12>`
+  (`1.4.0-dealer.1+83fb95624b04`). `check-ghostty.sh` and the app (`GhosttyVersion.runtimeMarker`,
+  banner) require it, so a stock library at the pinned commit fails the check instead of quietly
+  lacking OSC 7501. The pre-release part only makes Ghostty's `release_channel` `tip`, which seeds
+  nothing but `auto-update-channel` (Sparkle, unused). Never put the marker after the hash:
+  `GhosttyVersion.commit(of:)` would then see no commit, and the banner would stay silent.
+- **Changing it:** edit the patch, bump the number in `runtime.version` and
+  `GhosttyVersion.runtimeMarker` together (the self-test compares them), and rebuild `vendor/`.
+- **Removing it:** once upstream's app runtime passes OSC 7501 on, bump the pin, delete
+  `<pin12>.runtime.patch` and `runtime.version`, the marker block in `build-ghosttykit.sh` (use
+  Ghostty's own version string again, with the `X.Y.Z+<hash>` fix-up at release tags, #85), the
+  marker checks in `check-ghostty.sh` and `GhosttyVersion`, and switch Dealer's Swift to upstream's
+  action.
 
 ## Pin bumps
 
 1. Bump `scripts/ghostty.version` as usual, and check out the new pin in a `git clone --shared`.
-2. Rebase the patch: apply the old one in the clone (`git apply --3way`), fix the conflicts, and save
-   `git diff` as `<newpin12>.patch` under the old header (keep one line per hunk). Delete the old pin's files.
+2. Rebase both patches: apply each old one in the clone (`git apply --3way`), fix the conflicts, and
+   save `git diff` as `<newpin12>.patch` / `<newpin12>.runtime.patch` under the old header (keep one
+   line per hunk). Delete the old pin's files. Check whether upstream now passes OSC 7501 to the
+   apprt itself; if so, drop the runtime patch (above).
 3. Run `build-ghosttykit.sh`. If it reports a shaders.metal mismatch, regenerate on a Mac with Xcode
    (`--compile-metallib`) and commit the new `.metallib` and `.metallib.txt`. If it doesn't, copy the
    old metallib and provenance to the new names and update `pin=`.
@@ -68,7 +99,7 @@ scripts/check-ghostty.sh /tmp/gk/GhosttyKit.xcframework
 ```
 
 Then build Dealer against it and run the self-test (see CLAUDE.md). To compare with the stock
-build, run `--no-patch --out /tmp/gk-stock` with Xcode selected. The metallib embedded in both is
+build steps, run `--no-patch --out /tmp/gk-stock` with Xcode selected. The metallib embedded in both is
 the same, and so are the xcframework layout and `Info.plist` keys.
 
 ## Removing this
@@ -82,8 +113,8 @@ Once it's gone, building `vendor/` needs full Xcode plus its Metal Toolchain
    - the `--no-patch` and `--compile-metallib` lines in the usage comment, the option parser and the
      `NOPATCH=0`/`COMPILE_METALLIB=0` defaults;
    - the paragraph about the Command Line Tools in the header.
-   Then make the `metal`/`xcodebuild` preflight unconditional, and set `SRC=$GHOSTTY`, `EXTRA=` and
-   `TREE=` where the block was (or replace `$SRC` with `$GHOSTTY`).
+   Then make the `metal`/`xcodebuild` preflight unconditional, and set `EXTRA=` where the block was.
+   Keep `clone_tree` above it: the runtime patch (#89) still builds in a temporary clone.
 3. Remove the pointers to this README from `CLAUDE.md` and `README.md` (Building), and from
    `docs/orchestrator-handoff.md`.
 

@@ -34,11 +34,19 @@ The GitHub repo is `jonsmithers/dealer`.
   checks that `GhosttyVersion.pinnedCommit` equals `scripts/ghostty.version` (reading the file from the
   source tree via `#filePath`); and at launch the app logs the mismatch and shows a dismissible red
   banner (`GhosttyVersionBannerView`) in all build configs. A library built without git metadata
-  records no commit and only gets a warning. At a release tag Ghostty's own build records a bare
-  `X.Y.Z`, so `build-ghosttykit.sh` passes `-Dversion-string=X.Y.Z+<hash12>` there (#85).
+  records no commit and only gets a warning. `build-ghosttykit.sh` always passes
+  `-Dversion-string=X.Y.Z-<marker>+<hash12>` (`1.4.0-dealer.1+83fb95624b04`; #85, #89).
+- **Dealer carries a runtime patch to Ghostty (#89)**, `scripts/ghostty-build/<pin12>.runtime.patch`:
+  OSC 7501 (program status) reaches `ghostty.h` as `GHOSTTY_ACTION_PROGRAM_STATUS` (the last tag,
+  so the ABI is unchanged), and libghostty answers its support query. The script applies it in its
+  temp clone, even with `--no-patch`, and stamps the marker from `scripts/ghostty-build/runtime.version`.
+  All three pin layers require the marker (`GhosttyVersion.runtimeMarker`, which the self-test
+  compares with the file), so a stock library at the pinned commit counts as a mismatch. Change the
+  patch → bump the marker in both places → rebuild `vendor/`. Details and removal:
+  `scripts/ghostty-build/README.md`, "Runtime patch".
   - To check by hand without touching `vendor/`, run `scripts/check-ghostty.sh <path/to/GhosttyKit.xcframework>`.
     The script only greps the `.a`, so a temp dir holding a small fake `*/libghostty*.a` with a
-    `1.3.2-main-+<hash>` string is enough to fake a mismatch.
+    `1.4.0-dealer.1+<hash>` string is enough to fake a mismatch.
 - **No Xcode needed (#42):** building `vendor/` needs zig 0.17 and the Command Line Tools only; full
   Xcode is needed just to regenerate the shader library when Ghostty's shaders change. How it works,
   pin bumps and removal: `scripts/ghostty-build/README.md`.
