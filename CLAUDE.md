@@ -62,6 +62,14 @@ The GitHub repo is `jonsmithers/dealer`.
   `ControlServer.start()` do), pass per-pane variables through `Pane.childEnvironment`, and in the
   self-test use `GhosttyRuntime.configFileOverride` rather than a runtime `XDG_CONFIG_HOME`.
 - `swift build` compiles the code; `scripts/bundle.sh [debug|release]` produces `build/Dealer.app`.
+- **Scripts report their progress with OSC 7501 (#89)** through `scripts/lib/program-status.sh`
+  (sourced; POSIX sh and zsh): `build-ghosttykit.sh` (app `dealer-build`), `bundle.sh`
+  (`dealer-bundle`) and `record-demo.sh` (`dealer-demo`) show `working` per phase on the pane's
+  tab and end in `done`, or `error` from their EXIT trap on any failure or ⌃C. Reports go to
+  `/dev/tty` only (never stdout), and nothing is written without a terminal, under `CI`, or with
+  `DEALER_PROGRAM_STATUS=0`. Quick scripts (`check-ghostty.sh`, icons) don't report: a nested one
+  would replace its caller's record. Keep each script's own `id`, and in the helper write
+  `${var}:key`, never `$var:key` (zsh reads `:a`/`:t` as modifiers).
 
 ## Running
 

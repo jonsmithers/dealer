@@ -14,6 +14,14 @@
 # produced, commits there, and prints the push command. Review <out-dir>/review/*.png first.
 set -e; setopt pipefail
 ROOT=${0:A:h:h}; OUT=${1:?usage: record-demo.sh <out-dir> [demo…] | <out-dir> --publish <media-worktree>}; shift
+# Program status (OSC 7501, #89): working per demo, done when the contact sheets are ready to
+# review, failed otherwise. A no-op outside a terminal; DEALER_PROGRAM_STATUS=0 turns it off.
+source $ROOT/scripts/lib/program-status.sh
+program_status_init dealer-demo record-demo
+PID=
+trap 'st=$?; [[ -n $PID ]] && kill $PID 2>/dev/null; program_status_exit $st' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 ALL=(drag workspaces attention goto)
 GIF_BUDGET=$((5 * 1024 * 1024))
 mkdir -p $OUT
@@ -32,7 +40,8 @@ if [[ $1 == --publish ]]; then
   done
   git -C $WT add -A demos
   git -C $WT commit -qm "Regenerate demo recordings (scripts/record-demo.sh)" || { print "nothing changed"; exit 0; }
-  git -C $WT log --oneline -1
+  program_status done "Demos committed on media" "push with: git -C $WT push origin media"
+  git --no-pager -C $WT log --oneline -1
   print "Committed on media. After reviewing $OUT/review, publish with:\n  git -C $WT push origin media"
   exit 0
 fi
@@ -41,6 +50,7 @@ DEMOS=($@); (( $#DEMOS )) || DEMOS=($ALL)
 BIN=$ROOT/.build/debug/Dealer
 [[ -x $BIN ]] || { print "build first: swift build"; exit 1; }
 DEMO_DIR=/tmp/demo
+program_status working "Demos: setting up" "${(j:, :)DEMOS}"
 
 # A neutral project and shell: no personal paths, prompt or history on screen.
 rm -rf $DEMO_DIR; mkdir -p $DEMO_DIR/src $DEMO_DIR/tests; cd $DEMO_DIR
@@ -117,9 +127,9 @@ mkdir -p $OUT/review
 
 for demo in $DEMOS; do
   rm -f $OUT/$demo-raw.mp4 $OUT/review/$demo-*.png(N)
+  program_status working "Demos: recording $demo" "demo $(( ${DEMOS[(i)$demo]} )) of $#DEMOS; hands off the machine" $(( 100 * (${DEMOS[(i)$demo]} - 1) / $#DEMOS ))
   DEALER_SELFTEST=1 DEALER_DEMO=$demo DEALER_DEMO_DIR=$DEMO_DIR $BIN > $OUT/$demo.log 2>&1 &
-  PID=$!
-  trap 'kill $PID 2>/dev/null' EXIT
+  PID=$!  # killed by the EXIT trap if the script stops early
   sleep 1.5
   B=($($BOUNDS $PID)); SCALE=${B[5]}
   (( $#B == 5 )) || { print "no Dealer window found"; exit 1; }
@@ -133,6 +143,8 @@ for demo in $DEMOS; do
   kill -INT $FF; wait $FF || true
   grep -q "DEMO DONE" $OUT/$demo.log || { print "$demo exited without finishing; discarding"; rm -f $OUT/$demo-raw.mp4; exit 1; }
   while kill -0 $PID 2>/dev/null; do sleep 0.2; done
+  PID=
+  program_status working "Demos: encoding $demo" "GIF, MP4 and contact sheets"
 
   # Drop the first second (shells starting). GIF: two-pass palette, 25 fps, 960px wide. MP4: the
   # full-resolution "full quality" link. Metadata is stripped from both.
@@ -148,3 +160,4 @@ for demo in $DEMOS; do
   printf '%-11s gif %5d KB  mp4 %5d KB  %ss  review: %s\n' $demo $((SIZE / 1024)) $(( $(stat -f %z $OUT/$demo.mp4) / 1024 )) \
     $(ffprobe -v error -show_entries format=duration -of csv=p=0 $OUT/$demo.mp4 | cut -c1-4) "$OUT/review/$demo-*.png"
 done
+program_status done "Demos recorded" "Review the contact sheets in $OUT/review before publishing"

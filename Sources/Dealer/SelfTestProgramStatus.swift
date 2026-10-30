@@ -53,6 +53,9 @@ extension TerminalWindowController {
         func run(_ p: Pane, _ name: String, _ body: String, interpreter: String = "/bin/sh", args: String = "") {
             let path = "\(dir)/\(name)"
             try? body.write(toFile: path, atomically: true, encoding: .utf8)
+            // At a prompt first: a line typed while the previous step's command still runs (or a
+            // full reset is being handled) was sometimes read too late for a reply to reach it.
+            _ = p.surface.waitForShell()
             p.surface.typeText("\(interpreter) \(path)\(args.isEmpty ? "" : " " + args)\r")
         }
 
@@ -401,6 +404,36 @@ extension TerminalWindowController {
         }) {
             // Cleanup is the next step's; this one only checks.
         }
+
+        t.step("program status: live: scripts/lib/program-status.sh reports through /dev/tty, failures end in error, text is cut safely", nil, {
+            guard let p = pane() else { return all(["setup failed"]) }
+            fresh(p)
+            guard live(p) else { return all([]) }
+            let helper = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent().appendingPathComponent("scripts/lib/program-status.sh").path
+            // A failing script ends in `error` through its EXIT trap; a long, multi-line msg is
+            // cut to the spec's 2048 bytes on a character boundary, one line.
+            run(p, "helper.sh", """
+                . '\(helper)'
+                program_status_init dealer-selftest helper-ok
+                program_status done "Long" "$(printf 'line one\\nline two '; i=0; while [ $i -lt 1100 ]; do printf 'é'; i=$((i+1)); done)"
+                program_status_init dealer-selftest helper-fail
+                trap 'program_status_exit $?' EXIT
+                program_status working "step one"
+                exit 3
+
+                """)
+            var problems: [String?] = [SelfTest.waitUntil("both helper records", timeout: 10) {
+                p.programStatus.records["helper-fail"]?.state == .error && p.programStatus.records["helper-ok"] != nil
+            }]
+            let fail = p.programStatus.records["helper-fail"], ok = p.programStatus.records["helper-ok"]
+            problems.append(fail?.title == "Failed: step one" && fail?.msg == "exit status 3" && p.programStatus.app(of: "helper-fail") == "dealer-selftest"
+                            ? nil : "failure record: \(String(describing: fail))")
+            let msg = ok?.msg ?? ""
+            problems.append(msg.hasPrefix("line one line two é") && msg.utf8.count <= 2048 && msg.utf8.count > 2040 && !msg.contains("\n")
+                            ? nil : "long msg: \(msg.utf8.count) bytes, starts \(msg.prefix(24).debugDescription)")
+            return all(problems)
+        }) {}
 
         t.step("program status: cleanup", nil, { all([]) }) {
             if let p = pane() { fresh(p) }

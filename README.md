@@ -412,6 +412,8 @@ its status line even while you're looking at it (without the ring). Records with
 next prompt or when the program exits. Once a pane has used OSC 7501, its OSC 9;4 is ignored until a
 full reset. `dealer status` sets records from a script and `dealer list` shows them (docs/cli.md).
 This needs Dealer's small patch to libghostty, which `scripts/build-ghosttykit.sh` applies.
+The repo's own long scripts (`build-ghosttykit.sh`, `bundle.sh`, `record-demo.sh`) report their
+phases this way (`DEALER_PROGRAM_STATUS=0` silences them).
 
 **Keep the display awake while agents work** (#69): with `[power] caffeinate = true` in
 [settings.toml](#settings) (off by default; applies live), Dealer holds a macOS power assertion

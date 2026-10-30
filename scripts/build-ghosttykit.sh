@@ -48,6 +48,22 @@ while [ $# -gt 0 ]; do
 done
 
 die() { echo "error: $*" >&2; exit 1; }
+
+# Program status (OSC 7501, #89): Dealer shows the build's phase on the pane's tab, and marks it
+# done or failed at the end. A no-op outside a terminal; DEALER_PROGRAM_STATUS=0 turns it off.
+. "$REPO/scripts/lib/program-status.sh"
+program_status_init dealer-build ghosttykit
+TREE=
+STAGE=
+cleanup() {
+  st=$?
+  rm -rf ${STAGE:+"$STAGE"} ${TREE:+"$TREE"}
+  program_status_exit $st
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+program_status working "GhosttyKit: checking the checkout"
 is_ghostty() { [ -f "$1/build.zig" ] && [ -f "$1/include/ghostty.h" ]; }
 
 # 1. Explicit path, 2. sibling of this repo (and of the main checkout, for worktrees), 3. prompt.
@@ -119,9 +135,9 @@ command -v lipo >/dev/null 2>&1 || die "lipo not found: install the Command Line
 GB="$REPO/scripts/ghostty-build"
 SHORT=$(printf %.12s "$HEAD")
 SRC=$GHOSTTY
-TREE=
 clone_tree() {
   [ -n "$TREE" ] && return
+  program_status working "GhosttyKit: cloning Ghostty" "a temporary clone at $SHORT"
   TREE=$(mktemp -d "${TMPDIR:-/tmp}/ghostty-patched.XXXXXX")
   git clone -q --shared "$GHOSTTY" "$TREE"
   git -C "$TREE" -c advice.detachedHead=false checkout -q --detach "$HEAD"
@@ -136,6 +152,7 @@ clone_tree() {
 EXTRA=
 shaders_sha256() { git -C "$GHOSTTY" show "$HEAD:src/renderer/shaders/shaders.metal" | shasum -a 256 | cut -d' ' -f1; }
 compile_metallib() {  # regenerate $GB/$SHORT.metallib and its provenance from the checkout
+  program_status working "GhosttyKit: compiling the shaders"
   IR=$(mktemp "${TMPDIR:-/tmp}/ghostty-ir.XXXXXX")
   git -C "$GHOSTTY" show "$HEAD:src/renderer/shaders/shaders.metal" > "$IR.metal"
   xcrun -sdk macosx metal -o "$IR" -c "$IR.metal" -mmacos-version-min=13.0.0
@@ -169,6 +186,7 @@ $SHORT.metallib was compiled from ($WANT). Regenerate it on a Mac with Xcode: --
   EXTRA="-Dmetallib=\"$GB/$SHORT.metallib\""
   if [ $DRY = 1 ]; then SRC="<temporary clone of $GHOSTTY with $SHORT.patch>"; return; fi
   clone_tree
+  program_status working "GhosttyKit: patching Ghostty" "$SHORT.patch"
   git -C "$TREE" apply "$GB/$SHORT.patch" || die "$GB/$SHORT.patch doesn't apply to Ghostty $HEAD"
 }
 if [ $COMPILE_METALLIB = 1 ] && [ $DRY = 0 ]; then compile_metallib; fi
@@ -187,6 +205,7 @@ if [ $DRY = 1 ]; then
   else SRC="<temporary clone of $GHOSTTY with $SHORT.runtime.patch>"; fi
 else
   clone_tree
+  program_status working "GhosttyKit: patching Ghostty" "$SHORT.runtime.patch"
   git -C "$TREE" apply "$GB/$SHORT.runtime.patch" || die "$GB/$SHORT.runtime.patch doesn't apply to Ghostty $HEAD"
 fi
 
@@ -198,8 +217,7 @@ echo "output:  $OUT/GhosttyKit.xcframework"
 # The xcframework build also installs Ghostty's resources (shell integration, themes, terminfo)
 # under the install prefix. A fresh prefix keeps stale files from older builds out of them and
 # leaves the checkout's own zig-out alone; the framework itself always goes to macos/.
-STAGE=$(mktemp -d "${TMPDIR:-/tmp}/ghosttykit-prefix.XXXXXX")
-trap 'rm -rf "$STAGE" ${TREE:+"$TREE"}' EXIT
+STAGE=$(mktemp -d "${TMPDIR:-/tmp}/ghosttykit-prefix.XXXXXX")  # removed by cleanup, with TREE
 # The pin check (#35) reads the commit from the version string Ghostty embeds, and requires the
 # runtime patch's marker (#89): always `X.Y.Z-<marker>+<hash12>` (e.g. `1.4.0-dealer.1+83fb95624b04`).
 # Ghostty's own string would be `X.Y.Z-<branch>+<hash>` off a tag and a bare `X.Y.Z` at a release
@@ -217,10 +235,13 @@ if [ $DRY = 1 ]; then
   echo "  $BUILD"
   echo "  then replace $OUT/GhosttyKit.xcframework with <that tree>/macos/GhosttyKit.xcframework"
   echo "  and $OUT/ghostty-resources/{ghostty,terminfo} with <prefix>/share/{ghostty,terminfo}"
+  program_status done "GhosttyKit: dry run" "would build $VERSION_STRING"
   exit 0
 fi
 
+program_status working "GhosttyKit: zig build" "$VERSION_STRING; this takes several minutes"
 (cd "$SRC" && eval "$BUILD")
+program_status working "GhosttyKit: installing the framework" "$OUT/GhosttyKit.xcframework"
 mkdir -p "$OUT"
 # In a git worktree vendor/GhosttyKit.xcframework is usually a symlink to the main checkout's copy.
 # rm on the link path (no trailing slash) removes only the link, never the framework it points to.
@@ -232,6 +253,7 @@ echo "$OUT/GhosttyKit.xcframework updated"
 # self-test reads them from vendor/. ghostty-commit stamps the commit they came from (checked by
 # check-ghostty.sh). Same symlink rule as above for worktrees.
 RES="$OUT/ghostty-resources"
+program_status working "GhosttyKit: copying Ghostty's resources" "$RES"
 [ -d "$STAGE/share/ghostty/shell-integration" ] || die "the build installed no share/ghostty/shell-integration under $STAGE"
 rm -rf "$RES"
 mkdir -p "$RES"
@@ -240,3 +262,4 @@ cp -R "$STAGE/share/terminfo" "$RES/terminfo"
 echo "$HEAD" > "$RES/ghostty-commit"
 echo "$RES updated ($(du -sh "$RES" | cut -f1))"
 "$REPO/scripts/check-ghostty.sh" "$OUT/GhosttyKit.xcframework" || true
+program_status done "GhosttyKit built" "$VERSION_STRING in $OUT"

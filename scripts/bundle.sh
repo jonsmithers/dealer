@@ -3,9 +3,19 @@
 # Usage: scripts/bundle.sh [debug|release]
 set -eu
 CONFIG=${1:-release}
+# Program status (OSC 7501, #89): working while it builds, then done or failed on the pane's tab.
+# A no-op outside a terminal; DEALER_PROGRAM_STATUS=0 turns it off.
+. "$(dirname "$0")/lib/program-status.sh"
+program_status_init dealer-bundle bundle
+trap 'program_status_exit $?' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+program_status working "Bundling Dealer: checking GhosttyKit"
 # Refuse to bundle against a GhosttyKit that isn't the pinned Ghostty commit (#35).
 "$(dirname "$0")/check-ghostty.sh" || [ $? = 2 ]  # 2 = no commit recorded: warned, not fatal
+program_status working "Bundling Dealer: swift build" "$CONFIG"
 swift build -c "$CONFIG"
+program_status working "Bundling Dealer: assembling and signing" "build/Dealer.app"
 APP=build/Dealer.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -62,4 +72,5 @@ LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchSe
 if [ -x "$LSREGISTER" ] && ! "$LSREGISTER" -f "$APP" >/dev/null 2>&1; then
   echo "warning: lsregister -f $APP failed; Notification Center may show a stale icon" >&2
 fi
+program_status done "Dealer bundled" "$APP ($CONFIG)"
 echo "$APP"
