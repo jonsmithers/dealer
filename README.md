@@ -429,6 +429,7 @@ File…** (⌘,) opens it, creating it from the commented
 [agent]
 command = "claude"       # what New Agent Pane runs; DEALER_AGENT_COMMAND overrides it
 inject_hooks = true      # load Dealer's Claude Code plugin in new panes
+errors_as_failed = true  # a Claude turn ending in an API error marks the pane failed (red); false: waiting
 
 [workspaces]
 switcher = "sidebar"     # or "top" (pills in the titlebar)
