@@ -9,13 +9,23 @@ enum AgentState: String {
 
 extension Pane {
     /// Attention wins over progress: a waiting or finished agent is what you need to know about.
+    /// OSC 7501 records (#89) come next and feed the state directly, so a blocked program shows as
+    /// waiting even when its attention was skipped because the user was looking at the pane.
     var agentState: AgentState {
         switch attention {
         case .failed: return .failed
         case .waiting: return .waiting
         case .done: return .done
-        default: return isReportingProgress ? .running : .idle
+        default: break
         }
+        switch programStatus.summary?.state {
+        case .error: return .failed
+        case .blocked: return .waiting
+        case .done: return .done
+        case .working: return .running
+        case .idle, .clear, nil: break
+        }
+        return isReportingProgress ? .running : .idle
     }
 
     /// Whether an agent is working in this pane right now: the state the chrome spins for
@@ -27,20 +37,33 @@ extension Pane {
     /// sprite when the progress comes from Claude Code, else a ring for a percentage, else an arc.
     var workingMark: WorkingMark? {
         guard isWorking else { return nil }
+        if programStatus.summary?.state == .working, let m = programStatus.workingMark { return m }
         if progressFromClaude || titleSaysClaudeWorking { return .claude }
         return progressPercent.map(WorkingMark.ring) ?? .arc
     }
 
     /// e.g. `waiting · ~/git/dealer · main`. Empty parts are left out.
-    var statusLine: String { status(path: Self.abbreviate) }
+    /// With an OSC 7501 record (#89), what it waits for and its message: `waiting (permission) ·
+    /// Apply 3 changes? · ~/infra · main`.
+    var statusLine: String { status(path: Self.abbreviate, message: true) }
 
     /// The workspace sidebar row's line (#68): the cwd's name only, e.g. `waiting · dealer · main`.
     /// The row is narrow, and the branch matters more than the rest of the path.
-    var shortStatusLine: String { status(path: Self.leafName) }
+    var shortStatusLine: String { status(path: Self.leafName, message: false) }
 
-    private func status(path: (String) -> String) -> String {
+    /// The top OSC 7501 record when it's what `agentState` shows (attention didn't decide it).
+    var programStatusShown: ProgramStatusStore.Record? {
+        guard let top = programStatus.summary, attention < .done || attention == top.attentionEquivalent else { return nil }
+        return top
+    }
+
+    private func status(path: (String) -> String, message: Bool) -> String {
         var parts: [String] = []
-        if agentState != .idle { parts.append(agentState.rawValue) }
+        if agentState != .idle {
+            let record = programStatusShown
+            parts.append(record?.kind.map { "\(agentState.rawValue) (\($0.rawValue))" } ?? agentState.rawValue)
+            if message, let msg = record?.msg { parts.append(msg.count > 60 ? msg.prefix(59) + "…" : msg) }
+        }
         if let pwd {
             parts.append(path(pwd))
             if let git = GitInfo.lookup(pwd) { parts.append(git.branch) }

@@ -497,6 +497,35 @@
   escapes, `\r` = Enter). `ghostty_surface_text` is a *paste* (bracketed), so a newline in it
   won't run a command.
 
+## Program status, OSC 7501 (`ProgramStatus.swift`, #89)
+
+- Reports arrive as GHOSTTY_ACTION_PROGRAM_STATUS, which only exists with Dealer's runtime patch to
+  libghostty (`scripts/ghostty-build/`, "Runtime patch"): the report body Ghostty already validated,
+  or an empty body for a full reset (RIS). libghostty answers the support query itself; Dealer can't,
+  because its reply would land after the terminal's answer to the `CSI c` that follows the query.
+  `dealer status` builds a body and goes through the same `ProgramStatus.receive`, so
+  `ProgramStatus.parse` implements the spec's validation itself (and the self-test checks it
+  without a surface).
+- **Text is sanitized in one place**, `ProgramStatus.sanitize` (Cf characters such as bidi
+  overrides and zero-width ones removed); records only ever hold sanitized `title`/`msg`.
+- `ProgramStatusStore` (one per pane, `Pane.programStatus`) is the pure model: replace semantics,
+  `clear` by id prefix, LRU eviction at `maxRecords`, roll-up (`summary`: error > blocked > done >
+  working > idle), `app` inheritance. `agentState` reads its summary right after attention, so a
+  blocked record shows as *waiting* even when its mark was skipped because the user was looking.
+- **7501's attention is a level, not an event** (the user's call on #89): `ProgramStatus.update`
+  raises (`raiseOnly`) when the records ask for more than `Pane.programAttention`, and lowers
+  only a mark equal to what it raised itself (`blocked` → `working` drops *waiting*; a `dealer
+  notify` mark is never lowered). Done and error records are dismissed when the mark is cleared
+  (`Pane.attention`'s didSet) or when they arrive while the user is looking; a seen blocked record
+  stays and doesn't mark again until something lower replaces it.
+- Working and blocked records go at the next prompt (COMMAND_FINISHED, `promptReturned`) or when
+  the process group that reported them leaves the foreground (`armExitCheck`, polled every 2 s
+  while such records exist; off in self-test mode unless a step turns it on).
+- Once a pane has sent 7501, its OSC 9;4 is ignored (and its 9;4 progress dropped) until a full
+  reset (`ProgramStatusStore.inUse`), as the spec says; the #83 timeout doesn't apply to records.
+- Not done: the spec's rate limit on external effects is only the level rule above (a mark, and so
+  a notification, needs the level to rise).
+
 ## The working spinner (`RunningSpinner.swift`, #64)
 
 - The only continual animation in the chrome, in the leading slot of a tab button, sidebar row,

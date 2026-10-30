@@ -185,6 +185,9 @@ final class Pane {
         didSet {
             if attention == .none, oldValue != .none {
                 AttentionNotifier.shared.withdraw(self, event: NotificationLog.clearCause ?? "attention-cleared")
+                // Seen: OSC 7501's done and error records are dismissed with the mark (#89).
+                programStatus.dismissFinished()
+                programAttention = min(programAttention, programStatus.attentionLevel)
             }
         }
     }
@@ -202,6 +205,14 @@ final class Pane {
     var titleSaysClaudeWorking = false
     /// Drops progress nobody is reporting any more (#83, `ProgressSource.armTimeout`).
     var progressTimer: Timer?
+    /// OSC 7501 records (#89, ProgramStatus.swift).
+    let programStatus = ProgramStatusStore()
+    /// The attention level 7501 last asked for, so it can lower only what it raised.
+    var programAttention: Attention = .none
+    /// The foreground process group when the last working/blocked report came in.
+    var programReporter: Int32 = 0
+    /// Checks that `programReporter` is still in the foreground (`ProgramStatus.armExitCheck`).
+    var programExitTimer: Timer?
 
     /// A title as a program sets it (OSC 0/2), cleaned for display. Claude Code prefixes `◐ ` / `◑ `
     /// while it works; Dealer draws its own working spinner (#64), so that exact leading prefix is
@@ -233,6 +244,7 @@ final class Pane {
 
     deinit {
         progressTimer?.invalidate()
+        programExitTimer?.invalidate()
         LiveObjects.remove(.pane)
     }
 

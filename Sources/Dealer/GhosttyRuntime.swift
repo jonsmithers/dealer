@@ -281,6 +281,8 @@ final class GhosttyRuntime {
             let percent = report.state == GHOSTTY_PROGRESS_STATE_SET && report.progress >= 0 ? min(Int(report.progress), 100) : nil
             return run { wc in
                 guard let pane = view.pane else { return }
+                // A pane that has used OSC 7501 is described by its records until a full reset (#89).
+                guard !pane.programStatus.inUse else { return }
                 let fg = view.surface.map { Int32(truncatingIfNeeded: ghostty_surface_foreground_pid($0)) } ?? 0
                 if ProgressSource.note(pane, active: active, percent: percent, foreground: fg) { wc.refreshChrome() }
             }
@@ -308,8 +310,21 @@ final class GhosttyRuntime {
                 wc.setAttention(.unread, on: pane, raiseOnly: true, title: title, body: body, event: "osc-notification")
             }
 
+        case GHOSTTY_ACTION_PROGRAM_STATUS:
+            // OSC 7501 (#89, ProgramStatus.swift), from Dealer's runtime patch: the body Ghostty
+            // validated, valid only during this callback; empty after a full reset (RIS).
+            let p = action.action.program_status
+            let body = p.data.map { String(decoding: UnsafeRawBufferPointer(start: $0, count: Int(p.len)), as: UTF8.self) } ?? ""
+            DispatchQueue.main.async {
+                guard let pane = view.pane else { return }
+                ProgramStatus.receive(body, on: pane)
+            }
+            return true
+
         case GHOSTTY_ACTION_COMMAND_FINISHED:
             // Needs shell integration. See TerminalWindowController.commandFinished (Attention.swift).
+            // The shell is back at its prompt: OSC 7501's working and blocked records go (#89).
+            DispatchQueue.main.async { if let pane = view.pane { ProgramStatus.promptReturned(pane) } }
             let f = action.action.command_finished
             let exit = Int(f.exit_code), duration = f.duration
             let event = "command-finished(exit=\(exit),\(TerminalWindowController.seconds(duration)))"
