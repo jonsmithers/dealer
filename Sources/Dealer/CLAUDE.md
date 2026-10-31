@@ -619,6 +619,18 @@
   is a permission decision. It keeps three guards: `DEALER_PANE_ID` set,
   `CLAUDE_CODE_ENTRYPOINT = cli` (skips nested `claude -p`), and `DEALER_CLAUDE_HOOKS != 0`.
   It uses `/usr/bin/plutil` for JSON, not `jq`. The self-test runs it against a stub `dealer`.
+- The plugin also teaches Claude the CLI: `skills/dealer/SKILL.md` (the guide Claude loads; keep
+  it in step with docs/cli.md when a command changes) and `hooks/session-start.sh`, whose stdout
+  *is* the point (Claude Code adds a SessionStart hook's output to the session's context): it
+  names the caller's pane IDs from `dealer identify` and the skill. It keeps the pane and
+  `DEALER_CLAUDE_HOOKS` guards but not the entrypoint one, so `claude -p` gets the context too.
+  No install step and nothing in `~/.claude`, unlike Rex's `rex skill setup` (the model for it).
+- `create --command CMD` runs `$SHELL -l -c 'exec CMD'` (`ControlHandler.loginShellCommand`): ghostty
+  starts a command with no startup files, so from the Finder it had launchd's PATH and Homebrew's
+  `nvim` wasn't found. Login, not interactive (`-i`), is the user's call.
+- `dealer read` goes through `SurfaceView.readText` (ghostty's `read_text`, ACTIVE or SCREEN
+  points), the one reader; the self-test's `screenText` forwards to it. `--wait` is a client-side
+  poll in `CLI.run`, so the handler stays a quick read on main.
 - At app launch, `main.swift` calls `InheritedEnvironment.scrub()` right after the CLI dispatch.
   It removes a parent Claude session's identity variables, every `CMUX_*` variable, and cmux's
   per-surface shim directories from `PATH`. A Dealer started from a cmux shell otherwise tells its

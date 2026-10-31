@@ -398,15 +398,5 @@ extension TerminalWindowController {
 
 extension SurfaceView {
     /// Everything on the screen and in scrollback, as Ghostty's own app reads it.
-    var screenText: String {
-        guard let surface else { return "" }
-        var text = ghostty_text_s()
-        let sel = ghostty_selection_s(
-            top_left: ghostty_point_s(tag: GHOSTTY_POINT_SCREEN, coord: GHOSTTY_POINT_COORD_TOP_LEFT, x: 0, y: 0),
-            bottom_right: ghostty_point_s(tag: GHOSTTY_POINT_SCREEN, coord: GHOSTTY_POINT_COORD_BOTTOM_RIGHT, x: 0, y: 0),
-            rectangle: false)
-        guard ghostty_surface_read_text(surface, sel, &text) else { return "" }
-        defer { ghostty_surface_free_text(surface, &text) }
-        return String(cString: text.text)
-    }
+    var screenText: String { readText(scrollback: true) ?? "" }
 }

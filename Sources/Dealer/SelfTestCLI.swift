@@ -141,20 +141,45 @@ extension TerminalWindowController {
             call("color", ["target": "\(ids["c0"]!)", "level": "workspace", "color": "teal"])
             call("color", ["target": "\(ids["c0"]!)", "level": "workspace", "color": "none"])
         }
-        t.step("cli: send-text types into the shell; --command runs a command", nil, {
-            if !live { return all(skipped("shell output")) }
+        t.step("cli: send-text types into the shell; --command runs a command (through the login shell)", nil, {
+            // Ghostty would start the command with Dealer's own PATH; a login shell reads the profile.
+            let wrapped = ControlHandler.loginShellCommand("printf '%s' \"$HOME\"", shell: "/bin/zsh")
+            let unwrapped = wrapped == #"/bin/zsh -l -c 'exec printf '\''%s'\'' "$HOME"'"# ? nil : "--command should run as `$SHELL -l -c 'exec CMD'`, got \(wrapped)"
+            if !live { return all(unwrapped, skipped("shell output")) }
             let typed = tmp + "/typed", ran = tmp + "/ran"
             // `> file` creates the file before printf writes it, so wait for a whole line (#47).
             func read(_ f: String) -> String { (try? String(contentsOfFile: f, encoding: .utf8)) ?? "" }
             let ok = SelfTest.waitUntil(timeout: 15) { read(typed).hasSuffix("\n") && read(ran).hasSuffix("\n") }
             let text = read(typed)
-            return all(ok ? nil : "shell never ran the typed/--command lines",
+            return all(unwrapped, ok ? nil : "shell never ran the typed/--command lines",
                        text.contains("a\\b 'q' ✅") ? nil : "typed text arrived as \(text.debugDescription)")
         }) {
             call("send-text", ["target": "\(ids["c0"]!)",
                                "items": [["text": "printf '%s\\n' 'a\\b '\"'q'\"' ✅' > \(tmp)/typed"], ["key": "enter"]]])
             created(call("create", ["target": "\(ids["c4"]!)", "focus": false,
                                     "command": "/bin/sh -c 'pwd > \(tmp)/ran; sleep 60'", "cwd": tmp]), "c5")
+        }
+        t.step("cli: read prints a pane's screen; --lines keeps the tail, --scrollback adds history", nil, {
+            if !live { return all(skipped("reading shell output")) }
+            func read(_ args: [String: Any] = [:]) -> String? {
+                call("read", args.merging(["target": "\(ids["c0"]!)"]) { a, _ in a })?["text"] as? String
+            }
+            // The marker only appears in the output: the typed line holds $((6*7)), not 42.
+            let ok = SelfTest.waitUntil(timeout: 15) { read()?.contains("read-marker-42") == true }
+            let screen = read() ?? "", last = read(["lines": 1]), history = read(["scrollback": true]) ?? ""
+            let gone = ControlHandler.handle(["cmd": "read", "args": ["target": "pane:999999"]])
+            let zero = ControlHandler.handle(["cmd": "read", "args": ["target": "\(ids["c0"]!)", "lines": 0]])
+            lastError = nil
+            return all(ok ? nil : "the marker never showed: \(screen.suffix(300).debugDescription)",
+                       screen.hasSuffix("\n") || screen.split(separator: "\n", omittingEmptySubsequences: false).last?.isEmpty == true
+                           ? "trailing blank lines should be dropped: \(screen.suffix(80).debugDescription)" : nil,
+                       screen.split(separator: "\n").contains { $0.hasSuffix(" ") } ? "trailing spaces should be dropped" : nil,
+                       last.map { !$0.contains("\n") && !$0.isEmpty } == true ? nil : "--lines 1 gave \(last.debugDescription)",
+                       history.hasSuffix(screen) ? nil : "--scrollback should end with the screen",
+                       gone["ok"] as? Bool == false ? nil : "reading a missing pane should fail",
+                       zero["ok"] as? Bool == false ? nil : "--lines 0 should fail")
+        }) {
+            call("send-text", ["target": "\(ids["c0"]!)", "items": [["text": "echo read-marker-$((6*7))"], ["key": "enter"]]])
         }
         t.step("cli: list shows ids, cwd and foreground processes; find matches by process", nil, {
             guard let r = call("list") else { return all() }
@@ -238,7 +263,8 @@ extension TerminalWindowController {
             }
             return all(rejects("notify", ["--cwd", "/tmp"]), rejects("notify", ["hello"]), rejects("status", []),
                        rejects("status", ["done", "--body", "x"]), rejects("run", ["--name", "x", "true"]),
-                       rejects("create", ["--tab"]),
+                       rejects("create", ["--tab"]), rejects("read", ["--wait", "("]), rejects("read", ["--timeout", "soon"]),
+                       (try? CLI.parse("read", ["7", "--lines", "3"]).1["target"] as? String) == "7" ? nil : "read takes a positional target",
                        missing.isEmpty ? nil : "documented but rejected: \(missing.joined(separator: ", "))",
                        (try? CLI.parse("run", ["--cwd", "/tmp", "ls", "--name"]).1["command"] as? String) == "ls --name"
                            ? nil : "run's command words should pass through, flags included")
@@ -269,7 +295,12 @@ extension TerminalWindowController {
             let (s2, o2, e2) = run(["create", "pane", "--side", "left", "--no-focus", "--title", "via socket"])
             let newID = Int(o2.trimmingCharacters(in: .whitespacesAndNewlines))
             let (s3, _, e3) = run(["focus", "pane:999999"])
-            return all(s1 == 0 && o1 == "\(ids["c0"]!)\n" ? nil : "identify: \(s1) \(o1.debugDescription) \(e1)",
+            // `read --wait` polls from the client; the marker is already on c0's screen.
+            let (s4, o4, e4) = live ? run(["read", "--wait", "read-marker-4[0-9]", "--timeout", "5"]) : (0, "read-marker-42", "")
+            let (s5, o5, e5) = live ? run(["read", "--wait", "never-on-screen", "--timeout", "0.3"]) : (1, "x", "timed out")
+            return all(s4 == 0 && o4.contains("read-marker-42") ? nil : "read --wait: \(s4) \(o4.suffix(200).debugDescription) \(e4)",
+                       s5 == 1 && !o5.isEmpty && e5.contains("timed out") ? nil : "read --wait timeout should print the screen and exit 1: \(s5) \(e5)",
+                       s1 == 0 && o1 == "\(ids["c0"]!)\n" ? nil : "identify: \(s1) \(o1.debugDescription) \(e1)",
                        s2 == 0 && newID.flatMap(ControlHandler.pane(id:))?.title == "via socket" ? nil : "create: \(s2) \(o2) \(e2)",
                        s3 == 1 && e3.contains("no pane 999999") ? nil : "bad target should exit 1 with a message: \(s3) \(e3)")
         }) {}

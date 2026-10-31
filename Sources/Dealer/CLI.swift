@@ -5,7 +5,7 @@ import Foundation
 /// (`Dealer list`). See docs/cli.md.
 enum CLI {
     static let commands: Set<String> = [
-        "identify", "list", "ls", "find", "create", "new", "send-text", "send", "focus", "resize",
+        "identify", "list", "ls", "find", "create", "new", "send-text", "send", "read", "focus", "resize",
         "rename", "color", "notify", "status", "close", "run", "job-done", "diagnose", "help", "--help", "-h",
     ]
 
@@ -31,6 +31,9 @@ enum CLI {
                                                  prints the new pane's ID
       send-text [-t T] [--key K]... [--enter] [--paste] [--stdin] [TEXT...]
                                                  type text/keys (enter, tab, esc, ctrl+c, up, f5, ...)
+      read [TARGET] [--scrollback] [--lines N] [--wait RE] [--timeout S]
+                                                 print a pane's screen (--scrollback: and its history);
+                                                 --wait: until RE matches it (exit 1 after S s, def. 10)
       focus [TARGET]                             focus a pane/tab/deck/workspace/window
       resize [-t T] [--axis width|height] (--to 0.3|30% | --by +5|-3|+10%)
       rename [-t T] [--tab | --workspace] [TITLE]  empty title follows the terminal again
@@ -76,9 +79,27 @@ enum CLI {
             let path = output.socket ?? env["DEALER_SOCKET"] ?? ControlServer.defaultPath
             var req: [String: Any] = ["cmd": cmd, "args": reqArgs]
             if let id = env["DEALER_PANE_ID"].flatMap(Int.init) { req["caller"] = id }
-            let resp: [String: Any]
+            var resp: [String: Any]
             do {
                 resp = try ControlClient.send(req, to: path)
+                // `read --wait`: ask again until the text matches. Each request is a quick read on
+                // main; the waiting happens here.
+                if let re = output.wait {
+                    let deadline = Date().addingTimeInterval(output.timeout)
+                    func matches() -> Bool {
+                        guard let t = (resp["result"] as? [String: Any])?["text"] as? String else { return true }
+                        return re.firstMatch(in: t, range: NSRange(t.startIndex..., in: t)) != nil
+                    }
+                    while resp["ok"] as? Bool == true, !matches(), Date() < deadline {
+                        Thread.sleep(forTimeInterval: 0.2)
+                        resp = try ControlClient.send(req, to: path)
+                    }
+                    if resp["ok"] as? Bool == true, !matches() {
+                        print(format(cmd, resp["result"] as? [String: Any] ?? [:], output), terminator: "")
+                        FileHandle.standardError.write(Data("dealer: timed out after \(String(format: "%g", output.timeout)) s waiting for '\(re.pattern)'\n".utf8))
+                        return 1
+                    }
+                }
             } catch {
                 FileHandle.standardError.write(Data("dealer: \(error)\n".utf8))
                 return 3
@@ -115,6 +136,7 @@ enum CLI {
             "create": target.union(focus).union(["--side", "--location", "--size", "--bias", "--cwd", "--command", "-e",
                                                  "--title", "--name"]),
             "send-text": target.union(["--key", "-k", "--enter", "--paste", "--stdin"]),
+            "read": target.union(["--scrollback", "--lines", "--wait", "--timeout"]),
             "focus": target,
             "resize": target.union(["--axis", "--to", "--by", "--increment"]),
             "rename": target.union(["--tab", "--workspace", "--pane"]),
@@ -133,6 +155,9 @@ enum CLI {
         var json = false
         var only: String?
         var socket: String?
+        /// `read --wait`: poll until this matches the text (the loop runs here, not on main).
+        var wait: NSRegularExpression?
+        var timeout: TimeInterval = 10
     }
 
     // MARK: - Parsing
@@ -219,6 +244,16 @@ enum CLI {
             // calls in the notification log (#56). Not part of the CLI users should learn.
             case "--internal-log-source": a["source"] = try val()
             case "--leaks": a["leaks"] = true
+            case "--scrollback": a["scrollback"] = true
+            case "--lines": a["lines"] = try val()
+            case "--wait":
+                let re = try val()
+                do { out.wait = try NSRegularExpression(pattern: re, options: [.anchorsMatchLines]) }
+                catch { throw Usage(message: "--wait needs a regular expression, got '\(re)'") }
+            case "--timeout":
+                let v = try val()
+                guard let t = TimeInterval(v), t >= 0 else { throw Usage(message: "--timeout takes seconds, got '\(v)'") }
+                out.timeout = t
             default:
                 // Negative numbers are values (`resize --by -3` is written `--by=-3` or `--by -3`).
                 throw Usage(message: "unknown option \(arg) for '\(cmd)' (see dealer help)")
@@ -241,7 +276,7 @@ enum CLI {
                 }
             }
             a["items"] = merged
-        case "focus", "close":
+        case "focus", "close", "read":
             if let t = positional.first { a["target"] = t }
         case "run":
             guard !positional.isEmpty else { throw Usage(message: "run needs a command, e.g. dealer run make test") }
@@ -322,6 +357,9 @@ enum CLI {
             return "caller  \(line(r["caller"]))\nfocused \(line(r["focused"]))\n"
         case "create", "run":
             return "\(r["pane"] ?? "")\n"
+        case "read":
+            let text = r["text"] as? String ?? ""
+            return text.isEmpty ? "" : text + "\n"
         case "diagnose":
             if let log = r["notification_log"] as? String {
                 FileHandle.standardError.write(Data("notification log: \(log)\n".utf8))

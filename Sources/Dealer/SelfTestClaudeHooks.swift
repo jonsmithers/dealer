@@ -32,15 +32,36 @@ extension TerminalWindowController {
             return (try? String(contentsOfFile: out, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         }
 
+        /// Runs the SessionStart hook with the same stub `dealer` and returns what it prints, which
+        /// Claude Code adds to the session's context.
+        func runSessionStart(env: [String: String]) -> String {
+            guard let plugin = ClaudeHooks.pluginDirectory else { return "<no plugin>" }
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: plugin + "/hooks/session-start.sh")
+            var e = ["PATH": "/usr/bin:/bin", "DEALER_CLI": tmp + "/stub-dealer", "STUB_OUT": tmp + "/stub-dealer.out"]
+            e.merge(env) { $1 }
+            p.environment = e
+            let pipe = Pipe()
+            p.standardInput = FileHandle.nullDevice
+            p.standardOutput = pipe
+            do { try p.run() } catch { return "<spawn failed: \(error)>" }
+            let out = pipe.fileHandleForReading.readDataToEndOfFile()
+            p.waitUntilExit()
+            return String(decoding: out, as: UTF8.self)
+        }
+
         t.step("claude hooks: the bundled plugin is present and valid", nil, {
             guard let dir = ClaudeHooks.pluginDirectory else { return "plugin directory not found" }
             guard let data = fm.contents(atPath: dir + "/hooks/hooks.json"),
                   let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
                   let hooks = obj["hooks"] as? [String: Any] else { return "hooks.json doesn't parse" }
-            let want: Set = ["PermissionRequest", "Notification", "Stop", "StopFailure"]
+            let want: Set = ["SessionStart", "PermissionRequest", "Notification", "Stop", "StopFailure"]
+            let skill = (try? String(contentsOfFile: dir + "/skills/dealer/SKILL.md", encoding: .utf8)) ?? ""
             return all(Set(hooks.keys) == want ? nil : "hooks.json events: \(hooks.keys.sorted())",
                        fm.isExecutableFile(atPath: dir + "/hooks/dealer-hook.sh") ? nil : "dealer-hook.sh isn't executable",
-                       fm.fileExists(atPath: dir + "/.claude-plugin/plugin.json") ? nil : "plugin.json missing")
+                       fm.isExecutableFile(atPath: dir + "/hooks/session-start.sh") ? nil : "session-start.sh isn't executable",
+                       fm.fileExists(atPath: dir + "/.claude-plugin/plugin.json") ? nil : "plugin.json missing",
+                       skill.hasPrefix("---\nname: dealer\ndescription: ") ? nil : "skills/dealer/SKILL.md is missing or lacks its name/description frontmatter")
         }) {}
 
         t.step("claude hooks: pane env names the plugin, appends to the user's dirs, and honors the off switch", nil, {
@@ -62,9 +83,37 @@ extension TerminalWindowController {
         }) {
             try? fm.createDirectory(atPath: tmp, withIntermediateDirectories: true)
             let stub = tmp + "/stub-dealer"
-            try? "#!/bin/sh\necho \"$*\" > \"$STUB_OUT\"\n".write(toFile: stub, atomically: true, encoding: .utf8)
+            // Records its argv; `identify` also answers like the real CLI, for the SessionStart hook.
+            try? """
+            #!/bin/sh
+            echo "$*" > "$STUB_OUT"
+            [ "$1" = identify ] && printf 'caller  pane:7 tab:2 deck:1 workspace:1 window:1\\nfocused pane:3 tab:1 deck:1 workspace:1 window:1\\n'
+            exit 0
+
+            """.write(toFile: stub, atomically: true, encoding: .utf8)
             chmod(stub, 0o755)
+            try? fm.createDirectory(atPath: tmp + "/cli-bin", withIntermediateDirectories: true)
+            try? fm.createSymbolicLink(atPath: tmp + "/cli-bin/dealer", withDestinationPath: stub)
         }
+
+        t.step("claude hooks: SessionStart tells Claude its pane and the dealer skill, only in a Dealer pane", nil, {
+            let pane = ["DEALER_PANE_ID": "7"]
+            let onPath = runSessionStart(env: pane.merging(["PATH": tmp + "/cli-bin:/usr/bin:/bin"]) { $1 })
+            let offPath = runSessionStart(env: pane)
+            let unreachable = runSessionStart(env: pane.merging(["DEALER_CLI": tmp + "/no-such-dealer"]) { $1 })
+            // `claude -p` gets the context too: it marks nothing, unlike dealer-hook.sh.
+            let nested = runSessionStart(env: pane.merging(["CLAUDE_CODE_ENTRYPOINT": "sdk-cli"]) { $1 })
+            let outside = runSessionStart(env: [:])
+            let optedOut = runSessionStart(env: pane.merging(["DEALER_CLAUDE_HOOKS": "0"]) { $1 })
+            return all(onPath.contains("Its own pane: pane:7 tab:2 deck:1 workspace:1 window:1 ") ? nil : "pane IDs from identify: \(onPath.debugDescription)",
+                       onPath.contains("`dealer` drives Dealer") ? nil : "with dealer on PATH it should name `dealer`: \(onPath.debugDescription)",
+                       onPath.contains("dealer skill") ? nil : "it should point at the dealer skill: \(onPath.debugDescription)",
+                       offPath.contains("`\"$DEALER_CLI\"` drives Dealer") ? nil : "without dealer on PATH it should name \"$DEALER_CLI\": \(offPath.debugDescription)",
+                       unreachable.contains("Its own pane: pane:7 (") ? nil : "with Dealer unreachable it should fall back to $DEALER_PANE_ID: \(unreachable.debugDescription)",
+                       nested == offPath ? nil : "a `claude -p` should get the same context: \(nested.debugDescription)",
+                       outside.isEmpty ? nil : "outside Dealer it must print nothing: \(outside.debugDescription)",
+                       optedOut.isEmpty ? nil : "DEALER_CLAUDE_HOOKS=0 must print nothing: \(optedOut.debugDescription)")
+        }) {}
 
         t.step("claude hooks: the hook script maps events to dealer notify and respects its guards", nil, {
             let pane = ["DEALER_PANE_ID": "7", "CLAUDE_CODE_ENTRYPOINT": "cli"]

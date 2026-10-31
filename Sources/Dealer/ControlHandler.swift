@@ -25,6 +25,7 @@ enum ControlHandler {
             case "find": result = try find(args)
             case "create": result = try create(args, ctx)
             case "send-text": result = try sendText(args, ctx)
+            case "read": result = try read(args, ctx)
             case "focus": result = try focus(args, ctx)
             case "resize": result = try resize(args, ctx)
             case "rename": result = try rename(args, ctx)
@@ -341,7 +342,7 @@ enum ControlHandler {
                 throw Failure(message: "no such directory: \(c)")
             }
         }
-        let command = (args["command"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let command = (args["command"] as? String).flatMap { $0.isEmpty ? nil : loginShellCommand($0) }
         let title = (args["title"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         let size = args["size"] as? String
         let wc = loc.wc
@@ -463,6 +464,42 @@ enum ControlHandler {
             }
         }
         return ["pane": pane.id]
+    }
+
+    /// `create --command CMD` runs `$SHELL -l -c 'exec CMD'`. Ghostty starts a command with no
+    /// shell startup files, so it saw Dealer's own PATH: launchd's /usr/bin:/bin:/usr/sbin:/sbin when
+    /// Dealer is opened from the Finder, where Homebrew's `nvim` isn't found. A login shell reads
+    /// the profile (`.zprofile`, where `brew shellenv` goes), not the interactive rc (the user's call).
+    static func loginShellCommand(_ command: String, shell: String? = ProcessInfo.processInfo.environment["SHELL"]) -> String {
+        let sh = shell.flatMap { $0.hasPrefix("/") ? $0 : nil }
+            ?? getpwuid(getuid()).flatMap { $0.pointee.pw_shell.map { String(cString: $0) } }
+            ?? "/bin/sh"
+        return "\(CLI.shellQuote(sh)) -l -c \(CLI.shellQuote("exec " + command))"
+    }
+
+    // MARK: - read
+
+    /// A pane's text (`SurfaceView.readText`), with trailing spaces and trailing blank lines
+    /// dropped; `lines` keeps only the last N. Waiting for output (`--wait`) is the CLI's loop,
+    /// so main never blocks.
+    static func read(_ args: [String: Any], _ ctx: Context) throws -> [String: Any] {
+        let loc = try resolve(args["target"], ctx)
+        guard let pane = loc.focusPane else { throw Failure(message: "no pane to read") }
+        let scrollback = args["scrollback"] as? Bool ?? false
+        guard let raw = pane.surface.readText(scrollback: scrollback) else {
+            throw Failure(message: "pane \(pane.id) has no terminal to read")
+        }
+        var lines = raw.components(separatedBy: "\n").map { line -> String in
+            var l = Substring(line)
+            while let c = l.last, c == " " || c == "\t" || c == "\r" { l.removeLast() }
+            return String(l)
+        }
+        while lines.last?.isEmpty == true { lines.removeLast() }
+        if let n = args["lines"] {
+            guard let n = int(n), n > 0 else { throw Failure(message: "--lines takes a positive number") }
+            lines = Array(lines.suffix(n))
+        }
+        return ["pane": pane.id, "text": lines.joined(separator: "\n"), "lines": lines.count]
     }
 
     /// ghostty's `text:` binding parses Zig string-literal escapes.

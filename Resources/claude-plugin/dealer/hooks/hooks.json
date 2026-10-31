@@ -1,6 +1,9 @@
 {
-  "description": "Dealer (#12): waiting on permission / MCP input / API errors, done at the end of a turn. See docs/claude-code-states.md.",
+  "description": "Dealer (#12): waiting on permission / MCP input / API errors, done at the end of a turn. See docs/claude-code-states.md. SessionStart tells the agent which pane it's in and points it at the dealer skill.",
   "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"", "timeout": 5 }] }
+    ],
     "PermissionRequest": [
       { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/dealer-hook.sh\" permission", "timeout": 5 }] }
     ],

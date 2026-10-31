@@ -574,3 +574,21 @@ final class SurfaceView: NSView, NSTextInputClient {
         }
     }
 }
+
+extension SurfaceView {
+    /// The terminal's text, as Ghostty's own app reads it: the active screen (what the program
+    /// shows now, the alternate screen for a full-screen app, whatever the user has scrolled to),
+    /// or with `scrollback` everything from the top of the scrollback. Nil without a surface.
+    func readText(scrollback: Bool) -> String? {
+        guard let surface else { return nil }
+        let tag = scrollback ? GHOSTTY_POINT_SCREEN : GHOSTTY_POINT_ACTIVE
+        var text = ghostty_text_s()
+        let sel = ghostty_selection_s(
+            top_left: ghostty_point_s(tag: tag, coord: GHOSTTY_POINT_COORD_TOP_LEFT, x: 0, y: 0),
+            bottom_right: ghostty_point_s(tag: tag, coord: GHOSTTY_POINT_COORD_BOTTOM_RIGHT, x: 0, y: 0),
+            rectangle: false)
+        guard ghostty_surface_read_text(surface, sel, &text) else { return nil }
+        defer { ghostty_surface_free_text(surface, &text) }
+        return String(cString: text.text)
+    }
+}

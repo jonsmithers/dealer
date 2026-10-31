@@ -339,6 +339,15 @@ non-interactive runs (`claude -p`, the SDK), so an agent that runs `claude -p` f
 tool doesn't mark its pane *done* mid-turn. A user `"disableAllHooks": true` turns them off
 too. Needs Claude Code 2.1.280 or later; older versions ignore the variable.
 
+**Claude can drive Dealer.** The same plugin carries a `dealer` skill, which teaches Claude the
+[`dealer` CLI](docs/cli.md), and a `SessionStart` hook that tells it which pane it's in. So you can
+ask it to "start the dev server in a pane beside you", "run the tests in a new tab", "put the
+api workspace in front" or "which pane is running nvim?", the way you'd ask for anything else.
+With no place named, Claude acts next to its own pane. "The focused pane" means the one you're
+looking at, and a name (a workspace, a tab title, a program) picks that one. It opens panes
+without moving your focus, and reads a pane's screen with `dealer read` to check that what it
+started is running. The `SessionStart` hook also runs for `claude -p`, since it only adds context.
+
 **Turning it off**
 - Everywhere: `inject_hooks = false` under `[agent]` in [settings.toml](#settings). New shells
   pick it up.
