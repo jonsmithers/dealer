@@ -3,7 +3,7 @@ import AppKit
 // MARK: - Self-test section: the waiting dot's `?` (issue #65)
 
 extension TerminalWindowController {
-    /// *waiting* carries a knocked-out `?` on tabs, sidebar rows and pills; *done*, which since #61 has
+    /// *waiting* carries a knocked-out `?` on tabs, sidebar rows (in the large dot, #91) and pills; *done*, which since #61 has
     /// the same blue, stays a bare dot. Checked like #48 checks the `!`: the best pixel in each part
     /// of the glyph, as a share of chrome over the dot's blue, at 2x and 1x, in a dark and a light
     /// theme (Catppuccin Frappé and Latte).
@@ -36,7 +36,9 @@ extension TerminalWindowController {
                     for (name, v, dotRect, set) in entries() {
                         let what = "\(theme) \(name)"
                         let r = dotRect(), q = AttentionStyle.questionGeometry(in: r)
-                        if r.width < 8 { p.append("\(what): dot is \(r.width)pt, want 8pt") }
+                        // #91: the sidebar's dot is the large one, the only attention mark there.
+                        let want = name == "row" ? Theme.Metrics.sidebarDotSize : 8
+                        if r.width < want { p.append("\(what): dot is \(r.width)pt, want \(want)pt") }
                         // The bowl's left side, the point, and the open middle of the bowl.
                         let left = CGRect(x: q.center.x - q.radius - q.width / 2, y: q.center.y - q.width / 2, width: q.width, height: q.width)
                         let hole = CGRect(x: q.center.x - 0.25, y: q.center.y - 0.25, width: 0.5, height: 0.5)
@@ -57,7 +59,9 @@ extension TerminalWindowController {
                             p.append("\(what): the `?`'s point is too faint (best \(String(format: "%.2f", pt)), ink \(String(format: "%.2f", pInk)) px)")
                         }
                         if scale >= 2 && h > 0.5 { p.append("\(what): the `?`'s bowl is filled in (\(String(format: "%.2f", h)) chrome), so it reads as a blob") }
-                        if !PixelProbe.isWaitingOutlined(v) { p.append("\(what): waiting lost its outline") }
+                        if name == "row" ? !PixelProbe.hasWaitingDot(v) : !PixelProbe.isWaitingOutlined(v) {
+                            p.append("\(what): waiting lost its \(name == "row" ? "large dot, or gained an outline" : "outline")")
+                        }
                         set(.done)
                         if Attention.done.outlined {
                             let d = chrome(v, in: left) + chrome(v, in: q.point)

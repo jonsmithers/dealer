@@ -130,10 +130,11 @@ extension TerminalWindowController {
             let past = strip.convert(CGPoint(x: strip.addButton.frame.maxX + 12, y: strip.bounds.midY), to: contentView)
             let chrome = PixelProbe.sample(contentView, at: past)
             if !near(chrome, Theme.chrome) { p.append("strip chrome \(hex(chrome)) ≠ \(hex(Theme.chrome))") }
-            // Sidebar: the active workspace's row, left of its selection bar (#90).
+            // Sidebar: the active workspace's row, its neutral selection outline (it has no fill since
+            // #90's reversal).
             if let row = (0..<workspaces.count).compactMap({ self.workspaceSidebar.row(at: $0) as? WorkspaceRow }).first(where: { $0.isActive }) {
-                let got = PixelProbe.sample(row, at: CGPoint(x: row.bounds.maxX - 14, y: row.bounds.midY))
-                if !near(got, Theme.workspaceSelection) { p.append("sidebar row \(hex(got)) ≠ selection \(hex(Theme.workspaceSelection))") }
+                let got = PixelProbe.sample(row, at: PixelProbe.outlinePoint(in: row))
+                if !near(got, Theme.text) { p.append("sidebar row outline \(hex(got)) ≠ text \(hex(Theme.text))") }
             } else { p.append("no active sidebar row") }
             // Pane bar: its right end (no dots, no text, no × without hover).
             let bar = paneA().view.bar

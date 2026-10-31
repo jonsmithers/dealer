@@ -136,6 +136,20 @@ enum PixelProbe {
         return matches(sample(v, at: outlinePoint(in: v)), Theme.attentionWaiting)
     }
 
+    /// Sidebar entries (#91) show attention as a large dot and no outline: the dot's color, sampled
+    /// left of its `?`/`!`, or nil when `v` isn't a sidebar row or header or its dot isn't the large size.
+    static func sidebarDot(_ v: NSView?) -> NSColor? {
+        guard let v, let r = (v as? WorkspaceRow)?.attentionDotRect ?? (v as? GroupHeaderView)?.attentionDotRect,
+              r.width == Theme.Metrics.sidebarDotSize else { return nil }
+        return sample(v, at: CGPoint(x: r.minX + r.width * 0.15, y: r.midY))
+    }
+
+    /// Whether a sidebar row or header shows the large waiting dot, and no waiting outline (#91).
+    static func hasWaitingDot(_ v: NSView?) -> Bool { matches(sidebarDot(v), Theme.attentionWaiting) && !isWaitingOutlined(v) }
+
+    /// Whether a sidebar row or header shows the large failed dot, and no failed outline (#91).
+    static func hasFailedDot(_ v: NSView?) -> Bool { matches(sidebarDot(v), Theme.attentionFailed) && !isFailedOutlined(v) }
+
     /// Whether the failed dot (#29) in `dotRect` of `v` carries its `!` in `Theme.chrome`, or why not.
     /// Takes the bar's pixel closest to chrome instead of one fixed point, which can land on the
     /// bar's antialiased edge (#48). At 2x the bar covers whole pixels, so that pixel must be chrome

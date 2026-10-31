@@ -103,7 +103,7 @@ extension TerminalWindowController {
                 !sb.isHidden && !self.sidebarToggle.isHidden && bar.isHidden ? nil : "sidebar + toggle should show, pills not",
                 near(self.deckArea.minX, g + w + g, "deck area minX"),
                 t.pane("srv").surface.surface == srvSurface ? nil : "srv's surface was replaced",
-                outlined(sb.row(at: 0)) ? nil : "workspace 1's row should have the waiting outline",
+                PixelProbe.hasWaitingDot(sb.row(at: 0)) ? nil : "workspace 1's row should have the large waiting dot (#91)",
                 toggleEnabled() ? nil : "⌘B should be enabled again")
         }) {
             Settings.workspaceSwitcher = .sidebar

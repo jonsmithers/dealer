@@ -170,16 +170,17 @@ final class WorkspaceRow: FlippedView {
     }
     var isRunning: Bool { working != nil }
     let spinner = RunningSpinnerState()
-    /// The workspace's color (#9): a faint tint, and the selection bar's color (#90).
+    /// The workspace's color (#9): a chip at the left edge plus a faint tint.
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
     private var tracker = SwitcherDragTracker()
 
     private static let padding: CGFloat = 10
 
-    /// The selected row's bar (#90), at the right edge (also sampled by the self-test).
-    var selectionBarRect: CGRect { SelectionStyle.rowBarRect(in: bounds) }
-    private static var dotSize: CGFloat { Theme.Metrics.switcherDotSize }
+    private static var dotSize: CGFloat { Theme.Metrics.sidebarDotSize }
+    /// Where the color chip sits (also sampled by the self-test): 3pt at the left edge, selected or
+    /// not (the selection outline marks the selected row, so the chip doesn't widen).
+    var chipRect: CGRect { CGRect(x: 4, y: 7, width: 3, height: bounds.height - 14) }
     /// The faint ⌃N number's column, in front of the name.
     private static let numberColumn: CGFloat = 16
 
@@ -193,10 +194,11 @@ final class WorkspaceRow: FlippedView {
         return ((bounds.height - h - ceil(detailFont.ascender - detailFont.descender) - 1) / 2, h)
     }
 
-    /// The attention dot, at the right end of the title line (also read by the self-test).
+    /// The attention dot (#91: large, the row's only attention mark), at the right end, centred
+    /// on the row so it spans the title and status lines (also read by the self-test).
     var attentionDotRect: CGRect {
-        let m = titleMetrics, d = Self.dotSize
-        return CGRect(x: bounds.width - Self.padding - d, y: m.y + (m.height - d) / 2, width: d, height: d)
+        let d = Self.dotSize
+        return CGRect(x: bounds.width - Self.padding - d, y: ((bounds.height - d) / 2).rounded(), width: d, height: d)
     }
 
     /// The spinner's box, between the number and the name, on the title line (self-test hook).
@@ -245,15 +247,14 @@ final class WorkspaceRow: FlippedView {
     override func draw(_ dirtyRect: NSRect) {
         let radius = Theme.Metrics.tabRadius
         let selected = isActive && !isAddRow
-        if selected {
-            SelectionStyle.drawFill(in: bounds, cornerRadius: radius)
-        } else if hovering {
+        // The selected row has no fill (#90's reversal): its outline, drawn last, marks it.
+        if hovering && !selected {
             Theme.fill(Theme.hover).setFill()
             NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).fill()
         }
         if !isAddRow {
             ColorStyle.drawTint(color, in: bounds, cornerRadius: radius)
-            if selected { SelectionStyle.drawBar(color, in: selectionBarRect) }
+            ColorStyle.drawChip(color, in: chipRect)
         }
 
         let (titleY, titleH) = titleMetrics
@@ -288,14 +289,17 @@ final class WorkspaceRow: FlippedView {
         let right = bounds.width - Self.padding - (dot ? Self.dotSize + 6 : 0)
         (title as NSString).draw(in: CGRect(x: x, y: titleY, width: max(right - x, 0), height: titleH), withAttributes: titleAttrs)
         if hasDetail {
-            (detail as NSString).draw(in: CGRect(x: x, y: titleY + titleH + 1, width: max(bounds.width - Self.padding - x, 0), height: detailH),
+            // The dot is centred on the row, so the status line clears it too.
+            (detail as NSString).draw(in: CGRect(x: x, y: titleY + titleH + 1, width: max(right - x, 0), height: detailH),
                                       withAttributes: detailAttrs)
         }
         if dot {
-            // #7: waiting outlines the whole row; done/unread get a muted dot only (Attention.swift).
-            AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: Theme.Metrics.tabRadius,
-                                dotRect: attentionDotRect, alpha: attentionFade.alpha)
+            // #91: no attention outline on the sidebar; the large dot (and the tint) carry it.
+            AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: radius,
+                                dotRect: attentionDotRect, alpha: attentionFade.alpha, outline: false)
         }
+        // After attention, whose tint would wash over it; nothing on the sidebar covers it (#91).
+        if selected { SelectionStyle.drawOutline(in: bounds, cornerRadius: radius) }
     }
 
     override func mouseDown(with event: NSEvent) {

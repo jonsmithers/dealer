@@ -62,9 +62,9 @@ extension TerminalWindowController {
                     if !PixelProbe.isWaitingOutlined(b) { e.append("\(what): tab outline reads \(hex(PixelProbe.sample(b, at: PixelProbe.outlinePoint(in: b))))") }
                 } else { e.append("\(what): no tab button") }
                 if let r = row(p) {
-                    let edges = [PixelProbe.outlinePoint(in: r), CGPoint(x: 0.25, y: r.bounds.midY)].map { PixelProbe.sample(r, at: $0) }
-                    if !edges.allSatisfy({ PixelProbe.matches($0, Theme.attentionWaiting) }) {
-                        e.append("\(what): selected workspace row's outline reads \(edges.map(hex)), want \(hex(Theme.attentionWaiting))")
+                    // #91: the sidebar shows it as the large blue dot, never an outline.
+                    if !PixelProbe.hasWaitingDot(r) {
+                        e.append("\(what): selected workspace row's dot reads \(hex(PixelProbe.sidebarDot(r))), want a large \(hex(Theme.attentionWaiting)) dot and no outline")
                     }
                 } else { e.append("\(what): no workspace row") }
                 return e
@@ -78,8 +78,10 @@ extension TerminalWindowController {
                 guard let b = tabButton(p), let r = row(p) else { return ["\(what): no tab button or row"] }
                 let d = b.attentionDotRect
                 let dotPx = PixelProbe.sample(b, at: CGPoint(x: d.midX, y: d.midY))
+                let rowDot = PixelProbe.sidebarDot(r)
                 return [PixelProbe.isWaitingOutlined(b) ? "\(what): tab still outlined blue" : nil,
-                        PixelProbe.isWaitingOutlined(r) ? "\(what): workspace row still outlined blue" : nil,
+                        PixelProbe.isWaitingOutlined(r) ? "\(what): workspace row outlined blue" : nil,
+                        PixelProbe.matches(rowDot, Theme.attentionDone) ? nil : "\(what): row's large dot reads \(hex(rowDot)), want \(hex(Theme.attentionDone))",
                         PixelProbe.matches(dotPx, Theme.attentionDone) ? nil : "\(what): tab dot reads \(hex(dotPx)), want \(hex(Theme.attentionDone))"]
                     .compactMap { $0 }
             }
@@ -144,7 +146,7 @@ extension TerminalWindowController {
             self.layoutNow()
         }
 
-        t.step("attention style: a selected row and pill marked done show blue on every edge (dark and light, 2x and 1x)", nil, {
+        t.step("attention style: a selected pill marked done shows blue on every edge; a selected row keeps its neutral outline and shows the large blue dot (dark and light, 2x and 1x)", nil, {
             var p: [String] = []
             for (name, bg) in [("dark", NSColor(hex: "#303446")!), ("light", NSColor(hex: "#eff1f5")!)] {
                 p += PixelProbe.atEachScale { _ in Theme.withBackground(bg) {
@@ -154,11 +156,14 @@ extension TerminalWindowController {
                     pill.number = "1"; pill.title = "ws"
                     row.isActive = true; pill.isActive = true
                     row.attention = .done; pill.attention = .done
-                    return [(row as NSView, "row"), (pill, "pill")].compactMap { v, kind in
-                        let edges = [PixelProbe.outlinePoint(in: v), CGPoint(x: 0.25, y: v.bounds.midY)].map { PixelProbe.sample(v, at: $0) }
-                        return edges.allSatisfy { PixelProbe.matches($0, Theme.attentionWaiting) } ? nil
-                            : "\(name): a selected done \(kind) reads \(edges.map(hex)), want \(hex(Theme.attentionWaiting))"
-                    }
+                    let pillEdges = [PixelProbe.outlinePoint(in: pill), CGPoint(x: 0.25, y: pill.bounds.midY)].map { PixelProbe.sample(pill, at: $0) }
+                    let rowEdges = [PixelProbe.outlinePoint(in: row), CGPoint(x: 0.25, y: row.bounds.midY)].map { PixelProbe.sample(row, at: $0) }
+                    return [pillEdges.allSatisfy { PixelProbe.matches($0, Theme.attentionWaiting) } ? nil
+                                : "\(name): a selected done pill reads \(pillEdges.map(hex)), want \(hex(Theme.attentionWaiting))",
+                            rowEdges.allSatisfy { PixelProbe.matches($0, Theme.text) } ? nil
+                                : "\(name): a selected done row's edges read \(rowEdges.map(hex)), want the neutral \(hex(Theme.text))",
+                            PixelProbe.matches(PixelProbe.sidebarDot(row), Theme.attentionWaiting) ? nil
+                                : "\(name): a selected done row's large dot reads \(hex(PixelProbe.sidebarDot(row)))"].compactMap { $0 }
                 } }
             }
             return p.isEmpty ? nil : p.joined(separator: "; ")

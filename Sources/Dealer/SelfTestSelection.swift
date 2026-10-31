@@ -1,6 +1,6 @@
 import AppKit
 
-// MARK: - Self-test section: the selected workspace stands out in both switchers (#52, #90)
+// MARK: - Self-test section: the selected workspace stands out in both switchers (#52, #90, #91)
 
 extension TerminalWindowController {
     func selectionSelfTestSteps(_ t: SelfTestKit) {
@@ -15,69 +15,81 @@ extension TerminalWindowController {
             let (l1, l2) = (a.luminance, b.luminance)
             return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
         }
-        /// Where an entry's selection bar must sit (#90): a sidebar row's or header's right edge, a
-        /// pill's bottom edge, just inside the attention outline, at its full thickness.
-        func barPlacement(_ v: NSView, _ r: CGRect, vertical: Bool, _ what: String) -> String? {
-            let b = v.bounds, gap = SelectionStyle.inset
-            if vertical {
-                let w = Theme.Metrics.workspaceBarWidth
-                return abs(r.maxX - (b.maxX - gap)) < 0.01 && r.width == w && r.height >= b.height / 2 ? nil
-                    : "\(what): the bar should be \(w)pt wide at the right edge, is \(r) in \(b)"
+        /// The neutral selection outline (#52, back after #90): `Theme.text`, `workspaceSelectionOutline`
+        /// wide, on the top and left edges. At 2x the 1.5pt stroke covers three whole pixels; at 1x
+        /// one whole pixel and half of the next. Just inside it there is no outline color.
+        func outlineProblem(_ v: NSView) -> String? {
+            let w = Theme.Metrics.workspaceSelectionOutline, s = PixelProbe.scale
+            let solid = stride(from: 0.5 / s, to: floor(w * s) / s, by: 1 / s).map { $0 }
+            var pts = solid.map { CGPoint(x: v.bounds.midX, y: $0) } + solid.map { CGPoint(x: $0, y: v.bounds.midY) }
+            if w < 1.5 / s { pts = [CGPoint(x: v.bounds.midX, y: 0.5 / s)] }
+            let px = pts.map { PixelProbe.sample(v, at: $0) }
+            guard px.allSatisfy({ PixelProbe.matches($0, Theme.text) }) else {
+                return "outline should be \(w)pt of \(hex(Theme.text)), reads \(px.map(hex)) at y/x \(solid)"
             }
-            let h = Theme.Metrics.workspacePillBarWidth
-            return abs(r.maxY - (b.maxY - gap)) < 0.01 && r.height == h && r.width >= b.width / 2 ? nil
-                : "\(what): the bar should be \(h)pt tall along the bottom edge, is \(r) in \(b)"
+            let inside = PixelProbe.sample(v, at: CGPoint(x: v.bounds.midX, y: ceil(w * s + 0.5) / s + 0.5 / s))
+            if PixelProbe.matches(inside, Theme.text) { return "outline is wider than \(w)pt" }
+            if s < 2 {
+                // 1x: the stroke half covers the next pixel; behind it is the pill's (inset) fill or,
+                // on a row, nothing, so that pixel is the text color at partial alpha or a blend.
+                let edge = PixelProbe.sample(v, at: CGPoint(x: v.bounds.midX, y: floor(w * s) / s + 0.5 / s))
+                if PixelProbe.matches(edge, Theme.text) { return "@1x the stroke's last pixel should be only partly covered" }
+            }
+            return nil
         }
-        /// The bar's color across its thickness (three points, so the whole width counts).
-        func barProblem(_ v: NSView, _ r: CGRect, vertical: Bool, want: NSColor, _ what: String) -> String? {
-            let pts = vertical ? [r.minX + 0.5, r.midX, r.maxX - 0.5].map { CGPoint(x: $0, y: r.midY) }
-                               : [r.minY + 0.5, r.midY, r.maxY - 0.5].map { CGPoint(x: r.midX, y: $0) }
-            let px = pts.map { PixelProbe.sample(v, at: $0) }
-            return px.allSatisfy { PixelProbe.matches($0, want) } ? nil : "\(what): bar is \(px.map(hex)), want \(hex(want))"
-        }
-        /// No selection outline (#90, replacing #52's): nothing at all is drawn on the outline's
-        /// path, on any edge, so only attention draws outlines. The fill and tint are inset inside it.
-        func outlineProblem(_ v: NSView, _ what: String) -> String? {
+        /// Nothing at all on the outline's path (an unselected entry without attention).
+        func bareEdges(_ v: NSView) -> String? {
             let b = v.bounds, e = 0.5 / PixelProbe.scale
-            let pts = [CGPoint(x: b.midX, y: e), CGPoint(x: e, y: b.midY), CGPoint(x: b.maxX - e, y: b.midY), CGPoint(x: b.midX, y: b.maxY - e)]
-            let px = pts.map { PixelProbe.sample(v, at: $0) }
-            return px.allSatisfy { ($0?.alphaComponent ?? 0) < 0.05 } ? nil
-                : "\(what): something is drawn on the outline's path: \(px.map(hex)) (top, left, right, bottom)"
+            let px = [CGPoint(x: b.midX, y: e), CGPoint(x: e, y: b.midY)].map { PixelProbe.sample(v, at: $0) }
+            return px.allSatisfy { ($0?.alphaComponent ?? 0) < 0.05 } ? nil : "something is drawn on the outline's path: \(px.map(hex))"
         }
-        /// Where the color chip and #52's left bar used to sit: no color of their own may show there.
-        func chipSpot(_ v: NSView) -> CGPoint { CGPoint(x: v is WorkspaceRow ? 5.5 : 12, y: v.bounds.midY) }
-        /// A spot on the fill clear of text, dots and the bar.
-        func fillSpot(_ v: NSView) -> CGPoint { CGPoint(x: v.bounds.maxX - (v is WorkspaceRow ? 14 : 4), y: v.bounds.midY) }
-        func barRect(_ v: NSView) -> CGRect { (v as? WorkspaceRow)?.selectionBarRect ?? (v as? WorkspaceButton)?.selectionBarRect ?? .zero }
+        /// A spot inside the entry clear of text, chip and dot, where the selection fill would show.
+        func fillSpot(_ v: NSView) -> CGPoint { CGPoint(x: v.bounds.maxX - (v is WorkspaceRow ? 30 : 4), y: v.bounds.midY) }
+        /// #90's bars, now gone: a row's right edge and a pill's bottom edge, just inside the outline.
+        func barSpots(_ v: NSView) -> [CGPoint] {
+            [CGPoint(x: v.bounds.maxX - 4, y: v.bounds.midY), CGPoint(x: v.bounds.midX, y: v.bounds.maxY - 3.5)]
+        }
+        /// The chip's spot: the row's `chipRect`, or where a pill's chip sat before #90.
+        func chipSpot(_ v: NSView) -> CGPoint {
+            if let r = v as? WorkspaceRow { return CGPoint(x: r.chipRect.midX, y: r.chipRect.midY) }
+            return CGPoint(x: 12, y: v.bounds.midY)
+        }
+        func isRow(_ v: NSView) -> Bool { v is WorkspaceRow }
 
         func selected(_ v: NSView, color: NSColor?, _ what: String) -> [String?] {
-            let vertical = v is WorkspaceRow, r = barRect(v), want = SelectionStyle.barColor(color)
             let fill = PixelProbe.sample(v, at: fillSpot(v))
-            let left = PixelProbe.sample(v, at: chipSpot(v))
-            // A colored entry's tint lies over the fill; the bar carries its color.
-            return [color != nil || PixelProbe.matches(fill, Theme.workspaceSelection) ? nil
-                        : "\(what): fill is \(hex(fill)), want \(hex(Theme.workspaceSelection))",
-                    barPlacement(v, r, vertical: vertical, what),
-                    barProblem(v, r, vertical: vertical, want: want, what),
-                    PixelProbe.matches(left, want) ? "\(what): there is still a bar or chip at the left edge" : nil,
-                    outlineProblem(v, what)]
+            let bars = barSpots(v).map { PixelProbe.sample(v, at: $0) }
+            var p: [String?] = [outlineProblem(v).map { "\(what): \($0)" }]
+            if isRow(v) {
+                // No selection fill on the sidebar: an uncolored selected row is empty inside its outline.
+                if color == nil && (fill?.alphaComponent ?? 0) > 0.05 { p.append("\(what): a selected row has a fill (\(hex(fill)))") }
+            } else if color == nil && !PixelProbe.matches(fill, Theme.workspaceSelection) {
+                p.append("\(what): fill is \(hex(fill)), want \(hex(Theme.workspaceSelection))")
+            }
+            let barColor = color ?? Theme.text
+            if bars.contains(where: { PixelProbe.matches($0, barColor) }) { p.append("\(what): #90's selection bar is still drawn") }
+            p.append(chipProblem(v, color: color, what))
+            return p
+        }
+        /// Sidebar rows carry their color chip (the user's call after #90); pills never do.
+        func chipProblem(_ v: NSView, color: NSColor?, _ what: String) -> String? {
+            guard let color else { return nil }
+            let chip = PixelProbe.sample(v, at: chipSpot(v))
+            if isRow(v) { return PixelProbe.matches(chip, color) ? nil : "\(what): the chip is \(hex(chip)), want \(hex(color))" }
+            return PixelProbe.matches(chip, color) ? "\(what): a pill has a color chip" : nil
         }
         func unselected(_ v: NSView, color: NSColor?, _ what: String) -> [String?] {
             let fill = PixelProbe.sample(v, at: fillSpot(v))
-            let r = barRect(v)
-            let barPx = PixelProbe.sample(v, at: CGPoint(x: r.midX, y: r.midY))
-            let chip = PixelProbe.sample(v, at: chipSpot(v))
             return [PixelProbe.matches(fill, Theme.workspaceSelection) ? "\(what): an unselected entry has the selection fill" : nil,
-                    PixelProbe.matches(barPx, SelectionStyle.barColor(color)) ? "\(what): an unselected entry has a selection bar" : nil,
-                    color.flatMap { PixelProbe.matches(chip, $0) ? "\(what): an unselected colored entry still has a chip (#90: the tint alone)" : nil },
-                    outlineProblem(v, what)]
+                    bareEdges(v).map { "\(what): \($0)" },
+                    chipProblem(v, color: color, what)]
         }
         func heavy(_ f: NSFont, _ what: String) -> String? {
             let w = (f.fontDescriptor.object(forKey: .traits) as? [NSFontDescriptor.TraitKey: Any])?[.weight] as? CGFloat ?? 0
             return w >= NSFont.Weight.semibold.rawValue - 0.01 ? nil : "\(what): selected title weight \(w), want semibold or heavier"
         }
 
-        t.step("selection: the selected row and pill get a neutral fill, a bar on the right edge (row) or bottom edge (pill) and a heavier title, and no outline; unselected entries have no chip; dark and light, 2x and 1x", nil, {
+        t.step("selection: the selected row and pill get the neutral outline and a heavier title; the pill keeps its fill, the row has none; no bars; chips on rows only (dark and light, 2x and 1x)", nil, {
             var problems: [String] = []
             let teal = NSColor(hex: "#11a08f")!
             // Catppuccin Frappé and Latte backgrounds: the user's theme and its light sibling.
@@ -105,46 +117,45 @@ extension TerminalWindowController {
                     p.append(c >= 1.3 ? nil : "\(name): selection fill \(hex(Theme.workspaceSelection)) is only \(String(format: "%.2f", c)):1 on the chrome \(hex(Theme.chrome))")
                     p.append(heavy(row.titleFontForTest, "\(name) row"))
                     p.append(heavy(pill.titleFontForTest, "\(name) pill"))
-                    // Attention still outlines a selected entry, in exactly its color on every edge, and
-                    // the bar stays (under attention's tint); once it clears, the edges are empty again.
                     for (state, color) in [(Attention.waiting, Theme.attentionWaiting), (.failed, Theme.attentionFailed)] {
-                        for (v, kind) in [(row as NSView, "row"), (pill, "pill")] {
-                            (v as? WorkspaceRow)?.attention = state; (v as? WorkspaceButton)?.attention = state
-                            let edges = [PixelProbe.outlinePoint(in: v), CGPoint(x: 0.25, y: v.bounds.midY)].map { PixelProbe.sample(v, at: $0) }
-                            p.append(edges.allSatisfy { PixelProbe.matches($0, color) } ? nil
-                                     : "\(name): a selected \(state) \(kind)'s outline should be \(hex(color)), reads \(edges.map(hex))")
-                            let r = barRect(v)
-                            let mid = PixelProbe.sample(v, at: CGPoint(x: r.midX, y: r.midY)), fill = PixelProbe.sample(v, at: fillSpot(v))
-                            p.append(PixelProbe.matches(mid, fill, tolerance: 0.05) ? "\(name): a selected \(state) \(kind) lost its bar" : nil)
-                        }
+                        // Sidebar (#91): attention draws no outline, so the neutral selection outline stays
+                        // on a selected row, and the large dot carries the state.
+                        row.attention = state
+                        p.append(outlineProblem(row).map { "\(name): a selected \(state) row: \($0)" })
+                        let dot = PixelProbe.sidebarDot(row)
+                        p.append(PixelProbe.matches(dot, color) ? nil : "\(name): a selected \(state) row's large dot is \(hex(dot)), want \(hex(color))")
+                        // Pill: attention's colored outline wins, exactly its color on every edge (no
+                        // neutral stroke stacked under it).
+                        pill.attention = state
+                        let edges = [PixelProbe.outlinePoint(in: pill), CGPoint(x: 0.25, y: pill.bounds.midY)].map { PixelProbe.sample(pill, at: $0) }
+                        p.append(edges.allSatisfy { PixelProbe.matches($0, color) } ? nil
+                                 : "\(name): a selected \(state) pill's outline should be \(hex(color)), reads \(edges.map(hex))")
                     }
                     row.attention = .none; pill.attention = .none
-                    p.append(outlineProblem(row, "\(name) row after attention"))
-                    p.append(outlineProblem(pill, "\(name) pill after attention"))
+                    p.append(outlineProblem(pill).map { "\(name) pill after attention: \($0)" })
                     return p.compactMap { $0 }
                 } }
             }
             return problems.isEmpty ? nil : problems.joined(separator: "; ")
         }) {}
 
-        t.step("selection: a collapsed group header holding the active workspace gets the bar in the text color (right edge in the sidebar, bottom edge on a pill) and no outline; its count keeps clear of the bar", nil, {
+        t.step("selection: a collapsed group header holding the active workspace gets the neutral outline; in the sidebar it stays over a large attention dot, on a label pill attention's outline wins", nil, {
             let p = PixelProbe.atEachScale { _ in Theme.withBackground(NSColor(hex: "#303446")!, foreground: NSColor(hex: "#c6d0f5")!) {
                 var p: [String?] = []
                 for (style, size) in [(GroupHeaderView.Style.row, CGSize(width: Theme.Metrics.sidebarWidth, height: Theme.Metrics.groupHeaderHeight)),
                                       (.pill, CGSize(width: 140, height: WorkspaceBarView.pillHeight))] {
                     let h = GroupHeaderView(frame: CGRect(origin: .zero, size: size))
                     h.style = style; h.title = "group"; h.isCollapsed = true; h.count = 2
-                    let what = style == .row ? "sidebar header" : "label pill", r = h.selectionBarRect
-                    let off = PixelProbe.sample(h, at: CGPoint(x: r.midX, y: r.midY))
-                    p.append(PixelProbe.matches(off, Theme.text) ? "\(what): an inactive header has a bar" : nil)
+                    let what = style == .row ? "sidebar header" : "label pill"
+                    p.append(bareEdges(h).map { "\(what) (inactive): \($0)" })
                     h.isActive = true
-                    p.append(barPlacement(h, r, vertical: style == .row, what))
-                    p.append(barProblem(h, r, vertical: style == .row, want: Theme.text, what))
-                    p.append(outlineProblem(h, what))
+                    p.append(outlineProblem(h).map { "\(what): \($0)" })
+                    h.attention = .waiting
                     if style == .row {
-                        // The count ends a few points short of the bar, not against it.
-                        let gap = PixelProbe.samples(h, in: CGRect(x: r.minX - 4, y: r.minY, width: 3.5, height: r.height))
-                        p.append(gap.allSatisfy { $0.alphaComponent < 0.05 } ? nil : "\(what): the count runs into the bar")
+                        p.append(outlineProblem(h).map { "\(what), waiting: \($0)" })
+                        p.append(PixelProbe.matches(PixelProbe.sidebarDot(h), Theme.attentionWaiting) ? nil : "\(what): no large waiting dot")
+                    } else {
+                        p.append(PixelProbe.isWaitingOutlined(h) ? nil : "\(what): waiting should outline the label pill")
                     }
                 }
                 return p.compactMap { $0 }

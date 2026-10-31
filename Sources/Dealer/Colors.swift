@@ -3,9 +3,9 @@ import AppKit
 // Per-workspace and per-tab colors (#9).
 //
 // A color is an optional NSColor on `Workspace.color` / `Tab.color`, persisted as "#rrggbb".
-// A workspace color shows ONLY on its switcher entry, the sidebar row or the top-bar pill, as a
-// faint tint, plus the selection bar on the selected entry (#15, #18, #90; no chip): not in the
-// deck area, and never on tabs. A tab color shows on its own tab button
+// A workspace color shows ONLY on its switcher entry: on the sidebar row as a chip at its left
+// edge plus a faint tint, on the top-bar pill as the tint alone (#15, #18, #90): not in the deck
+// area, and never on tabs. A tab color shows on its own tab button
 // as the underline plus a faint tint (overriding the deck color there). Colors are never drawn as
 // an outline: that look belongs to #7's attention (AttentionStyle), and the tint is inset so the
 // attention outline always sits outside it.
@@ -33,7 +33,7 @@ extension NSColor {
 }
 
 extension Theme {
-    /// The preset swatches offered in color menus, tuned per light/dark so bars and tints read
+    /// The preset swatches offered in color menus, tuned per light/dark so chips and tints read
     /// on either chrome. `[colors] palette` in settings.toml replaces them (named by number).
     static var swatches: [(name: String, color: NSColor)] {
         if let custom = Settings.colorPalette, !custom.isEmpty {
@@ -78,6 +78,14 @@ enum ColorStyle {
         guard let color else { return }
         Theme.colorTint(color).setFill()
         shape.fillPath(in: rect, inset: AttentionStyle.outlineWidth + 0.5).fill()
+    }
+
+    /// A sidebar row's color chip (the user's call, back after #90): a capsule at its left edge.
+    static func drawChip(_ color: NSColor?, in rect: CGRect) {
+        guard let color else { return }
+        color.setFill()
+        let r = min(rect.width, rect.height) / 2
+        NSBezierPath(roundedRect: rect, xRadius: r, yRadius: r).fill()
     }
 
     static func swatchImage(_ color: NSColor) -> NSImage {

@@ -115,7 +115,7 @@ extension TerminalWindowController {
             return all(expect("a [Proj+: *d c] b"),
                        !shown(rowView("c")) && !shown(rowView("d")) ? nil : "members should be hidden",
                        h.count == 2 ? nil : "count \(h.count)",
-                       h.isActive ? nil : "the header should carry the selection bar while the active workspace is inside",
+                       h.isActive ? nil : "the header should carry the selection outline while the active workspace is inside",
                        shown(rowView("b")) && (rowView("b")?.frame.minY ?? 0) > h.frame.maxY ? nil : "b should follow the header",
                        sb.dropTarget(at: CGPoint(x: h.frame.midX, y: h.frame.midY)) == nil ? nil : "a header is no drop target")
         }) {
@@ -138,9 +138,9 @@ extension TerminalWindowController {
             self.setAttention(.done, on: pd); self.refreshChrome()
             p.append(h.attention == .done ? nil : "done → header \(h.attention)")
             self.setAttention(.waiting, on: pc); self.refreshChrome()
-            p.append(h.attention == .waiting && PixelProbe.isWaitingOutlined(h) ? nil : "waiting → header \(h.attention), outlined \(PixelProbe.isWaitingOutlined(h))")
+            p.append(h.attention == .waiting && PixelProbe.hasWaitingDot(h) ? nil : "waiting → header \(h.attention), large dot \(PixelProbe.hasWaitingDot(h))")
             self.setAttention(.failed, on: pd); self.refreshChrome()
-            p.append(h.attention == .failed && PixelProbe.isFailedOutlined(h) ? nil : "failed → header \(h.attention)")
+            p.append(h.attention == .failed && PixelProbe.hasFailedDot(h) ? nil : "failed → header \(h.attention), large dot \(PixelProbe.hasFailedDot(h))")
             self.toggleCollapsed(g)
             p.append(h.attention == .none ? nil : "expanded, the header should carry no attention (\(h.attention))")
             p.append((rowView("d") as? WorkspaceRow)?.attention == .failed ? nil : "the member row should show its own")

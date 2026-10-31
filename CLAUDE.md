@@ -262,14 +262,17 @@ The GitHub repo is `jonsmithers/dealer`.
   flips direction by itself (the old WCAG-target solve flipped Kanso Mist past 1.38:1, the user's
   complaint). A hovered tab sits halfway between strip and active tab, never past it. The
   self-test (`tab contrast:`) checks both across dark, near-black and light themes.
-- Workspace and tab colors (#9) are a faint tint plus, for a tab, its underline, and for the
-  selected workspace, its selection bar; never an outline: **outlines mean attention, only** (#90
-  dropped #52's neutral selection outline). Switcher entries have no color chip (#90, the user's
-  call): an unselected colored workspace shows its color as the tint alone. The selected entry gets
-  the `Theme.workspaceSelection` fill, a heavier title, and a bar in its color (`Theme.text` when it
-  has none, and on a collapsed group header holding it): 4pt along a sidebar row's right edge (the
-  one facing the decks), 3pt along a pill's bottom edge. An attention outline is drawn around a
-  selected entry as around any other. **A workspace's color shows only on its switcher entry**: the sidebar row, or
+- Workspace and tab colors (#9) are a chip (sidebar rows only), an underline (tabs) and a faint
+  tint, never an outline. Top-bar pills show the tint alone (#90 removed chips; the user brought
+  them back on the sidebar only).
+- The selected workspace's switcher entry (the user's calls; #90 tried an edge bar instead and was
+  reversed): a neutral `Theme.text` outline (#52's width and path) and a heavier title, on sidebar
+  rows, pills and collapsed group headers. Pills also get the `Theme.workspaceSelection` fill;
+  sidebar rows don't. **The sidebar draws no attention outlines** (#91's sidebar part): attention
+  there is a large dot (`sidebarDotSize`, 14pt, with the `?`/`!` scaled) plus the faint tint, so
+  an outline on the sidebar always means "selected", also on a waiting or failed row. Pills, tabs
+  and panes keep attention outlines, and on a pill the selection outline gives way to one.
+  **A workspace's color shows only on its switcher entry**: the sidebar row, or
   the pill in top-bar mode (#15, #18; the user's call). Not in the deck area, and it has no effect
   at all on tabs (tint, underline, fill, or deck-color fallback). Tabs get color only from their own `Tab.color`; the
   per-deck underline on the active tab stays, with any number of decks (#86, the user's call; it used

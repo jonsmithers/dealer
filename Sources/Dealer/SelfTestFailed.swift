@@ -97,12 +97,13 @@ extension TerminalWindowController {
         }) { self.jumpToNextUnread(nil) }
 
         var ws2: Workspace?
-        t.step("failed: the workspace's sidebar row gets the red outline", nil, {
+        t.step("failed: the workspace's sidebar row gets the large red dot with its `!`, and no outline (#91)", nil, {
             let row = self.workspaceSidebar.row(at: 0)
-            let px = row.map { PixelProbe.sample($0, at: PixelProbe.outlinePoint(in: $0)) } ?? nil
+            let px = PixelProbe.sidebarDot(row)
             return all(row != nil ? nil : "no sidebar row",
-                       PixelProbe.isFailedOutlined(row) ? nil : "row outline is \(hex(px)), want \(hex(Theme.attentionFailed))",
-                       PixelProbe.isFailedOutlined(self.workspaceSidebar.row(at: 1)) ? "the other workspace's row should not be red" : nil)
+                       PixelProbe.hasFailedDot(row) ? nil : "row dot is \(hex(px)), want a large \(hex(Theme.attentionFailed)) dot and no outline",
+                       (row as? WorkspaceRow).flatMap { PixelProbe.bangProblem($0, dotRect: $0.attentionDotRect) },
+                       PixelProbe.hasFailedDot(self.workspaceSidebar.row(at: 1)) ? "the other workspace's row should not be red" : nil)
         }) {
             if let home { self.focus(home) }
             if let a { self.setAttention(.failed, on: a) }

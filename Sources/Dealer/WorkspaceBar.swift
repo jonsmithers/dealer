@@ -184,7 +184,7 @@ final class WorkspaceButton: FlippedView {
     }
     var isRunning: Bool { working != nil }
     let spinner = RunningSpinnerState()
-    /// The workspace's color (#9): a faint tint, and the selection bar's color (#90).
+    /// The workspace's color (#9): a faint tint (no chip since #90).
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true; superview?.needsLayout = true } } }
     private var hovering = false { didSet { needsDisplay = true } }
     private var tracker = SwitcherDragTracker()
@@ -215,8 +215,6 @@ final class WorkspaceButton: FlippedView {
     private var numberWidth: CGFloat { number.isEmpty ? 0 : ceil((number as NSString).size(withAttributes: numberAttrs).width) + 6 }
     private var dotWidth: CGFloat { attentionFade.shown > .none ? Self.dotSize + 6 : 0 }
 
-    /// The selected pill's bar (#90), along its bottom edge (also sampled by the self-test).
-    var selectionBarRect: CGRect { SelectionStyle.pillBarRect(in: bounds) }
 
     var idealWidth: CGFloat {
         if isAddButton { return 24 }
@@ -248,7 +246,6 @@ final class WorkspaceButton: FlippedView {
         }
         if !isAddButton {
             ColorStyle.drawTint(color, in: bounds, cornerRadius: radius)
-            if selected { SelectionStyle.drawBar(color, in: selectionBarRect) }
         }
 
         if isAddButton {
@@ -285,6 +282,9 @@ final class WorkspaceButton: FlippedView {
         let w = bounds.width - x - Self.padding - dotWidth
         (title as NSString).draw(in: CGRect(x: x, y: (bounds.height - h) / 2, width: max(w, 0), height: h), withAttributes: attrs)
 
+        if selected {
+            SelectionStyle.drawOutline(in: bounds, cornerRadius: radius, yieldingTo: attentionFade.shown, attentionAlpha: attentionFade.alpha)
+        }
         if attentionFade.shown > .none {
             // #7 owns the look: waiting outlines the pill, done/unread get a muted dot (Attention.swift).
             AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: Theme.Metrics.tabRadius,

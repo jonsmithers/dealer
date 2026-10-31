@@ -86,8 +86,8 @@ extension TerminalWindowController {
         step("a pane in a background workspace badges it", check: {
             guard self.workspaces.count == 2, self.activeWorkspace === ws2 else { return "expected a second, active workspace" }
             return expect([("workspace 1", self.workspaces[0].attention, .waiting), ("workspace 2", ws2!.attention, .none)])
-                ?? (outlined(self.workspaceSidebar.row(at: 0)) ? nil : "workspace 1's row should have a blue outline")
-                ?? (outlined(self.workspaceSidebar.row(at: 1)) ? "workspace 2's row should have no outline" : nil)
+                ?? (PixelProbe.hasWaitingDot(self.workspaceSidebar.row(at: 0)) ? nil : "workspace 1's row should have the large blue dot (#91)")
+                ?? (PixelProbe.hasWaitingDot(self.workspaceSidebar.row(at: 1)) ? "workspace 2's row should have no dot" : nil)
         }) {
             self.setAttention(.waiting, on: p("srv"))
             ws2 = self.newWorkspace()
@@ -96,7 +96,7 @@ extension TerminalWindowController {
             guard self.activeWorkspace === self.workspaces.first else { return "should be back in workspace 1" }
             guard self.focusedPane === p("srv") else { return "expected focus on srv" }
             return expect([("srv", p("srv").attention, .none), ("workspace 1", self.workspaces[0].attention, .none)])
-                ?? (outlined(self.workspaceSidebar.row(at: 0)) ? "workspace 1's outline should clear on focus" : nil)
+                ?? (PixelProbe.hasWaitingDot(self.workspaceSidebar.row(at: 0)) ? "workspace 1's dot should clear on focus" : nil)
                 ?? (ring("srv") ? "srv's ring should clear on focus" : nil)
         }) { self.jumpToNextUnread(nil) }
         step("clean up the extra workspace", check: {

@@ -193,7 +193,7 @@
   through `SwitcherDragHost`/`SwitcherLayout.drop`; compute entries on demand, never store them
   in a view (AppKit keeps a closed window's views, and stored entries leaked its workspaces, #43).
   A collapsed header (`GroupHeaderView`) carries its members' rolled-up attention, spinner and the
-  selection bar (#90, `Theme.text`); groups have no color. Session: `WindowSnapshot.groups` +
+  selection outline; groups have no color. Session: `WindowSnapshot.groups` +
   `WorkspaceSnapshot.group` (an index), both optional, so files decode both ways.
 - `WindowSnapshot.sidebar` is optional (absent = automatic); keep it that way so older files
   decode. Don't persist the automatic value as an explicit one.
@@ -208,17 +208,19 @@
   `visibleWorkspaceSwitchers`, before the edge bands (the pills lie in the titlebar row, which is
   otherwise the top-edge promote band). A new switcher style only needs to conform.
 - Both draw attention only through `AttentionStyle.draw` (#7 owns the look), called last in `draw`.
-- Both mark the selected workspace through `SelectionStyle` (WorkspaceSwitcher.swift, #90, which
-  replaced #52's outline): the `Theme.workspaceSelection` fill inset like the color tint,
-  `Theme.Fonts.workspaceActive`, and a bar in the workspace color or `Theme.text`
-  (`SelectionStyle.drawBar`): `rowBarRect` at a sidebar row's or header's right edge
-  (`workspaceBarWidth`, 4pt), `pillBarRect` along a pill's or label pill's bottom edge
-  (`workspacePillBarWidth`, 3pt), both inside the attention outline's path. **No selection outline,
-  and no color chip on any entry** (the user's call on #90): outlines are attention's alone, and an
-  unselected colored entry shows only its tint. A sidebar group header keeps 4pt of extra right
-  padding so its count and dot clear the bar. Change both switchers together;
-  `SelfTestSelection.swift` checks both (bar edge and color, no outline, no chip, attention still
-  outlined on a selected entry).
+- Both mark the selected workspace through `SelectionStyle` (WorkspaceSwitcher.swift; #52, and
+  again after #90's edge bar was reversed): a neutral `Theme.text` outline (`drawOutline`,
+  `workspaceSelectionOutline` = the attention outline's width and path) and
+  `Theme.Fonts.workspaceActive`; pills (not sidebar rows) also get the `Theme.workspaceSelection`
+  fill (`drawFill`), inset like the color tint. Sidebar rows and headers draw attention with
+  `outline: false` (#91: a large dot, `sidebarDotSize`, centred on the row, plus the tint), so their
+  selection outline never yields and is drawn **after** `AttentionStyle.draw`, whose tint would
+  otherwise wash over it. On pills and label pills it yields to an attention outline (selection
+  alpha = 1 − attention alpha, cross-fading back during #34's fade) and is drawn just **before**
+  `AttentionStyle.draw`. Colored sidebar rows have a 3pt chip at the left edge (`chipRect`,
+  `ColorStyle.drawChip`), selected or not; pills have none. Change both switchers together;
+  `SelfTestSelection.swift` checks both. Sidebar attention is checked with
+  `PixelProbe.hasWaitingDot`/`hasFailedDot` (large dot, no outline), never `isWaitingOutlined`.
 
 ## Settings (`Settings.swift`, `SettingsFile.swift`, `TOML.swift`, `SettingsBanner.swift`)
 
@@ -289,9 +291,9 @@
   (`moveToNewTab`, promoting a pane) start uncolored, and dropping a tab onto a pane
   (`merge(tab:)`) or a fold that splits it into another tab dissolves it and its color.
 - Draw colors only through `ColorStyle.drawTint` (inset by `AttentionStyle.outlineWidth`, so the
-  attention outline stays outside it), a tab's underline, and `SelectionStyle.drawBar` on the selected
-  switcher entry (#90; there is no chip any more), and call `AttentionStyle.draw` after them. The
-  self-test checks that a waiting-blue workspace or tab doesn't read as outlined.
+  attention outline stays outside it), a tab's underline, and `ColorStyle.drawChip` (sidebar rows
+  only; pills have no chip since #90), and call `AttentionStyle.draw` after them. The self-test
+  checks that a waiting-blue workspace or tab doesn't read as outlined (or, on the sidebar, dotted).
 - Swatches come from `Theme.swatches` (light/dark variants, or `[colors] palette`). Parse
   user-given colors with `Theme.parseColor` (CLI and settings share it).
 - `autoAssignColor` runs from `insert(workspace:)`, so it covers every workspace created after the
@@ -475,7 +477,8 @@
   the colour; every drawer (pane ring, `AttentionStyle`, the status line)
   reads them, never the state directly. `waiting` and `failed` are always outlined; `done` follows
   `[attention] done` (default "outline") and `unread` follows `[attention] unread` (default "dot"),
-  read live. Outlined means the pane ring plus an outline, tint and dot on the tab and workspace entry;
+  read live. Outlined means the pane ring plus an outline, tint and dot on the tab and workspace entry
+  (on the sidebar, #91: the tint and a large dot, never an outline; every state there gets the large dot);
   an outlined done/unread is exactly waiting's look, in `Theme.attentionWaiting` (adaptive blue). A
   dot state is a muted dot only (`Theme.attentionDone` = `textMuted`). Priority doesn't change with
   the look. A settings reload of those keys calls `applyTheme()` so unchanged marks redraw

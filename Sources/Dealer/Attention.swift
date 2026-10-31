@@ -459,27 +459,34 @@ extension TabButton {
 /// - done / unread: drawn like waiting when `Attention.outlined` says so (`[attention] done` /
 ///   `unread`, #61; done is outlined by default), else a muted dot only;
 /// - none: nothing.
+/// Sidebar rows and headers (#91) pass `outline: false`: no outline for any state, the tint as
+/// above, and a large dot (`Theme.Metrics.sidebarDotSize`) for every state, which carries
+/// attention alone there. Outlines on the sidebar mean selection (`SelectionStyle`).
 /// Call it last in `draw(_:)`, so the outline sits on top of the element's own fill.
 enum AttentionStyle {
     static let outlineWidth: CGFloat = 1.5
 
     /// `alpha` < 1 while a cleared state fades out (#34).
-    static func draw(_ attention: Attention, in rect: CGRect, cornerRadius: CGFloat, dotRect: CGRect?, alpha: CGFloat = 1) {
-        draw(attention, in: rect, shape: .rounded(cornerRadius), dotRect: dotRect, alpha: alpha)
+    static func draw(_ attention: Attention, in rect: CGRect, cornerRadius: CGFloat, dotRect: CGRect?, alpha: CGFloat = 1,
+                     outline: Bool = true) {
+        draw(attention, in: rect, shape: .rounded(cornerRadius), dotRect: dotRect, alpha: alpha, outline: outline)
     }
 
     /// The same for any `ChromeShape` (#84): a connected tab's outline leaves its bottom edge open,
     /// where the tab runs into its content, and its tint fills down to that edge.
-    static func draw(_ attention: Attention, in rect: CGRect, shape: ChromeShape, dotRect: CGRect?, alpha: CGFloat = 1) {
+    static func draw(_ attention: Attention, in rect: CGRect, shape: ChromeShape, dotRect: CGRect?, alpha: CGFloat = 1,
+                     outline: Bool = true) {
         guard alpha > 0, let base = attention.color else { return }
         let color = base.withAlphaComponent(base.alphaComponent * alpha)
         if attention.outlined {
             color.withAlphaComponent(0.10 * alpha).setFill()
             shape.fillPath(in: rect, inset: outlineWidth / 2).fill()
-            let path = shape.outlinePath(in: rect, inset: outlineWidth / 2)
-            color.setStroke()
-            path.lineWidth = outlineWidth
-            path.stroke()
+            if outline {
+                let path = shape.outlinePath(in: rect, inset: outlineWidth / 2)
+                color.setStroke()
+                path.lineWidth = outlineWidth
+                path.stroke()
+            }
         }
         if let dotRect {
             color.setFill()
