@@ -169,6 +169,12 @@ The GitHub repo is `jonsmithers/dealer`.
     can be checked from its log without recording.
   - Demo shells use `ZDOTDIR=/tmp/demo` (set up by the script) and source Ghostty's shell integration;
     without it every pane counts as busy and closing one asks for confirmation.
+- **Your own windows can't disturb a run.** The self-test ignores `NSWindow.occlusionState`
+  (`WindowVisibility.ignoresOcclusion`): a window covering the test window used to occlude its
+  panes, failing `presence:` and `memory:` steps that need a drawn pane. An unattended run's
+  windows (`DEALER_SELFTEST=quit`) ignore real mouse events, so a click over them reaches the
+  window below instead of ending a drag step's drop. Steps post or send events to the window
+  directly, which still works. `DEALER_SELFTEST=1` keeps the mouse, for poking at the UI.
 - **The self-test never shows modals (#38).** Close and quit confirmations go through
   `Confirmation.skip` (one switch, on in self-test and demo mode), which accepts and logs
   `(auto-accepted confirmation: …)`. After every step the runner fails the step that left a sheet or

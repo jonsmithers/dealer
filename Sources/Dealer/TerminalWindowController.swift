@@ -65,6 +65,10 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         window.contentView = contentView
         window.tabbingMode = .disallowed
         window.isReleasedWhenClosed = false
+        // An unattended self-test window opens centred, over the user's own Dealer: a click meant for
+        // that one reached the test, and a drag step took it as its drop. The steps post or send their
+        // events to the window directly, so those still arrive.
+        if SelfTest.quitWhenDone { window.ignoresMouseEvents = true }
         super.init(window: window)
         window.delegate = self
         LiveObjects.add(.window)

@@ -35,6 +35,10 @@ extension TerminalWindowController {
         var counter = 0
         var testWorkspace: Workspace?
         var dragged: Tab?
+        var dragFacts = ""
+        func facts() -> String {
+            "deck area \(deckArea.integral), window \(window?.frame.integral ?? .zero), sidebar \(isSidebarVisible ? "shown" : "hidden")"
+        }
 
         func apply(_ m: Mode) {
             let url = Settings.fileURL
@@ -67,6 +71,7 @@ extension TerminalWindowController {
             guard let tab = deck.activeTab, let i = deck.index(of: tab) else { return }
             dragged = tab
             let button = deck.view.strip.buttons[i]
+            dragFacts = "dropped at \(edgePoint(side)) with \(facts())"
             dragControllerForTest(.tab(tab), from: button, toWindowPoint: contentView.convert(edgePoint(side), to: nil))
             layoutNow()
         }
@@ -84,7 +89,7 @@ extension TerminalWindowController {
         func landedAt(_ side: Side) -> String? {
             guard let tab = dragged, let deck = self.deck(of: tab), let ws = testWorkspace, let root = ws.root else { return "the tab is gone" }
             guard deck.tabs.count == 1 else { return "the tab should be alone in a new deck: \(describeWorkspaces(name: t.name))" }
-            return root.node(for: deck)?.outermostSide == side ? nil : "the new deck should sit at the \(side) edge: \(describeWorkspaces(name: t.name))"
+            return root.node(for: deck)?.outermostSide == side ? nil : "the new deck should sit at the \(side) edge: \(describeWorkspaces(name: t.name)) (\(dragFacts); now \(facts()))"
         }
         func all(_ problems: String?...) -> String? {
             let p = problems.compactMap { $0 }

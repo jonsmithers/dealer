@@ -47,6 +47,12 @@ extension TerminalWindowController {
         }
         var live: Bool { a?.surface.surface != nil }
 
+        t.step("occlusion: the user's own windows can't disturb the run: covering it occludes nothing, and an unattended run's window lets clicks through", nil, {
+            let clicks = self.window?.ignoresMouseEvents == SelfTest.quitWhenDone
+            return [WindowVisibility.ignoresOcclusion ? nil : "the self-test should ignore NSWindow.occlusionState",
+                    clicks ? nil : "the window should ignore real mouse events exactly when DEALER_SELFTEST=quit"]
+                .compactMap { $0 }.first
+        }) {}
         t.step("occlusion: a second window with a split and a background tab draws only the split", nil, {
             drawn([a, b], hidden: [c])
         }) {

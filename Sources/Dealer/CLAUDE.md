@@ -44,7 +44,9 @@
 - **Occlusion has one rule (#54):** `SurfaceView` tells libghostty a pane is visible only when
   `setVisible` (the layout's say) is true AND its window is visible (`WindowVisibility`: not
   minimized, not covered, not on another Space; each SurfaceView observes its own window). Never
-  call `ghostty_surface_set_occlusion` elsewhere. Occluded surfaces free their GPU swap chain but
+  call `ghostty_surface_set_occlusion` elsewhere. The self-test ignores the window server's
+  covered/other-Space answer (`WindowVisibility.ignoresOcclusion`); minimizing and `overrides`
+  still count. Occluded surfaces free their GPU swap chain but
   keep their size, shell, scrollback and attention; occlusion never resizes.
 - **Surfaces start occluded (#53).** `layoutVisible` is false until the layout shows the pane;
   `layout(deck:)` calls `setVisible(true)` for every shown pane on every pass (after sizing it), not
