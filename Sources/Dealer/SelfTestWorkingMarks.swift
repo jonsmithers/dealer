@@ -12,6 +12,7 @@ extension TerminalWindowController {
         var ids: [String: Int] = [:]
         var lastError: String?
         var claudeLink: String?
+        var shellReady = false
         let savedSwitcher = Settings.workspaceSwitcher
 
         func all(_ problems: [String?]) -> String? {
@@ -214,6 +215,7 @@ extension TerminalWindowController {
                 print("      (skipped the live working-mark check: ghostty couldn't create terminal surfaces here)")
                 return all([])
             }
+            guard shellReady else { return all(["mk-c's shell never answered"]) }
             var p: [String?] = []
             c.surface.typeText("printf '\\033]9;4;3\\007'\r")
             p.append(SelfTest.waitUntil("the shell's 9;4;3 to show an arc", timeout: 10) { c.workingMark == .arc })
@@ -241,7 +243,7 @@ extension TerminalWindowController {
             if let m2 = ws("marks 2") { self.activate(m2) }
             report("mk-c", false)
             self.layoutNow()
-            pane("mk-c")?.surface.waitForShell()
+            shellReady = pane("mk-c")?.surface.waitForShell() ?? false
         }
 
         t.step("marks: clean up", nil, {
