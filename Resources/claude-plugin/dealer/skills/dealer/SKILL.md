@@ -10,20 +10,35 @@ command replies only after the change is applied, so there's nothing to wait or 
 If `dealer` isn't on `PATH` (a development build), run `"$DEALER_CLI"` instead. `dealer help`
 prints the full usage; this guide covers what you need.
 
+## Keep it quiet
+
+Arranging panes is a side errand. Whatever the user is actually working on is the point.
+- **One Bash call per request.** Chain the action and its check (`&&`, `||`). The recipes below
+  resolve targets themselves, so you don't need `identify`, `list` or `read` first.
+- **Don't narrate.** Say nothing about which pane you picked or why, and keep the tool
+  description short ("Open nvim to the right"). Afterwards, one short clause: "nvim's open in the
+  pane to your right." Leave out pane IDs unless the user works with them.
+- **Don't deliberate.** The words below have fixed meanings. Ask only when the user names
+  something that matches several panes, or before typing into a busy pane or closing one.
+
 ## Vocabulary
 
 - **Window** → **workspace** (a window shows one at a time) → **deck** (a region of the window
   with its own tab strip) → **tab** → **pane** (one terminal). Use these words with the user.
 - Every object has a numeric ID, stable for its lifetime (it survives moves) but not across
   restarts. Never reuse IDs from an earlier session; look them up again.
-- **Targets** (`-t`): `pane:N` (or just `N`), `tab:N`, `deck:N`, `workspace:N`, `window:N`, or
-  `focused`. With no target, a command acts on **your own pane** (`$DEALER_PANE_ID`). A pane
-  command given a tab/deck/workspace/window uses the pane that would get focus there.
+- **Targets** (`-t`): `pane:N` (or just `N`), `tab:N`, `deck:N`, `workspace:N`, `window:N`,
+  `focused`, or `left`/`right`/`up`/`down`: the pane beside yours that way (as ⌘⌥-arrow picks it,
+  also across decks). With no target, a command acts on **your own pane** (`$DEALER_PANE_ID`). A
+  pane command given a tab/deck/workspace/window uses the pane that would get focus there.
 
 ## Where to act
 
-- "Here", "beside you", "next to you", or no place named: your own pane. That's the default, so
-  leave out `-t`.
+- "Beside you", "next to you", "in a new split", or no place named: a new pane split from yours
+  (`create pane --side right`; your own pane is the default target, so leave out `-t`).
+- "The neighboring split", "the other split", "the pane on the right" / "below": the existing pane
+  that way, `-t right` (or `left`/`up`/`down`). No side named means `right`. If there's no pane
+  there, or it's busy, make a new one on that side instead (recipe below).
 - "The focused pane", "the current tab", "what I'm looking at": `-t focused`. It can be a
   different pane from yours (the user may be looking elsewhere while you work).
 - A name ("the api workspace", "the tab running vite", "the nvim pane"): find it first. A name
@@ -51,6 +66,7 @@ dealer create workspace --name api --cwd ~/git/api --no-focus
 #   closes when it exits), --title T, --json (all the new IDs)
 
 dealer send-text -t 12 --enter 'npm run dev'     # type a line and press Enter
+dealer send-text -t right --if-idle --enter nvim # only if that pane sits at its shell prompt
 dealer send-text -t 12 --key ctrl+c              # keys: enter tab esc up down f5 ctrl+x alt+x ...
 dealer send-text -t 12 --paste --stdin < file    # a bracketed paste
 dealer read 12                                   # the pane's screen as text (also nvim and other TUIs)
@@ -72,15 +88,25 @@ reachable.
 
 - **Pass `--no-focus`** to `create`, unless the user asked to be taken there. Focus moves the
   user's keyboard, and they may be typing to you.
-- **Starting a program in a pane** (nvim, a dev server, `tail -f`, a watcher): create a pane
-  with `--no-focus`, then `send-text --enter` the command into it. It runs in the user's
-  interactive shell, with their `PATH`, aliases and rc environment, and the pane comes back to a
-  prompt when it exits. `create --command CMD` is for a pane that should close when the program
-  exits; it runs CMD from a login shell, which reads the user's profile but not `.zshrc`, so a
-  program only `.zshrc` puts on `PATH` isn't found (`command not found`).
-- **Check that it worked:** after starting something, `dealer read ID --wait RE` for text that
-  only its output shows (a prompt, `ready`, a URL), not for the command you typed: the typed line
-  is on the screen too. On a timeout, look at what `read` printed and tell the user what you see.
+- **Starting a program in a pane** (nvim, a dev server, `tail -f`, a watcher): `send-text
+  --enter` the command into a shell, so it runs with the user's `PATH`, aliases and rc
+  environment, and the pane comes back to a prompt when it exits. In a new pane:
+  ```sh
+  p=$(dealer create pane --side right --no-focus) && dealer send-text -t "$p" --enter 'npm run dev'
+  ```
+  In the neighboring pane, or a new one on that side when it has none or is busy:
+  ```sh
+  dealer send-text -t right --if-idle --enter nvim 2>/dev/null ||
+    dealer send-text -t "$(dealer create pane --side right --no-focus)" --enter nvim
+  ```
+  `create --command CMD` is for a pane that should close when the program exits. It runs CMD
+  from a login shell, which reads the user's profile but not `.zshrc`, so a program only
+  `.zshrc` puts on `PATH` isn't found (`command not found`).
+- **Check that it worked** when the program prints something you can recognize (a server's
+  `ready` or URL, a test summary). Add `&& dealer read ID --wait RE` to the same call, with RE
+  matching text only the output shows, not the command you typed: the typed line is on the
+  screen too. An editor or a shell needs no check. On a timeout, look at what `read` printed and
+  tell the user what you see.
 - **A one-off command the user wants run in a pane** ("run the tests beside you"):
   `dealer run -- CMD...`. It's a job pane split below you, with focus left alone. On success it
   shows `DONE`, lingers a few seconds and closes. On failure it stays open, marked failed, for
@@ -89,13 +115,15 @@ reachable.
 - **Reading a pane:** `dealer read` gives what's on its screen. For a command's full output,
   running it with your own Bash tool is still simpler; `read --scrollback` holds only what the
   terminal kept, wrapped to its width.
-- **Typing into a pane you didn't create:** run `dealer list` (its foreground process) or
-  `dealer read` (its screen) first. Text typed at an editor or a REPL goes to that program, not a shell. Don't
-  type into the user's panes, close them, or change their titles or colors unless they asked.
+- **Typing into a pane you didn't create:** text typed at an editor or a REPL goes to that
+  program, not a shell. When you mean to reach a shell, `--if-idle` checks that for you: it fails
+  without typing anything unless the pane sits at its shell prompt. To type into a program on
+  purpose (a key for the user's nvim), `dealer read` it first. Don't type into the user's panes,
+  close them, or change their titles or colors unless they asked.
 - **Your own pane:** never `send-text` into it, and never `close` it. `dealer identify --caller`
   prints its ID.
-- **Panes you made:** keep their IDs. Tell the user what you opened and where ("pane 14, to your
-  right, running `npm run dev`"). Close them when you're done with them, unless the user wants
-  them kept.
+- **Panes you made:** keep their IDs for later commands. Tell the user where by position, not
+  by ID ("the dev server's running in a new pane to your right"). Close them when you're done
+  with them, unless the user wants them kept.
 - **Attention is automatic:** Dealer already marks your pane when you wait for permission or
   finish a turn. Don't call `dealer notify` for that.

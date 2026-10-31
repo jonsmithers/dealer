@@ -8,6 +8,7 @@ extension TerminalWindowController {
     /// calls), in a workspace of its own, then does one real socket round-trip with the binary.
     func cliSelfTestSteps(_ t: SelfTestKit) {
         var ids: [String: Int] = [:]
+        var besideParked = ""
         var lastError: String?
         let tmp = NSTemporaryDirectory() + "dealer-selftest-\(getpid())"
         try? FileManager.default.createDirectory(atPath: tmp, withIntermediateDirectories: true)
@@ -238,6 +239,53 @@ extension TerminalWindowController {
             let found = problems.compactMap { $0 }
             return all(found.isEmpty ? nil : found.joined(separator: "; "))
         }) {}
+        t.step("cli: left/right/up/down target the pane beside the caller, also in a background workspace; send-text --if-idle", nil, {
+            func beside(_ dir: String, of n: String) -> String {
+                guard let l = try? ControlHandler.resolve(dir, .init(caller: ids[n])), let p = l.pane else { return "none" }
+                return t.name(p)
+            }
+            // Row(Deck0[Col(Row(c0, c2), c1)], Deck1[Row(c4, c5)]): c2's right crosses into Deck1.
+            let shown = [beside("right", of: "c0"), beside("down", of: "c0"), beside("left", of: "c0"),
+                         beside("up", of: "c1"), beside("right", of: "c2")]
+            let parked = besideParked
+            let missing = ControlHandler.handle(["cmd": "send-text", "args": ["target": "left", "text": "x"], "caller": ids["c0"]!])
+            var idle: [String?] = []
+            if live {
+                let atPrompt = ControlHandler.handle(["cmd": "send-text", "args": ["target": "right", "if_idle": true,
+                                                                                   "text": "echo idle-marker-$((6*7))", "enter": true],
+                                                      "caller": ids["c0"]!])
+                let command = ControlHandler.handle(["cmd": "send-text", "args": ["target": "\(ids["c5"]!)", "if_idle": true, "text": "x"]])
+                let typed = SelfTest.waitUntil(timeout: 15) {
+                    (call("read", ["target": "\(ids["c2"]!)"])?["text"] as? String)?.contains("idle-marker-42") == true
+                }
+                // The same shell running a program isn't at its prompt.
+                t.pane("c2").surface.typeText("sleep 30\r")
+                let busy = SelfTest.waitUntil(timeout: 15) { !ControlHandler.atShellPrompt(t.pane("c2")) }
+                let running = ControlHandler.handle(["cmd": "send-text", "args": ["target": "right", "if_idle": true, "text": "x"],
+                                                     "caller": ids["c0"]!])
+                call("send-text", ["target": "\(ids["c2"]!)", "items": [["key": "ctrl+c"]]])
+                idle = [atPrompt["ok"] as? Bool == true ? nil : "--if-idle refused a shell at its prompt: \(atPrompt["error"] ?? "?")",
+                        typed ? nil : "--if-idle text never reached c2's shell",
+                        command["ok"] as? Bool == false ? nil : "--if-idle typed into a --command pane",
+                        busy && running["ok"] as? Bool == false ? nil : "--if-idle typed into a shell running `sleep 30`",
+                        (running["error"] as? String)?.contains("sleep") != false ? nil : "the refusal should name the program: \(running["error"] ?? "")"]
+            } else {
+                idle = [skipped("send-text --if-idle")]
+            }
+            lastError = nil
+            return all(shown == ["c2", "c1", "none", "c0", "c4"] ? nil : "right/down/left of c0, up of c1, right of c2 gave \(shown)",
+                       parked == "c2" ? nil : "right of c0 in a background workspace gave \(parked)",
+                       missing["ok"] as? Bool == false ? nil : "a direction with no pane should fail",
+                       idle.compactMap { $0 }.isEmpty ? nil : idle.compactMap { $0 }.joined(separator: "; "))
+        }) {
+            // Look from c0 while another workspace is showing, then come back.
+            let cli = self.activeWorkspace
+            guard let other = self.workspaces.first(where: { $0 !== cli })?.validFocusedPane else { besideParked = "no other workspace"; return }
+            self.focus(other)
+            besideParked = self.activeWorkspace === cli ? "cli still active"
+                : (try? ControlHandler.resolve("right", .init(caller: ids["c0"])))?.pane.map(t.name) ?? "none"
+            self.focus(t.pane("c1"))
+        }
         t.step("cli: bad targets fail", nil, {
             let bad = ControlHandler.handle(["cmd": "focus", "args": ["target": "pane:999999"]])
             let gone = ControlHandler.handle(["cmd": "create", "caller": 999999])

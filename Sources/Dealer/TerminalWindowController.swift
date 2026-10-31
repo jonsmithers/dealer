@@ -161,6 +161,18 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
+    /// Pane frames in window coordinates for `ws`'s active tabs: what's shown for the active
+    /// workspace, the parked layout (#45) for the others.
+    func paneFrames(in ws: Workspace) -> [(Pane, CGRect)] {
+        if ws === activeWorkspace { return visiblePaneFrames }
+        return ws.decks.flatMap { deck -> [(Pane, CGRect)] in
+            guard deck.view.superview != nil, let tab = deck.activeTab else { return [] }
+            return tab.panes.compactMap { p in
+                p.view.superview == nil ? nil : (p, p.view.convert(p.view.bounds, to: contentView))
+            }
+        }
+    }
+
     func frame(of node: Node<Pane>) -> CGRect? {
         let rects = node.leaves.compactMap { p in visiblePaneFrames.first { $0.0 === p }?.1 }
         guard var r = rects.first else { return nil }
@@ -679,10 +691,17 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     /// Directional focus crosses deck boundaries purely by geometry.
     func moveFocus(_ dir: Side) {
-        let frames = visiblePaneFrames
-        guard let cur = focusedPane, let from = frames.first(where: { $0.0 === cur })?.1 else { return }
+        guard let cur = focusedPane else { return }
+        if let p = neighbor(of: cur, dir, among: visiblePaneFrames) { focus(p) } else { NSSound.beep() }
+    }
+
+    /// The pane beside `pane` toward `dir` among `frames`: the nearest one that way, preferring
+    /// one that overlaps it across the axis. Used by ⌘⌥-arrow and by the control socket's
+    /// `left`/`right`/`up`/`down` targets.
+    func neighbor(of pane: Pane, _ dir: Side, among frames: [(Pane, CGRect)]) -> Pane? {
+        guard let from = frames.first(where: { $0.0 === pane })?.1 else { return nil }
         var best: (Pane, CGFloat)?
-        for (p, r) in frames where p !== cur {
+        for (p, r) in frames where p !== pane {
             let primary: CGFloat
             let overlap: Bool
             let perp: CGFloat
@@ -709,11 +728,11 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
                 perp = abs(r.midX - from.midX)
             }
             // Crossing into another deck lands on the pane you left there, when it's in line.
-            let remembered = overlap && locate(p).map { $0.tab.lastFocused === p && $0.deck !== locate(cur)?.deck } == true
+            let remembered = overlap && locate(p).map { $0.tab.lastFocused === p && $0.deck !== locate(pane)?.deck } == true
             let score = primary + (overlap ? (remembered ? 0 : perp * 0.01 + 0.001) : 10_000 + perp)
             if best == nil || score < best!.1 { best = (p, score) }
         }
-        if let p = best?.0 { focus(p) } else { NSSound.beep() }
+        return best?.0
     }
 
     // MARK: - Layout

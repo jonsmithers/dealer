@@ -19,7 +19,8 @@ enum CLI {
     static let usage = """
     usage: dealer <command> [options]
 
-    Targets (-t/--target): pane:N (or just N), tab:N, deck:N, workspace:N, window:N, focused.
+    Targets (-t/--target): pane:N (or just N), tab:N, deck:N, workspace:N, window:N, focused,
+    or left/right/up/down (the pane beside the default target, as ⌘⌥-arrow would pick it).
     Default target: $DEALER_PANE_ID (the pane you're running in), else the focused pane.
 
       identify [--caller | --focused] [--json]   the calling and the focused pane
@@ -29,8 +30,9 @@ enum CLI {
       create [pane|tab|deck|workspace] [-t T] [--side left|right|up|down] [--size 12|30%|0.3]
              [--cwd DIR] [--command CMD] [--title T] [--name WS] [--no-focus] [--json]
                                                  prints the new pane's ID
-      send-text [-t T] [--key K]... [--enter] [--paste] [--stdin] [TEXT...]
-                                                 type text/keys (enter, tab, esc, ctrl+c, up, f5, ...)
+      send-text [-t T] [--key K]... [--enter] [--paste] [--stdin] [--if-idle] [TEXT...]
+                                                 type text/keys (enter, tab, esc, ctrl+c, up, f5, ...);
+                                                 --if-idle: fail unless the pane is at its shell prompt
       read [TARGET] [--scrollback] [--lines N] [--wait RE] [--timeout S]
                                                  print a pane's screen (--scrollback: and its history);
                                                  --wait: until RE matches it (exit 1 after S s, def. 10)
@@ -135,7 +137,7 @@ enum CLI {
             "find": ["--process", "--title", "--cwd", "--after", "--next"],
             "create": target.union(focus).union(["--side", "--location", "--size", "--bias", "--cwd", "--command", "-e",
                                                  "--title", "--name"]),
-            "send-text": target.union(["--key", "-k", "--enter", "--paste", "--stdin"]),
+            "send-text": target.union(["--key", "-k", "--enter", "--paste", "--stdin", "--if-idle"]),
             "read": target.union(["--scrollback", "--lines", "--wait", "--timeout"]),
             "focus": target,
             "resize": target.union(["--axis", "--to", "--by", "--increment"]),
@@ -217,6 +219,7 @@ enum CLI {
             case "--key", "-k": items.append(["key": try val()])
             case "--enter": a["enter"] = true
             case "--paste": a["paste"] = true
+            case "--if-idle": a["if_idle"] = true
             case "--stdin":
                 let data = FileHandle.standardInput.readDataToEndOfFile()
                 items.append(["text": String(decoding: data, as: UTF8.self)])

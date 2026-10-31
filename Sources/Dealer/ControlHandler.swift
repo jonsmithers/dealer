@@ -7,8 +7,9 @@ import GhosttyKit
 /// methods the menus use.
 ///
 /// Targets are written `pane:N`, `tab:N`, `deck:N`, `workspace:N`, `window:N`, a bare `N` (a pane),
-/// or `focused`. With no target, a command acts on the caller's pane (`caller`, which the CLI fills
-/// from `$DEALER_PANE_ID`), else on the focused pane.
+/// `focused`, or `left`/`right`/`up`/`down` (the pane beside the default one, as ⌘⌥-arrow picks it).
+/// With no target, a command acts on the caller's pane (`caller`, which the CLI fills from
+/// `$DEALER_PANE_ID`), else on the focused pane.
 enum ControlHandler {
     struct Failure: Error { let message: String }
 
@@ -99,6 +100,8 @@ enum ControlHandler {
         return nil
     }
 
+    static let directions: [String: Side] = ["left": .left, "right": .right, "up": .top, "down": .bottom]
+
     static func pane(id: Int) -> Pane? {
         for wc in controllers {
             for p in wc.workspaces.flatMap(\.panes) where p.id == id { return p }
@@ -122,10 +125,17 @@ enum ControlHandler {
             guard let p = focusedPane, let l = locate(p) else { throw Failure(message: "no pane has focus") }
             return l
         }
+        if let dir = directions[ref.lowercased()] {
+            let from = try resolve(nil, ctx)
+            guard let pane = from.pane, let ws = from.ws,
+                  let p = from.wc.neighbor(of: pane, dir, among: from.wc.paneFrames(in: ws)), let l = locate(p)
+            else { throw Failure(message: "no pane \(ref) of pane \(from.pane?.id ?? 0)") }
+            return l
+        }
         let parts = ref.split(separator: ":", maxSplits: 1).map(String.init)
         let kind = parts.count == 2 ? parts[0].lowercased() : "pane"
         guard let id = Int(parts.last ?? "") else {
-            throw Failure(message: "bad target '\(ref)' (expected pane:N, tab:N, deck:N, workspace:N, window:N, N or focused)")
+            throw Failure(message: "bad target '\(ref)' (expected pane:N, tab:N, deck:N, workspace:N, window:N, N, focused, left, right, up or down)")
         }
         switch kind {
         case "pane", "p":
@@ -446,6 +456,9 @@ enum ControlHandler {
     static func sendText(_ args: [String: Any], _ ctx: Context) throws -> [String: Any] {
         let loc = try resolve(args["target"], ctx)
         guard let pane = loc.focusPane, let surface = pane.surface.surface else { throw Failure(message: "no pane to send to") }
+        if args["if_idle"] as? Bool == true, !atShellPrompt(pane) {
+            throw Failure(message: "pane \(pane.id) is running \(foregroundName(pane) ?? "something"), not at its shell prompt")
+        }
         var items = args["items"] as? [[String: Any]] ?? []
         if let t = args["text"] as? String { items.insert(["text": t], at: 0) }
         if args["enter"] as? Bool == true { items.append(["key": "enter"]) }
@@ -464,6 +477,33 @@ enum ControlHandler {
             }
         }
         return ["pane": pane.id]
+    }
+
+    /// True when the pane's shell itself is in the foreground, so typed text reaches its prompt
+    /// rather than a program it runs. The shell is the login shell (`-zsh`) that `login` started on
+    /// the pane's tty; a `--command` pane has none, since its command replaced it.
+    static func atShellPrompt(_ p: Pane) -> Bool {
+        guard let s = p.surface.surface else { return false }
+        let fg = Int32(truncatingIfNeeded: ghostty_surface_foreground_pid(s))
+        guard fg > 0, let tty = ttyDevice(s) else { return false }
+        let onTTY = ProcessTree.all().filter { $0.tdev == tty }
+        guard let login = onTTY.first(where: { $0.name == "login" }),
+              let shell = onTTY.first(where: { $0.ppid == login.pid }),
+              ProcessTree.arguments(of: shell.pid)?.first?.hasPrefix("-") == true else { return false }
+        return shell.pgid == shell.tpgid && (fg == shell.pid || fg == shell.pgid)
+    }
+
+    static func ttyDevice(_ s: ghostty_surface_t) -> dev_t? {
+        let str = ghostty_surface_tty_name(s)
+        defer { ghostty_string_free(str) }
+        guard let ptr = str.ptr else { return nil }
+        return ProcessTree.device(ofTTY: String(decoding: UnsafeRawBufferPointer(start: ptr, count: Int(str.len)), as: UTF8.self))
+    }
+
+    static func foregroundName(_ p: Pane) -> String? {
+        guard let s = p.surface.surface else { return nil }
+        let fg = Int32(truncatingIfNeeded: ghostty_surface_foreground_pid(s))
+        return fg > 0 ? ProcessTree.arguments(of: fg)?.first.map { ($0 as NSString).lastPathComponent } : nil
     }
 
     /// `create --command CMD` runs `$SHELL -l -c 'exec CMD'`. Ghostty starts a command with no
