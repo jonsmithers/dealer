@@ -680,7 +680,7 @@ extension TerminalWindowController {
             say("Switch to another workspace: the agent's spins in the sidebar")
             mouse.click(at(row("docs")))
             mouse.wait(3.2)
-            say("It needs you: the spinner gives way to a blue outline")
+            say("It needs you: the spinner gives way to a big blue dot")
             mouse.move(to: at(row("app"), 0.85, 0.5), duration: 0.9)
             mouse.wait(0.9)
             say("Then the build fails: red, since a failure outranks waiting")
