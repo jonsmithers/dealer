@@ -49,6 +49,14 @@ Claude session: a real one shows its own permission prompt in the pane.
 https://github.com/user-attachments/assets/73c72f48-1641-46da-bae7-ef8fa109fd4e
 </details>
 
+<details>
+<summary><b>5. Claude drives Dealer</b>: ask Claude Code to "open nvim in the split next to you", "run the tests in a new tab" or "put the api workspace in front", and it does, without moving your focus or narrating it</summary>
+
+Every `claude` started in a Dealer pane loads Dealer's bundled plugin, so there's nothing to
+install: its `dealer` skill teaches Claude the [`dealer` CLI](docs/cli.md). See
+[Claude Code hooks](#claude-code-hooks-automatic).
+</details>
+
 Demo videos are recorded with `scripts/record-demo.sh`.
 
 > [!WARNING]
@@ -341,9 +349,13 @@ too. Needs Claude Code 2.1.280 or later; older versions ignore the variable.
 
 **Claude can drive Dealer.** The same plugin carries a `dealer` skill, which teaches Claude the
 [`dealer` CLI](docs/cli.md), and a `SessionStart` hook that tells it which pane it's in. So you can
-ask it to "start the dev server in a pane beside you", "run the tests in a new tab", "put the
-api workspace in front" or "which pane is running nvim?", the way you'd ask for anything else.
-With no place named, Claude acts next to its own pane. "The focused pane" means the one you're
+ask it to "open nvim in the split next to you", "start the dev server in a pane beside you", "run
+the tests in a new tab", "put the api workspace in front" or "which pane is running nvim?", the
+way you'd ask for anything else. Claude treats it as a side errand: usually one command, no
+commentary on which pane it picked, and a one-line answer ("nvim's open in the pane to your
+right"). With no place named, or "beside you", Claude splits a new pane from its own. "The split
+next to you" is the pane already there (`dealer … -t right`), when it's sitting at a shell prompt;
+otherwise Claude makes a new one on that side. "The focused pane" means the one you're
 looking at, and a name (a workspace, a tab title, a program) picks that one. It opens panes
 without moving your focus, and reads a pane's screen with `dealer read` to check that what it
 started is running. The `SessionStart` hook also runs for `claude -p`, since it only adds context.
