@@ -235,7 +235,7 @@ The GitHub repo is `jonsmithers/dealer`.
 
 - Menu shortcuts beat ghostty keybinds: `SurfaceView.performKeyEquivalent` asks the main menu
   first. For example, ⌘⇧P is Promote, not Ghostty's command palette, and ⌃1–9 switch workspaces,
-  so programs never see ctrl-digit.
+  so programs never see ctrl-digit (nor ⌃⇧R, Rename Workspace).
 - Programs' clipboard access (OSC 52, kitty OSC 5522) follows ghostty's `clipboard-read` /
   `clipboard-write` (#55; defaults read = ask, write = allow). libghostty enforces the policy;
   `GhosttyClipboard` only asks for `ask`, through `TerminalWindowController.confirm`, naming the

@@ -156,6 +156,8 @@ starts in your `working-directory`. Restored sessions keep each pane's saved dir
 | Key | Action |
 |---|---|
 | ⌘T | New tab in the focused deck |
+| ⌘⇧T | **Move to New Tab**: the focused pane (or a ⌘⇧↑ selection) leaves its split for a tab of its own, right after the one it left |
+| ⌘⇧R | Rename the active tab |
 | ⌘D / ⌘⇧D | Split right / down (makes panes) |
 | ⌘W / ⌥⌘W | Close pane / tab |
 | ⌘1…⌘8, ⌘9 | Go to tab / last tab in the focused deck |
@@ -168,6 +170,7 @@ starts in your `working-directory`. Restored sessions keep each pane's saved dir
 | ⌃⌘= | Equalize splits |
 | ⌘N / ⇧⌘N | New workspace / new window |
 | ⌃1…⌃9 | Go to workspace N |
+| ⌃⇧R | Rename the active workspace |
 | ⌃⌘W | Close workspace |
 | ⌃⌘] / ⌃⌘[ | Next / previous workspace |
 | ⌘B | Show / hide the workspace sidebar (sidebar mode only) |
@@ -179,7 +182,8 @@ starts in your `working-directory`. Restored sessions keep each pane's saved dir
 
 These menu shortcuts win over Ghostty keybinds, so a `keybind` in your Ghostty config on one of
 these keys never fires. Ghostty has no default ⌘B binding, but a `keybind = cmd+b=…` of yours is
-shadowed by the sidebar toggle.
+shadowed by the sidebar toggle. Like ⌃1–9, ⌃⇧R is taken before the terminal, so programs that
+read it apart from ⌃R (with the kitty keyboard protocol) never see it.
 
 **Go to Pane** (⌘⇧A, Shell › Go to Pane…) opens a search over every pane in every window. Type
 part of a pane's title, or of its tab's or workspace's name (the letters in order, not
@@ -189,10 +193,10 @@ directory, the window when there's more than one, and the pane's attention dot o
 or a click outside dismisses. With nothing typed it lists the panes you used most recently first,
 so ⌘⇧A ↩ goes back to the previous pane.
 
-Double-click a tab to rename it; middle-click or hover × to close it. A pane's bar (shown once a tab has two panes) has the same hover ×, which closes the pane like ⌘W.
+Double-click a tab (or press ⌘⇧R) to rename it; middle-click or hover × to close it. A pane's bar (shown once a tab has two panes) has the same hover ×, which closes the pane like ⌘W.
 
 Workspaces are listed in a sidebar on the left: number, name, attention dot, and a dim line
-with the focused pane's agent state, cwd and branch. Click a row to switch, double-click to
+with the focused pane's agent state, cwd and branch. Click a row to switch, double-click (or ⌃⇧R) to
 rename, right-click for a menu, middle-click to close, drag to reorder, "New Workspace" to add.
 It shows by itself once a window has two workspaces; the toggle right of the traffic lights (or
 ⌘B) hides or shows it, and that choice is remembered per window. The Workspace menu also moves

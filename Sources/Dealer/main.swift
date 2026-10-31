@@ -141,7 +141,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // ⇧⌘A (#66): uppercase "A" carries the shift, as for ⇧⌘N, so plain ⌘A stays Select All.
             item("Go to Pane…", #selector(TerminalWindowController.openPanePicker(_:)), "A"),
             .separator(),
-            item("Rename Tab…", #selector(TerminalWindowController.renameCurrentTab(_:))),
+            // ⇧⌘R: uppercase "R" carries the shift, as for ⇧⌘N.
+            item("Rename Tab…", #selector(TerminalWindowController.renameCurrentTab(_:)), "R"),
             item("Close Pane", #selector(TerminalWindowController.closePane(_:)), "w"),
             item("Close Tab", #selector(TerminalWindowController.closeTab(_:)), "w", [.command, .option]),
             item("Close Window", #selector(NSWindow.performClose(_:)), "w", [.command, .shift]),
@@ -162,6 +163,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         submenu("Layout", [
             item("Promote to Deck", #selector(TerminalWindowController.promoteToDeck(_:)), "p", [.command, .shift]),
+            // ⇧⌘T: the focused pane (or selected group) leaves its split for a tab of its own, next to
+            // its old one. Uppercase "T" carries the shift, so plain ⌘T stays New Tab.
+            item("Move to New Tab", #selector(TerminalWindowController.moveToNewTab(_:)), "T"),
             item("Fold Deck", #selector(TerminalWindowController.foldDeck(_:)), "f", [.command, .shift]),
             item("Select Parent Split", #selector(TerminalWindowController.selectParent(_:)), arrow(NSUpArrowFunctionKey), [.command, .shift]),
             .separator(),
@@ -198,7 +202,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }(),
             .separator(),
             item("New Workspace", #selector(TerminalWindowController.newWorkspace(_:)), "n"),  // ⌘N (#44)
-            item("Rename Workspace…", #selector(TerminalWindowController.renameWorkspace(_:))),
+            // ⌃⇧R: uppercase "R" carries the shift; ⇧⌘R is Rename Tab.
+            item("Rename Workspace…", #selector(TerminalWindowController.renameWorkspace(_:)), "R", .control),
             item("Close Workspace", #selector(TerminalWindowController.closeWorkspace(_:)), "w", [.command, .control]),
             .separator(),
             item("Next Workspace", #selector(TerminalWindowController.nextWorkspace(_:)), "]", [.command, .control]),

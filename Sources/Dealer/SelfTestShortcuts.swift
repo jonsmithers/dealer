@@ -120,5 +120,59 @@ extension TerminalWindowController {
             opened = []
             if let added, self.workspaces.contains(where: { $0 === added }) { self.remove(workspace: added) }
         }
+
+        t.step("shortcuts: ⇧⌘R Rename Tab, ⌃⇧R Rename Workspace, ⇧⌘T Move to New Tab, ⌘T still New Tab", nil, {
+            let items = Self.keyedMenuItems()
+            func owner(_ key: String, _ mods: NSEvent.ModifierFlags) -> [String] {
+                items.filter { $0.keyEquivalent.lowercased() == key && Self.effectiveModifiers($0) == mods }.map(\.title)
+            }
+            let want: [(String, NSEvent.ModifierFlags, String, String)] = [
+                ("r", [.command, .shift], "⇧⌘R", "Rename Tab…"),
+                ("r", [.control, .shift], "⌃⇧R", "Rename Workspace…"),
+                ("t", [.command, .shift], "⇧⌘T", "Move to New Tab"),
+                ("t", .command, "⌘T", "New Tab"),
+            ]
+            let p = want.compactMap { k, m, label, title in
+                owner(k, m) == [title] ? nil : "\(label): \(owner(k, m)), expected [\(title)]"
+            }
+            return p.isEmpty ? nil : p.joined(separator: "; ")
+        }) {}
+        var split: Pane?
+        var original: Pane?
+        t.step("shortcuts: ⇧⌘T moves the focused pane out of its split into a new tab right after", nil, { problem }) {
+            guard let p = self.focusedPane else { problem = "no focused pane"; return }
+            original = p
+            self.split(p, side: .right)
+            guard let new = self.focusedPane, new !== p, let deck = self.focusedDeck, let from = deck.activeTab,
+                  let i = deck.index(of: from) else { problem = "split didn't focus a new pane"; return }
+            split = new
+            let tabsBefore = deck.tabs.count
+            let rest = from.root.node(for: new)?.parent.flatMap { $0.a?.leaf === new ? $0.b : $0.a }
+            if !self.pressMenuKeyForTest("t", [.command, .shift], keyCode: kVK_ANSI_T, surface: new.surface) {
+                problem = "⇧⌘T matched no enabled item: \(Self.menuKeyFailure)"
+            } else if deck.tabs.count != tabsBefore + 1 || deck.activeIndex != i + 1 {
+                problem = "expected a new active tab at \(i + 1) of \(tabsBefore + 1), got \(deck.activeIndex) of \(deck.tabs.count)"
+            } else if deck.tabs[i + 1].root.leaf !== new || (rest.map { from.root !== $0 } ?? true) {
+                problem = "expected the new pane alone in the new tab and its old tab back to what it was"
+            } else if self.focusedPane !== new {
+                problem = "focus should follow the moved pane"
+            } else {
+                problem = nil
+            }
+        }
+        t.step("shortcuts: ⇧⌘T on a tab's only pane does nothing (menu item disabled)", nil, { problem }) {
+            guard let deck = self.focusedDeck else { problem = "no focused deck"; return }
+            let before = deck.tabs.count
+            if self.pressMenuKeyForTest("t", [.command, .shift], keyCode: kVK_ANSI_T, surface: split?.surface ?? surface()) {
+                problem = "⇧⌘T should be disabled on a lone pane"
+            } else if deck.tabs.count != before {
+                problem = "⇧⌘T changed the tab count on a lone pane"
+            } else {
+                problem = nil
+            }
+            // Leave the tree as it was: removing the new tab would otherwise leave its right neighbour active.
+            if let split { self.remove(split) }
+            if let original { self.focus(original) }
+        }
     }
 }

@@ -1012,6 +1012,14 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         guard let node, promote(node) else { return NSSound.beep() }
     }
 
+    /// ⇧⌘T: the selection, or the focused pane, becomes its own tab right after the one it left.
+    @objc func moveToNewTab(_ sender: Any?) {
+        guard let node = selection ?? focusedPane.flatMap({ locate($0)?.node }),
+              let loc = node.leaves.first.flatMap({ locate($0) }), node !== loc.tab.root,
+              let i = loc.deck.index(of: loc.tab) else { return NSSound.beep() }
+        moveToNewTab(node, deck: loc.deck, index: i + 1)
+    }
+
     @objc func foldDeck(_ sender: Any?) {
         guard let deck = focusedDeck, fold(deck) else { return NSSound.beep() }
     }
@@ -1077,6 +1085,9 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         case #selector(promoteToDeck(_:)):
             guard let node = selection ?? focusedPane.flatMap({ locate($0)?.node }), let loc = node.leaves.first.flatMap({ locate($0) }) else { return false }
             return node !== loc.tab.root || loc.deck.tabs.count > 1
+        case #selector(moveToNewTab(_:)):
+            guard let node = selection ?? focusedPane.flatMap({ locate($0)?.node }), let loc = node.leaves.first.flatMap({ locate($0) }) else { return false }
+            return node !== loc.tab.root
         default: return validateWorkspaceMenuItem(item) ?? true
         }
     }
