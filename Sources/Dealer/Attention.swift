@@ -449,7 +449,7 @@ extension TabButton {
     /// The outline stays while hovering; only the dot gives way to the close button.
     func drawAttentionDot(hidden: Bool) {
         AttentionStyle.draw(attentionFade.shown, in: bodyRect, shape: shape,
-                            dotRect: hidden ? nil : attentionDotRect, alpha: attentionFade.alpha)
+                            dotRect: hidden ? nil : attentionDotRect, alpha: attentionFade.alpha, dashed: true)
     }
 }
 
@@ -459,33 +459,42 @@ extension TabButton {
 /// - done / unread: drawn like waiting when `Attention.outlined` says so (`[attention] done` /
 ///   `unread`, #61; done is outlined by default), else a muted dot only;
 /// - none: nothing.
-/// Sidebar rows and headers (#91) pass `outline: false`: no outline for any state, the tint as
-/// above, and a large dot (`Theme.Metrics.sidebarDotSize`) for every state, which carries
-/// attention alone there. Outlines on the sidebar mean selection (`SelectionStyle`).
+/// Tabs pass `dashed: true`, sidebar rows and headers also `insideEdge: true`: dashed, and on the
+/// sidebar just inside the edge, because a solid outline there means selection (`SelectionStyle`).
+/// Pills keep the solid outline, which their selection outline yields to. Their dot is
+/// `Theme.Metrics.sidebarDotSize` (#91 made it large while they had no outline).
 /// Call it last in `draw(_:)`, so the outline sits on top of the element's own fill.
 enum AttentionStyle {
     static let outlineWidth: CGFloat = 1.5
+    /// Dash and gap of a dashed outline (tabs, sidebar).
+    static let dashPattern: [CGFloat] = [4, 3]
 
     /// `alpha` < 1 while a cleared state fades out (#34).
     static func draw(_ attention: Attention, in rect: CGRect, cornerRadius: CGFloat, dotRect: CGRect?, alpha: CGFloat = 1,
-                     outline: Bool = true) {
-        draw(attention, in: rect, shape: .rounded(cornerRadius), dotRect: dotRect, alpha: alpha, outline: outline)
+                     outline: Bool = true, dashed: Bool = false, insideEdge: Bool = false) {
+        draw(attention, in: rect, shape: .rounded(cornerRadius), dotRect: dotRect, alpha: alpha, outline: outline,
+             dashed: dashed, insideEdge: insideEdge)
     }
 
     /// The same for any `ChromeShape` (#84): a connected tab's outline leaves its bottom edge open,
     /// where the tab runs into its content, and its tint fills down to that edge.
     static func draw(_ attention: Attention, in rect: CGRect, shape: ChromeShape, dotRect: CGRect?, alpha: CGFloat = 1,
-                     outline: Bool = true) {
+                     outline: Bool = true, dashed: Bool = false, insideEdge: Bool = false) {
         guard alpha > 0, let base = attention.color else { return }
         let color = base.withAlphaComponent(base.alphaComponent * alpha)
         if attention.outlined {
             color.withAlphaComponent(0.10 * alpha).setFill()
             shape.fillPath(in: rect, inset: outlineWidth / 2).fill()
             if outline {
-                let path = shape.outlinePath(in: rect, inset: outlineWidth / 2)
+                // `insideEdge` (sidebar): the solid selection outline owns the edge there, so the
+                // dashes sit just inside it and both stay visible on a selected, attention-needing row.
+                let inset = insideEdge ? outlineWidth * 1.5 : outlineWidth / 2
                 color.setStroke()
-                path.lineWidth = outlineWidth
-                path.stroke()
+                for path in dashed ? shape.outlineHalves(in: rect, inset: inset) : [shape.outlinePath(in: rect, inset: inset)] {
+                    path.lineWidth = outlineWidth
+                    if dashed { path.setLineDash(dashPattern, count: 2, phase: 0) }
+                    path.stroke()
+                }
             }
         }
         if let dotRect {

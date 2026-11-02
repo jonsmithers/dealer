@@ -519,14 +519,14 @@ final class GroupHeaderView: FlippedView {
             let ch = ceil(cf.ascender - cf.descender)
             (countText as NSString).draw(at: CGPoint(x: right + 6, y: (bounds.height - ch) / 2), withAttributes: countAttrs)
         }
-        // As on a workspace entry: on the sidebar a large dot and no attention outline, then the
-        // selection outline on top (#91); on a pill the selection outline yields to attention's.
+        // As on a workspace entry: on the sidebar a dashed attention outline, then the solid
+        // selection outline on top; on a pill the selection outline yields to attention's.
         if isActive && style == .pill {
             SelectionStyle.drawOutline(in: bounds, cornerRadius: radius, yieldingTo: attentionFade.shown, attentionAlpha: attentionFade.alpha)
         }
         if attentionFade.shown > .none {
             AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: radius, dotRect: attentionDotRect,
-                                alpha: attentionFade.alpha, outline: style == .pill)
+                                alpha: attentionFade.alpha, dashed: style == .row, insideEdge: style == .row)
         }
         if isActive && style == .row { SelectionStyle.drawOutline(in: bounds, cornerRadius: radius) }
     }

@@ -75,6 +75,28 @@ struct ChromeShape: Equatable {
         return topRounded(b, max(radius - inset, 0))
     }
 
+    /// `outlinePath` in mirrored pieces for dashing: from the top edge's middle down each side, to
+    /// the bottom corner when open-bottom, else to the side's middle, where pieces from the bottom
+    /// edge's middle meet them. So the pattern is symmetric and a dash always covers the top and
+    /// bottom middles, where the self-test samples outlines.
+    func outlineHalves(in rect: CGRect, inset: CGFloat) -> [NSBezierPath] {
+        let b = CGRect(x: rect.minX + inset, y: rect.minY + inset, width: rect.width - 2 * inset,
+                       height: rect.height - (openBottom ? inset : 2 * inset))
+        let r = min(max(radius - inset, 0), b.width / 2, openBottom ? b.height : b.height / 2)
+        // Edge y, the corner's direction toward the side's far end, and where the piece stops.
+        var ends: [(y: CGFloat, dy: CGFloat, stop: CGFloat)] = [(b.minY, 1, openBottom ? b.maxY : b.midY)]
+        if !openBottom { ends.append((b.maxY, -1, b.midY)) }
+        return ends.flatMap { e in [(b.minX, 1.0), (b.maxX, -1.0)].map { x, dx in
+            let p = NSBezierPath()
+            // 1pt past the middle, so mirrored pieces overlap: met edge to edge, a pixel they split
+            // would be only partly covered by each and come out translucent.
+            p.move(to: CGPoint(x: b.midX + dx, y: e.y))
+            p.appendArc(from: CGPoint(x: x, y: e.y), to: CGPoint(x: x, y: e.y + e.dy * r), radius: r)
+            p.line(to: CGPoint(x: x, y: e.stop))
+            return p
+        } }
+    }
+
     /// Bottom-left, up, round the top corners, down to bottom-right (flipped: minY is the top).
     private func topRounded(_ b: CGRect, _ r: CGFloat) -> NSBezierPath {
         let r = min(r, b.width / 2, b.height)

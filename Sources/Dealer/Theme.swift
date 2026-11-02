@@ -163,9 +163,9 @@ enum Theme {
         /// The attention dot on top-bar pills: 8pt like a tab's (was 6), so the waiting `?` and the
         /// failed `!` stay legible at 1x (#65). Sidebar entries use `sidebarDotSize`.
         static let switcherDotSize: CGFloat = 8
-        /// The attention dot on sidebar rows and group headers (#91): large, since it carries
-        /// attention there alone (no outline); the `?` and `!` scale with it.
-        static let sidebarDotSize: CGFloat = 14
+        /// The attention dot on sidebar rows and group headers (#91 made it 14pt while it was the
+        /// only mark; a dashed outline shares the job now); the `?` and `!` scale with it.
+        static let sidebarDotSize: CGFloat = 9
         /// The selected entry's neutral outline (#52, back after #90): the attention outline's width
         /// and path, so on a pill an attention outline covers it exactly.
         static var workspaceSelectionOutline: CGFloat { AttentionStyle.outlineWidth }

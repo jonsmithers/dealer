@@ -215,14 +215,14 @@
   `workspaceSelectionOutline` = the attention outline's width and path) and
   `Theme.Fonts.workspaceActive`; pills (not sidebar rows) also get the `Theme.workspaceSelection`
   fill (`drawFill`), inset like the color tint. Sidebar rows and headers draw attention with
-  `outline: false` (#91: a large dot, `sidebarDotSize`, centred on the row, plus the tint), so their
-  selection outline never yields and is drawn **after** `AttentionStyle.draw`, whose tint would
+  `dashed: true, insideEdge: true` (a dashed outline just inside the edge, a `sidebarDotSize` dot, the tint), so their
+  solid selection outline never yields and is drawn **after** `AttentionStyle.draw`, whose tint would
   otherwise wash over it. On pills and label pills it yields to an attention outline (selection
   alpha = 1 − attention alpha, cross-fading back during #34's fade) and is drawn just **before**
   `AttentionStyle.draw`. Colored sidebar rows have a 3pt chip at the left edge (`chipRect`,
   `ColorStyle.drawChip`), selected or not; pills have none. Change both switchers together;
   `SelfTestSelection.swift` checks both. Sidebar attention is checked with
-  `PixelProbe.hasWaitingDot`/`hasFailedDot` (large dot, no outline), never `isWaitingOutlined`.
+  `PixelProbe.hasWaitingDot`/`hasFailedDot` (dot, and no solid outline at the edge), never `isWaitingOutlined`.
 
 ## Settings (`Settings.swift`, `SettingsFile.swift`, `TOML.swift`, `SettingsBanner.swift`)
 
@@ -486,8 +486,11 @@
   the look. A settings reload of those keys calls `applyTheme()` so unchanged marks redraw
   (`SelfTestAttentionStyle.swift`). Chrome elements draw attention only through
   `AttentionStyle.draw(_:in:cornerRadius:dotRect:)`, called last in `draw(_:)` so the outline
-  sits on the element's outer edge. The self-test samples the top edge's centre pixel
-  (`PixelProbe.isWaitingOutlined`), so don't inset the outline or draw it in a sublayer.
+  sits on the element's outer edge. Tab outlines are dashed (`dashed: true`); sidebar ones too, just
+  inside the selection outline (`insideEdge`); pills stay solid. Dashes run in two mirrored
+  halves from the top edge's middle (`ChromeShape.outlineHalves`), so a dash always covers the
+  pixel the self-test samples (`PixelProbe.isWaitingOutlined`); don't inset a tab's or pill's
+  outline or draw it in a sublayer.
 - "running" is `Pane.isReportingProgress` (OSC 9;4 from `GHOSTTY_ACTION_PROGRESS_REPORT`), not a
   process check; attention outranks it in `agentState`. *Who* reports it (#81) is a process check:
   `ProgressSource.note` records each report and decides Claude-or-not from the foreground process

@@ -294,9 +294,9 @@ final class WorkspaceRow: FlippedView {
                                       withAttributes: detailAttrs)
         }
         if dot {
-            // #91: no attention outline on the sidebar; the large dot (and the tint) carry it.
+            // Dashed: the solid outline on the sidebar is selection.
             AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: radius,
-                                dotRect: attentionDotRect, alpha: attentionFade.alpha, outline: false)
+                                dotRect: attentionDotRect, alpha: attentionFade.alpha, dashed: true, insideEdge: true)
         }
         // After attention, whose tint would wash over it; nothing on the sidebar covers it (#91).
         if selected { SelectionStyle.drawOutline(in: bounds, cornerRadius: radius) }
