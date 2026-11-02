@@ -24,19 +24,19 @@ the last tab closes its deck, the last deck its workspace, and the last workspac
 <details open>
 <summary><b>1. Panes and Decks layout</b>: drop tabs into side-by-side and stacked splits, drag a pane to the window edge for a new deck (it keeps its content while you switch tabs next to it), pull a pane out as a tab in another deck, drop a tab between two tabs of another deck</summary>
 
-https://github.com/user-attachments/assets/980dae97-4176-41b5-ad1e-b87077dfb330
+https://github.com/user-attachments/assets/af65e612-b17b-46c0-85c2-e4e7381b5e6c
 </details>
 
 <details>
 <summary><b>2. Workspaces</b>: one per project or worktree, each with its own color; click to switch, drag tabs between them, gather them into collapsible groups</summary>
 
-https://github.com/user-attachments/assets/ff129aa4-71b6-41e3-9a92-ad169512e84b
+https://github.com/user-attachments/assets/5c5329f4-dc4b-4ca0-a0a3-20b7315d188f
 </details>
 
 <details>
 <summary><b>3. Agents & Attention</b>: agent-working spinner, a progress ring for builds, blue accent when something is finished/waiting, red when something has failed. Visible from any workspace</summary>
 
-https://github.com/user-attachments/assets/3f28b24a-65b9-4f88-8b2e-aa548b10680a
+https://github.com/user-attachments/assets/eda5e78b-5923-40fc-8441-177f2e191d0c
 
 The states here are driven with `dealer notify`, typed into the pane; that's exactly what Dealer's
 automatic Claude Code hooks call (see [Attention](#attention-coding-agents)). This is not a live
@@ -46,7 +46,7 @@ Claude session: a real one shows its own permission prompt in the pane.
 <details>
 <summary><b>4. Go to Pane</b>: ⌘⇧A, type a few letters, jump to any pane in any workspace; ⏎ on an empty query goes back</summary>
 
-https://github.com/user-attachments/assets/73c72f48-1641-46da-bae7-ef8fa109fd4e
+https://github.com/user-attachments/assets/99a63a09-d14d-4e02-a27a-0588a257dce8
 </details>
 
 <details>
