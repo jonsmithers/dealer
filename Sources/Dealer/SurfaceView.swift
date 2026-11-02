@@ -454,7 +454,7 @@ final class SurfaceView: NSView, NSTextInputClient {
         guard event.type == .keyDown, window?.firstResponder === self, let surface else { return false }
 
         // Our own menu shortcuts (split, promote, fold, …) win over ghostty keybinds.
-        if let menu = NSApp.mainMenu, menu.performKeyEquivalent(with: event) { return true }
+        if Self.performMenuKeyEquivalent(event) { return true }
 
         var ev = keyEvent(GHOSTTY_ACTION_PRESS, event)
         var flags = ghostty_binding_flags_e(0)
@@ -473,6 +473,27 @@ final class SurfaceView: NSView, NSTextInputClient {
             return true
         }
         return false
+    }
+
+    /// Offers a key press to the main menu. With Control held, a real ⌃⇧R arrives with
+    /// `charactersIgnoringModifiers` "r": AppKit drops the Shift, so an item for ⌃⇧R ("R" +
+    /// `.control`) never matches it, and the key went to the shell as CSI 114;5u. Declaring the item
+    /// "r" + ⌃⇧ instead would also catch plain ⌃R. So a ⌃⇧ press the menu misses is offered once
+    /// more with Shift applied through the keyboard layout. (Synthetic `NSEvent(cgEvent:)` events
+    /// carry "R" and match either way; only real key presses showed it.)
+    static func performMenuKeyEquivalent(_ event: NSEvent) -> Bool {
+        guard let menu = NSApp.mainMenu else { return false }
+        if menu.performKeyEquivalent(with: event) { return true }
+        let flags = event.modifierFlags
+        guard flags.contains(.control), flags.contains(.shift),
+              let shifted = event.characters(byApplyingModifiers: .shift), !shifted.isEmpty,
+              shifted != event.charactersIgnoringModifiers,
+              let retry = NSEvent.keyEvent(with: .keyDown, location: event.locationInWindow, modifierFlags: flags,
+                                           timestamp: event.timestamp, windowNumber: event.windowNumber, context: nil,
+                                           characters: event.characters ?? "", charactersIgnoringModifiers: shifted,
+                                           isARepeat: event.isARepeat, keyCode: event.keyCode)
+        else { return false }
+        return menu.performKeyEquivalent(with: retry)
     }
 
     // MARK: Edit menu

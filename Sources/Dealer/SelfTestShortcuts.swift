@@ -137,6 +137,39 @@ extension TerminalWindowController {
             }
             return p.isEmpty ? nil : p.joined(separator: "; ")
         }) {}
+        t.step("shortcuts: a real ⌃⇧R (\"r\" ignoring modifiers) reaches Rename Workspace, plain ⌃R stays the shell's", nil, {
+            guard let window = self.window, let menu = NSApp.mainMenu else { return "no window or menu" }
+            // What the hardware sends: with Control held, AppKit drops the Shift from
+            // charactersIgnoringModifiers. Ask the menu directly: `pressMenuKeyForTest` resolves the
+            // action itself when this run isn't the active app, so it can't see this.
+            func key(_ mods: NSEvent.ModifierFlags) -> NSEvent? {
+                NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: mods, timestamp: 0,
+                                 windowNumber: window.windowNumber, context: nil, characters: "\u{12}",
+                                 charactersIgnoringModifiers: "r", isARepeat: false, keyCode: UInt16(kVK_ANSI_R))
+            }
+            guard let ctrlShiftR = key([.control, .shift]), let ctrlR = key(.control) else { return "couldn't make key events" }
+            var p: [String] = []
+            if menu.performKeyEquivalent(with: ctrlShiftR) {
+                p.append("AppKit now matches the real ⌃⇧R by itself; the Shift retry in SurfaceView.performMenuKeyEquivalent may be unneeded")
+            }
+            SelfTest.dismissModals()
+            if !SurfaceView.performMenuKeyEquivalent(ctrlShiftR) { p.append("⌃⇧R as typed matched no menu item, so it goes to the shell") }
+            SelfTest.dismissModals()
+            if SurfaceView.performMenuKeyEquivalent(ctrlR) { p.append("plain ⌃R matched a menu item; it belongs to the shell") }
+            SelfTest.dismissModals()
+            // The item's action opens the rename sheet.
+            if let item = Self.keyedMenuItems().first(where: { $0.title == "Rename Workspace…" }), let action = item.action {
+                NSApp.sendAction(action, to: self, from: item)
+                _ = SelfTest.waitUntil(timeout: 2) { window.attachedSheet != nil }
+                let sheet = SelfTest.openModal()
+                SelfTest.dismissModals()
+                _ = SelfTest.waitUntil(timeout: 2) { SelfTest.openModal() == nil }
+                if !(sheet?.contains("Rename Workspace") ?? false) { p.append("Rename Workspace… should open its sheet, got \(sheet ?? "none")") }
+            } else {
+                p.append("no Rename Workspace… item")
+            }
+            return p.isEmpty ? nil : p.joined(separator: "; ")
+        }) {}
         var split: Pane?
         var original: Pane?
         t.step("shortcuts: ⇧⌘T moves the focused pane out of its split into a new tab right after", nil, { problem }) {
