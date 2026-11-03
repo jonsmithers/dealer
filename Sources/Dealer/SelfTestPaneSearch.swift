@@ -104,6 +104,17 @@ extension TerminalWindowController {
             type("pslph"); scattered = titles()
         }
 
+        var outline: [Bool] = []
+        t.step("pane search: the selected row wears the selected workspace's outline, the others none", nil, {
+            outline == [true, false] ? nil : "expected [selected, plain] outlines, got \(outline)"
+        }) {
+            type("claude")
+            // The row's outline is SelectionStyle's at a 2pt inset: its stroke covers y 2…3.5.
+            outline = picker.rows.prefix(2).map { r in
+                PixelProbe.matches(PixelProbe.sample(r, at: CGPoint(x: r.bounds.midX, y: 2.25)), Theme.text)
+            }
+        }
+
         t.step("pane search: ↓/↑ move the selection and return focuses that pane in its window and workspace", nil, {
             guard let wc = other else { return "no second window" }
             return all(!picker.isOpen ? nil : "the panel should close on pick",

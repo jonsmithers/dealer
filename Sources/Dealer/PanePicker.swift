@@ -78,7 +78,7 @@ final class PanePicker: NSView, NSTextFieldDelegate {
     let field = NSTextField()
     private(set) var entries: [PanePickerEntry] = []
     private(set) var selectedIndex = 0
-    private var rows: [PanePickerRow] = []
+    private(set) var rows: [PanePickerRow] = []
     private weak var controller: TerminalWindowController?
     /// Where focus goes back to on esc.
     private weak var previousResponder: NSResponder?
@@ -268,10 +268,9 @@ final class PanePickerRow: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         guard let e = entry else { return }
-        if isSelected {
-            Theme.hover.setFill()
-            NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 6, yRadius: 6).fill()
-        }
+        // The selected workspace's outline, not a fill: Theme.hover is too close to the panel's
+        // chrome to see in many themes.
+        if isSelected { SelectionStyle.drawOutline(in: bounds.insetBy(dx: 2, dy: 2), cornerRadius: 6) }
         let lead: CGFloat = 12
         let slot = RunningSpinner.slot
         let top = CGRect(x: 0, y: 4, width: bounds.width, height: 20)
