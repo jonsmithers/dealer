@@ -251,6 +251,8 @@ final class PanePickerRow: NSView {
     var isSelected = false { didSet { if isSelected != oldValue { needsDisplay = true } } }
     var onClick: (() -> Void)?
     let spinner = RunningSpinnerState()
+    /// Heavier when selected, like the selected workspace's name.
+    var titleFont: NSFont { isSelected ? Theme.Fonts.pickerTitleSelected : Theme.Fonts.pickerTitle }
 
     override var isFlipped: Bool { true }
 
@@ -290,7 +292,7 @@ final class PanePickerRow: NSView {
             titleRight = right - s.size().width - 8
             s.draw(at: CGPoint(x: right - s.size().width, y: top.minY + 3))
         }
-        draw(e.pane.title, font: .systemFont(ofSize: 13, weight: .medium), color: Theme.text,
+        draw(e.pane.title, font: titleFont, color: Theme.text,
              in: CGRect(x: x, y: top.minY, width: titleRight - x, height: 18))
         let second = CGRect(x: x, y: 24, width: right - x, height: 16)
         let small = NSFont.systemFont(ofSize: 11)

@@ -192,6 +192,9 @@ enum Theme {
         /// The selected workspace's name (#52): a step heavier than an active tab.
         static let workspaceActive = NSFont.systemFont(ofSize: 12, weight: .semibold)
         static let paneBar = NSFont.systemFont(ofSize: 11, weight: .regular)
+        /// Go to Pane's titles (#66): the sidebar's weights, regular and semibold when selected.
+        static let pickerTitle = NSFont.systemFont(ofSize: 13, weight: .regular)
+        static let pickerTitleSelected = NSFont.systemFont(ofSize: 13, weight: .semibold)
         /// A workspace group's name on its header row or label pill (#80).
         static let groupHeader = NSFont.systemFont(ofSize: 11, weight: .semibold)
         static let overlay = NSFont.systemFont(ofSize: 12, weight: .medium)
