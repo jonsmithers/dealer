@@ -23,6 +23,8 @@ Dealer supports the **[Program Status Protocol](https://www.superlogical.com/rex
 (OSC 7501)**: any program or agent that reports `working`, `blocked`, `done` or `error` gets the
 same tab spinner and attention marks as Claude Code. See [Program status](#program-status-osc-7501).
 
+<!-- The tour (scripts/record-demo.sh tour, #98): its user-attachments URL goes on its own line here once uploaded. -->
+
 ## Features overview
 
 <details open>
@@ -33,24 +35,19 @@ https://github.com/user-attachments/assets/af65e612-b17b-46c0-85c2-e4e7381b5e6c
 
 <details>
 <summary><b>2. Workspaces</b>: one per project or worktree, each with its own color; click to switch, drag tabs between them, gather them into collapsible groups</summary>
-
-https://github.com/user-attachments/assets/5c5329f4-dc4b-4ca0-a0a3-20b7315d188f
 </details>
 
 <details>
 <summary><b>3. Agents & Attention</b>: agent-working spinner, a progress ring for builds, blue accent when something is finished/waiting, red when something has failed. Visible from any workspace. Any program can set them with the Program Status Protocol (OSC 7501)</summary>
 
-https://github.com/user-attachments/assets/eda5e78b-5923-40fc-8441-177f2e191d0c
-
-The states here are driven with `dealer notify`, typed into the pane; that's exactly what Dealer's
-automatic Claude Code hooks call (see [Attention](#attention-coding-agents)). This is not a live
-Claude session: a real one shows its own permission prompt in the pane.
+In the tour above, the agents are stand-ins that report the way Claude Code does (progress and
+title, plus the `dealer notify` calls Dealer's automatic hooks make; see
+[Attention](#attention-coding-agents)), and `./release.sh` reports its progress with OSC 7501.
+They are not live Claude sessions: a real one shows its own interface in the pane.
 </details>
 
 <details>
 <summary><b>4. Go to Pane</b>: ⌘⇧A, type a few letters, jump to any pane in any workspace; ⏎ on an empty query goes back</summary>
-
-https://github.com/user-attachments/assets/99a63a09-d14d-4e02-a27a-0588a257dce8
 </details>
 
 <details>
@@ -68,7 +65,7 @@ The bundled plugin records each pane's Claude Code session, and session restore 
 `claude --resume` into the restored pane's shell. See [Session restore](#session-restore).
 </details>
 
-Demo videos are recorded with `scripts/record-demo.sh`.
+Demo videos (the tour and the layout demo) are recorded with `scripts/record-demo.sh`.
 
 > [!WARNING]
 > **Unstable.** Updates may change any aspect of dealer without notice or migration.

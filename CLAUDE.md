@@ -131,13 +131,15 @@ The GitHub repo is `jonsmithers/dealer`.
   `XDG_CONFIG_HOME` at a temp dir containing `ghostty/config` (e.g. `theme = Catppuccin Latte`).
   Ghostty also reads `~/Library/Application Support/com.mitchellh.ghostty/config`, which XDG
   doesn't redirect and which loads after it; check that it has no color settings.
-- **README demo recordings (#26, #28).** Regenerate after any visual change:
-  `swift build && scripts/record-demo.sh <out-dir>` records every demo (or name some: `drag
-  workspaces attention goto`). Prerequisites: an unlocked screen, Screen Recording permission for the
+- **README demo recordings (#26, #28, #98).** Regenerate after any visual change:
+  `swift build && scripts/record-demo.sh <out-dir>` records every demo (or name some: `tour
+  drag`). The `tour` (#98, the user's call) shows the niceties in one realistic flow without
+  naming them: captions say what the user does ("Put an agent on the flaky test"), never the
+  feature ("Layout motion", "stacked marks"). Keep new beats that way. Prerequisites: an unlocked screen, Screen Recording permission for the
   app running the script, ffmpeg, and hands off the machine while it runs (the demo window floats
   on top). The script writes `<demo>.gif` (5 MB budget, enforced), `<demo>.mp4`, and contact sheets
   in `<out-dir>/review/`. **Read every sheet before publishing** (privacy: only `/tmp/demo` paths,
-  a `demo $` prompt, nothing but the Dealer window). Then publish explicitly with
+  an `api $`/`web $`/`docs $` prompt, nothing but the Dealer window). Then publish explicitly with
   `scripts/record-demo.sh <out-dir> --publish <worktree of the media branch>`, which commits there
   and prints the `git push origin media` to run. Nothing is pushed implicitly. GIFs/MP4s live only on
   the orphan `media` branch, never on master. The README embeds the MP4s as videos (#79), which
@@ -170,7 +172,20 @@ The GitHub repo is `jonsmithers/dealer`.
     outside demos, subtracted in `deckArea`). Each caption logs `DEMO BEAT <tree>`, so a run
     can be checked from its log without recording.
   - Demo shells use `ZDOTDIR=/tmp/demo` (set up by the script) and source Ghostty's shell integration;
-    without it every pane counts as busy and closing one asks for confirmation.
+    without it every pane counts as busy and closing one asks for confirmation. Each tour workspace
+    has its project below it (`Demo.project`: api, web, docs; the drag demo uses api), and the
+    shell titles panes with the directory's name, not the full path.
+  - Keyboard beats go through `menuKey` (Demo.swift), which shows the keys as a keycap at the
+    right of the caption band and sends the menu item's action from the focused pane. It doesn't
+    post key events: Dealer isn't the active app while recording, and a posted ⇧⌘D reached both the
+    menu and ghostty's own `new_split` keybind, splitting twice. Shell typing is `typeIn`, a
+    character at a time. Wait out glides with `settle()` and states with `mouse.until { … }`,
+    not with guessed delays.
+  - Agents are stand-ins (`claude` in `/tmp/demo/.bin`): they report like Claude Code (OSC 9;4;3,
+    a `◐` title) and take their next move from the script, `signal(pane, "ask"|"done"|"fail")`, through
+    `/tmp/demo/.signal/<pane id>`, so turns line up with captions. `./release.sh`
+    (`scripts/demo/release.sh`) reports 0→100 % over ~12 s with OSC 7501 through
+    `scripts/lib/program-status.sh`, then `done`.
 - **Your own windows can't disturb a run.** The self-test ignores `NSWindow.occlusionState`
   (`WindowVisibility.ignoresOcclusion`): a window covering the test window used to occlude its
   panes, failing `presence:` and `memory:` steps that need a drawn pane. An unattended run's

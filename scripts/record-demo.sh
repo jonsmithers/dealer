@@ -22,7 +22,7 @@ PID=
 trap 'st=$?; [[ -n $PID ]] && kill $PID 2>/dev/null; program_status_exit $st' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-ALL=(drag workspaces attention goto)
+ALL=(tour drag)
 GIF_BUDGET=$((5 * 1024 * 1024))
 mkdir -p $OUT
 OUT=${OUT:A}
@@ -52,58 +52,80 @@ BIN=$ROOT/.build/debug/Dealer
 DEMO_DIR=/tmp/demo
 program_status working "Demos: setting up" "${(j:, :)DEMOS}"
 
-# A neutral project and shell: no personal paths, prompt or history on screen.
-rm -rf $DEMO_DIR; mkdir -p $DEMO_DIR/src $DEMO_DIR/tests; cd $DEMO_DIR
+# Neutral projects and shell: no personal paths, prompt or history on screen. The shell's files sit
+# in $DEMO_DIR; each workspace of the tour has its project below it (api, web, docs), and the drag
+# demo uses api.
+rm -rf $DEMO_DIR; mkdir -p $DEMO_DIR/{api/{src,tests,.lib},web/src,docs}; cd $DEMO_DIR
 print -r -- "PS1='%F{blue}%1~%f %F{magenta}\$%f '" > .zshrc
 print -r -- "alias dealer='\"\$DEALER_CLI\"'" >> .zshrc
 print -r -- "HISTFILE=/dev/null" >> .zshrc
 # Ghostty's shell integration, so Dealer knows when a pane is idle (no "process running" prompts).
+# Its titles are full paths (`/tmp/demo/api`); the tour's tabs read better with the project's name
+# while idle and the command while one runs, so the shell sets those itself.
+print -r -- 'GHOSTTY_SHELL_FEATURES=${GHOSTTY_SHELL_FEATURES//title/}' >> .zshrc
 print -r -- '[[ -n $GHOSTTY_RESOURCES_DIR ]] && source "$GHOSTTY_RESOURCES_DIR"/shell-integration/zsh/ghostty-integration' >> .zshrc
+print -r -- 'precmd() { print -Pn "\e]2;%1~\a" }' >> .zshrc
+print -r -- 'preexec() { print -rn -- $'"'"'\e]2;'"'"'"${1//[[:cntrl:]]}"$'"'"'\a'"'"' }' >> .zshrc
 : > .zshenv
-printf '.zsh*\n.bin\n' > .gitignore
+G=(git -c user.name=demo -c user.email=demo@example.com)
+cd api
+printf '.lib\n' > .gitignore
 printf 'test:\n\t@echo "  ok  42 passed (1.3s)"\n' > Makefile
-printf '# demo app\n' > README.md
+printf '# api\n' > README.md
 printf '12:00:01 GET /health 200\n12:00:02 GET /api/items 200\n12:00:04 POST /api/items 201\n' > server.log
-# Stand-ins on the shells' PATH, hidden from `ls` and git (#79, #81). Dealer tells Claude Code by its argv, so a script named
-# `claude` gets Claude's working mark. It reports a turn the way Claude does (OSC 9;4;3, see
-# docs/claude-code-states.md) and stays in the foreground like Claude, so progress isn't dropped
-# as stale (#83). With DEMO_CLAUDE_ASKS_AFTER=<s> (set per demo by Demo.environment) it then
-# needs permission. `cargo` fills a progress ring (9;4;1;N), in about 4 s (`build`) or 6 s (`test`), then
-# clears it.
-mkdir -p .bin
+# The tour's release script reports its progress with OSC 7501 through the repo's own helper.
+cp $ROOT/scripts/demo/release.sh release.sh
+cp $ROOT/scripts/lib/program-status.sh .lib/program-status.sh
+git init -q -b main
+$G add Makefile README.md .gitignore release.sh && $G commit -qm "Initial project"
+$G add server.log && $G commit -qm "Add request log"
+touch src/app.js tests/app.test.js && $G add src tests && $G commit -qm "Add items API and tests"
+cd ../web
+printf 'test:\n\t@echo "  ok  18 passed (0.9s)"\n' > Makefile
+touch src/index.html src/hero.js src/app.css
+git init -q -b main && $G add -A && $G commit -qm "Landing page"
+cd ../docs
+printf '# docs\n' > README.md; printf '# Getting started\n' > guide.md
+git init -q -b main && $G add -A && $G commit -qm "Docs"
+cd $DEMO_DIR
+# Stand-ins on the shells' PATH, hidden from `ls` and git (#79, #81). Dealer tells Claude Code by
+# its argv, so a script named `claude` gets Claude's working mark. It reports a turn the way Claude
+# does (OSC 9;4;3 and a `◐` title, see docs/claude-code-states.md) and stays in the foreground like
+# Claude, so progress isn't dropped as stale (#83). What it does next is the demo's call, so beats
+# line up with captions (#98): Demo.swift writes `ask`, `done` or `fail` to .signal/<DEALER_PANE_ID>.
+mkdir -p .bin .signal
 print -r -- 'path=("$ZDOTDIR/.bin" $path)' >> .zshrc
 cat > .bin/claude <<'SH'
 #!/bin/sh
-printf '\033]9;4;3\a'
-printf '\342\234\273 Working\342\200\246\n'
-if [ -n "$DEMO_CLAUDE_ASKS_AFTER" ]; then
-  sleep "$DEMO_CLAUDE_ASKS_AFTER"
-  "$DEALER_CLI" notify --state waiting --title Agent --body 'Permission needed'
-  printf '\033]9;4;0\a'
-  printf '\nAllow edit to src/app.js? (y/n) '
-fi
-sleep 600
+sig="$ZDOTDIR/.signal/$DEALER_PANE_ID"
+topic=$(printf '%s' "$*" | awk '{ print toupper(substr($0, 1, 1)) substr($0, 2) }')
+working() { printf '\033]2;\342\227\220 %s\a\033]9;4;3\a\342\234\273 Working\342\200\246\n' "$topic"; }
+idle() { printf '\033]9;4;0\a\033]2;\342\234\263 %s\a' "$topic"; }
+printf '\033[2m> %s\033[0m\n\n' "$*"
+working
+while :; do
+  while [ ! -s "$sig" ]; do sleep 0.2; done
+  next=$(cat "$sig"); rm -f "$sig"
+  case $next in
+    ask)
+      idle
+      "$DEALER_CLI" notify --state waiting --title "$topic" --body 'Permission needed'
+      printf '\n  Edit tests/login.test.js\n  Allow this edit? (y/n) '
+      read -r _
+      printf '\n'; working ;;
+    done)
+      idle
+      printf '\n\342\234\223 Done: GET /items takes ?cursor= and ?limit= (3 files changed)\n'
+      "$DEALER_CLI" notify --state done --title "$topic" --body 'Finished' ;;
+    fail)
+      # A turn that ends in an API error: Dealer's StopFailure hook marks the pane failed.
+      idle
+      printf '\n\342\216\277 API Error: 529 Overloaded. Try again in a moment.\n'
+      "$DEALER_CLI" notify --state failed --title "$topic" --body 'API Error: 529 Overloaded' ;;
+  esac
+done
 SH
-cat > .bin/cargo <<'SH'
-#!/bin/sh
-case $1 in
-  test) step=0.3; printf '   Compiling app v0.1.0 (/tmp/demo)\n     Running tests\n' ;;
-  *) step=0.2; printf '   Compiling app v0.1.0 (/tmp/demo)\n' ;;
-esac
-i=0
-while [ $i -le 100 ]; do printf '\033]9;4;1;%d\a' $i; sleep $step; i=$((i + 5)); done
-printf '\033]9;4;0\a'
-case $1 in
-  test) printf 'test result: ok. 42 passed; 0 failed\n' ;;
-  *) printf '    Finished `release` profile [optimized] target(s)\n' ;;
-esac
-SH
-chmod +x .bin/claude .bin/cargo
-G=(git -c user.name=demo -c user.email=demo@example.com)
-git init -q -b main
-$G add Makefile README.md .gitignore && $G commit -qm "Initial project"
-$G add server.log && $G commit -qm "Add request log"
-touch src/app.js tests/app.test.js && $G add src tests && $G commit -qm "Add items API and tests"
+chmod +x .bin/claude
 cd $ROOT
 
 # Bounds (points, top-left origin) of our own Dealer window, by PID, plus the display scale.
@@ -134,7 +156,7 @@ for demo in $DEMOS; do
   B=($($BOUNDS $PID)); SCALE=${B[5]}
   (( $#B == 5 )) || { print "no Dealer window found"; exit 1; }
   CROP="$((B[3]*SCALE)):$((B[4]*SCALE)):$((B[1]*SCALE)):$((B[2]*SCALE))"
-  ffmpeg -v error -y -f avfoundation -pixel_format bgr0 -capture_cursor 0 -framerate 30 -t 90 -i "$SCREEN:none" \
+  ffmpeg -v error -y -f avfoundation -pixel_format bgr0 -capture_cursor 0 -framerate 30 -t 150 -i "$SCREEN:none" \
     -vf "crop=$CROP" -c:v libx264 -crf 16 -pix_fmt yuv420p $OUT/$demo-raw.mp4 2>/dev/null &
   FF=$!
   # Stop recording when the demo says it's done, while its window is still up: frames after the
@@ -144,6 +166,10 @@ for demo in $DEMOS; do
   grep -q "DEMO DONE" $OUT/$demo.log || { print "$demo exited without finishing; discarding"; rm -f $OUT/$demo-raw.mp4; exit 1; }
   while kill -0 $PID 2>/dev/null; do sleep 0.2; done
   PID=
+  # A beat whose condition never came (`mouse.until`) ran on regardless; the take is likely wrong.
+  if grep -q "DEMO TIMEOUT" $OUT/$demo.log; then
+    print "$demo: a beat timed out (see $OUT/$demo.log); check the take or record it again"
+  fi
   program_status working "Demos: encoding $demo" "GIF, MP4 and contact sheets"
 
   # Drop the first second (shells starting). GIF: two-pass palette, 25 fps, 960px wide. MP4: the

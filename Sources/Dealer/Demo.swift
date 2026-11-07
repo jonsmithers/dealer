@@ -2,7 +2,10 @@ import AppKit
 
 /// Scripted mouse demos for the README recordings (#26, #28). `DEALER_SELFTEST=1 DEALER_DEMO=<name>`
 /// runs one instead of the self-test, with the self-test's isolation (no session, temp settings).
-/// Names: `drag`, `workspaces`, `attention`, `goto`. `scripts/record-demo.sh` records them.
+/// Names: `tour` (#98) and `drag`. `scripts/record-demo.sh` records them.
+///
+/// The tour shows the niceties in a realistic flow without naming them (the user's call on #98):
+/// captions say what the user is doing, never what feature is on screen.
 ///
 /// Everything on screen is done with a pointer: `DemoMouse` posts real mouse events into the window,
 /// so DragController's tracking loop, buttons and rows handle them exactly as they would a person's,
@@ -30,13 +33,20 @@ enum Demo {
     static var captionBand: CGFloat { name == nil ? 0 : 34 }
 
     /// Pane hooks: where demo shells start and what they read.
-    static var workingDirectory: String? { name == nil ? nil : directory }
+    static var workingDirectory: String? { name == nil ? nil : project("api") }
+    /// A project of the demo's (record-demo.sh makes api, web and docs).
+    static func project(_ name: String) -> String { directory + "/" + name }
     static var environment: [String: String] {
-        guard let name else { return [:] }
-        var env = ["ZDOTDIR": directory, "HISTFILE": "/dev/null"]
-        // The stand-in `claude` (record-demo.sh) asks for permission this long into its turn.
-        if name == "attention" { env["DEMO_CLAUDE_ASKS_AFTER"] = "8" }
-        return env
+        guard name != nil else { return [:] }
+        return ["ZDOTDIR": directory, "HISTFILE": "/dev/null"]
+    }
+
+    /// Tells record-demo.sh's stand-in `claude` in `pane` what to do next (`ask`, `done`, `fail`), so its
+    /// turns line up with the script's beats rather than with timers.
+    static func signal(_ pane: Pane, _ action: String) {
+        let dir = URL(fileURLWithPath: directory).appendingPathComponent(".signal")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? action.write(to: dir.appendingPathComponent(String(pane.id)), atomically: true, encoding: .utf8)
     }
 }
 
@@ -108,6 +118,47 @@ final class DemoCaptionView: PassthroughView, ThemeApplying {
     }
 }
 
+/// The keys just pressed, as a keycap at the right end of the caption band, like a screencast's
+/// keystroke overlay: keyboard beats show what was pressed without a caption naming it.
+final class DemoKeycapView: PassthroughView, ThemeApplying {
+    private let label = NSTextField(labelWithString: "")
+    private var generation = 0
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        layer?.cornerRadius = 6
+        layer?.borderWidth = 1
+        label.font = .systemFont(ofSize: 15, weight: .semibold)
+        applyTheme()
+        addSubview(label)
+        isHidden = true
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func applyTheme() {
+        layer?.backgroundColor = Theme.surface.cgColor
+        layer?.borderColor = Theme.foreground.withAlphaComponent(0.3).cgColor
+        label.textColor = Theme.text
+    }
+
+    /// Shows `keys` at the right of `band` (content view coordinates) for `seconds`.
+    func show(_ keys: String, in band: CGRect, for seconds: TimeInterval = 1.1) {
+        label.stringValue = keys
+        label.sizeToFit()
+        let w = max(label.frame.width + 20, 34), h: CGFloat = 26
+        frame = CGRect(x: (band.maxX - w - 12).rounded(), y: (band.midY - h / 2).rounded(), width: w, height: h)
+        label.frame = CGRect(x: ((w - label.frame.width) / 2).rounded(), y: ((h - label.frame.height) / 2).rounded(),
+                             width: label.frame.width, height: label.frame.height)
+        isHidden = false
+        generation += 1
+        let g = generation
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
+            if self?.generation == g { self?.isHidden = true }
+        }
+    }
+}
+
 /// The pointer drawn into the recording: the system arrow, an open hand over pane bars, and a
 /// closed hand while dragging.
 final class DemoPointerView: PassthroughView {
@@ -140,6 +191,8 @@ final class DemoMouse {
         case key(String, UInt16)
         case wait(TimeInterval)
         case run(() -> Void)
+        /// Holds the script until the condition holds (checked every tick), at most the timeout.
+        case until(() -> Bool, TimeInterval)
     }
 
     private unowned let controller: TerminalWindowController
@@ -166,6 +219,7 @@ final class DemoMouse {
     func release() { steps.append(.release) }
     func wait(_ t: TimeInterval) { steps.append(.wait(t)) }
     func run(_ f: @escaping () -> Void) { steps.append(.run(f)) }
+    func until(timeout: TimeInterval = 20, _ condition: @escaping () -> Bool) { steps.append(.until(condition, timeout)) }
 
     func click(_ p: @escaping () -> CGPoint?) {
         move(to: p)
@@ -251,7 +305,7 @@ final class DemoMouse {
                 case .run(let f):
                     f()
                     continue
-                case .wait(let t):
+                case .wait(let t), .until(_, let t):
                     current = (step, Date(), position, nil, t)
                 case .move(let target, let d):
                     let to = target() ?? position
@@ -266,7 +320,14 @@ final class DemoMouse {
                 position = CGPoint(x: c.from.x + (to.x - c.from.x) * e, y: c.from.y + (to.y - c.from.y) * e)
                 if pressed { post(.leftMouseDragged) }
             }
-            if t >= 1 { current = nil }
+            if case .until(let condition, _) = c.step, condition() {
+                current = nil
+                continue
+            }
+            if t >= 1 {
+                if case .until = c.step { print("DEMO TIMEOUT waiting for a condition"); fflush(stdout) }
+                current = nil
+            }
             break
         }
         if !pressed { updateHover() }
@@ -355,45 +416,67 @@ extension TerminalWindowController {
 
         let caption = DemoCaptionView()
         contentView.addSubview(caption)
+        let keycap = DemoKeycapView()
+        contentView.addSubview(keycap)
         let mouse = DemoMouse(controller: self, start: contentView.convert(CGPoint(x: 640, y: 420), to: nil))
 
         // MARK: Script helpers
+        /// The script's names for panes, by pane id. The tour leaves titles to the shells and
+        /// agents (as in real use), so panes are found by these names, not by `customTitle`.
+        final class Names { var ids: [String: Int] = [:] }
+        let names = Names()
+        func named(_ p: Pane?, _ n: String) {
+            guard let p else { return }
+            names.ids[n] = p.id
+            p.customTitle = n
+        }
+        /// Registers `p` as `n` without retitling it.
+        func call(_ p: Pane?, _ n: String) { if let p { names.ids[n] = p.id } }
+        func nameOf(_ p: Pane) -> String { names.ids.first { $0.value == p.id }?.key ?? p.customTitle ?? "?" }
         func type(_ p: Pane?, _ s: String) {
             // A new shell needs a moment before its prompt is up; typing earlier echoes the text twice.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak p] in p?.surface.typeText(s) }
         }
-        func named(_ p: Pane?, _ n: String) { p?.customTitle = n }
-        /// The Go to Pane picker (#66) and the caffeinate cup (#69), for checking those beats in the log.
-        /// The tooltip check looks for AppKit's own tooltip window.
+        /// The caption band under the decks, in content view coordinates.
+        func band() -> CGRect {
+            let b = self.contentView.bounds, top = self.deckArea.maxY
+            return CGRect(x: 0, y: top, width: b.width, height: b.height - top)
+        }
+        /// The Go to Pane picker (#66), for checking those beats in the log.
         func extras() -> String {
             let picker = PanePicker.shared
-            let shown = picker.isOpen ? picker.entries.prefix(PanePicker.maxRows).map { $0.pane.customTitle ?? $0.pane.title } : []
-            let tip = NSApp.windows.contains { $0.isVisible && String(describing: Swift.type(of: $0)).contains("ToolTip") }
-            let focused = self.focusedPane?.customTitle ?? "?"
+            let shown = picker.isOpen ? picker.entries.prefix(PanePicker.maxRows).map { nameOf($0.pane) } : []
+            let focused = self.focusedPane.map(nameOf) ?? "?"
             return "focused=\(focused) picker=\(picker.isOpen ? "open query=\"\(picker.query)\" results=\(shown)" : "closed")"
-                + " cup=\(Settings.caffeinate ? (Caffeinate.shared.isHeld ? "held" : "on") : "off")\(self.caffeineIcon.isHidden ? "" : "+shown") tooltip=\(tip)"
+                + " sidebar=\(self.isSidebarVisible) switcher=\(self.titlebarSwitcherMenu.isOpen ? "open" : self.titlebarSwitcher.isHiddenOrHasHiddenAncestor ? "hidden" : "shown") animating=\(LayoutAnimation.isAnimating(in: self.contentView))"
         }
         func say(_ text: String) {
             mouse.run { [weak self] in
                 guard let self else { return }
-                let b = self.contentView.bounds, top = self.deckArea.maxY
-                caption.show(text, centredIn: CGRect(x: 0, y: top, width: b.width, height: b.height - top))
+                caption.show(text, centredIn: band())
                 // The tree at each caption (the result of the beat before it), for checking a run in the log.
                 // Panes ghostty would confirm closing: idle demo shells need shell integration for 0.
                 let busy = self.allDecks.flatMap(\.tabs).flatMap(\.panes).filter { $0.surface.needsConfirmQuit }.count
                 let strips = self.titlebarStripDecks.map { $0.tabs.map(\.title).joined(separator: ",") }
-                // What spins (the working spinner, #74) and what's marked, so those beats can be checked too.
+                // What's marked, per pane and as the stacks the active workspace's tabs and every
+                // sidebar row draw (#95), so those beats can be checked too.
                 let panes = self.workspaces.flatMap { $0.decks.flatMap(\.tabs).flatMap(\.panes) }
-                let working = panes.compactMap { p in p.workingMark.map { "\(p.customTitle ?? "?"):\($0)" } }
-                    + self.workspaces.compactMap { w in w.workingMark.map { "ws:\(w.name ?? "?"):\($0)" } }
-                let marked = panes.filter { $0.attention != .none }.map { "\($0.customTitle ?? "?"):\($0.attention)" }
+                let working = panes.compactMap { p in p.workingMark.map { "\(nameOf(p)):\($0)" } }
+                let marked = panes.filter { $0.attention != .none }.map { "\(nameOf($0)):\($0.attention)" }
+                let tabStacks = self.decks.flatMap(\.tabs).map { t in
+                    "\(t.title)[\(t.panes.workingMarks.map { "\($0)" }.joined(separator: " "))|\(t.panes.attentionMarks.map { "\($0.state)" }.joined(separator: " "))]"
+                }
+                let rowStacks = self.workspaces.map { w in
+                    "\(w.name ?? "?")[\(w.panes.workingMarks.map { "\($0)" }.joined(separator: " "))|\(w.panes.attentionMarks.map { "\($0.state)" }.joined(separator: " "))]"
+                }
+                let status = panes.compactMap { p in p.programStatus.summary.map { "\(nameOf(p)):\($0.state)\($0.progress.map { "@\($0)" } ?? "")" } }
                 // Workspace names with their swatch (auto_assign), so the colors can be checked too.
                 let swatches = Theme.swatches
                 let ws = self.workspaces.map { w in
                     (w.name ?? "?") + ":" + (w.color.flatMap { c in swatches.first { $0.color.sameColor(as: c) }?.name } ?? "none")
-                        + (w.group.map { "@" + $0.name + ($0.isCollapsed ? "(collapsed)" : "") } ?? "")  // #80
+                        + (w === self.activeWorkspace ? "*" : "")
                 }
-                print("DEMO BEAT \(self.describeWorkspaces { $0.customTitle ?? "?" }) ws=\(ws) titlebar=\(strips) movable=\(self.window?.isMovable ?? false) busy=\(busy) working=\(working) attention=\(marked) \(extras()) next=\"\(text)\"")
+                print("DEMO BEAT \(self.describeWorkspaces(name: nameOf)) ws=\(ws) titlebar=\(strips) busy=\(busy) working=\(working) attention=\(marked) status=\(status) tabs=\(tabStacks) rows=\(rowStacks) \(extras()) next=\"\(text)\"")
                 fflush(stdout)
             }
         }
@@ -409,14 +492,20 @@ extension TerminalWindowController {
         /// Where to grab a tab to drag it: its bottom half, which in the titlebar is the tab-drag
         /// zone (#27; the top half drags the window), and away from the ×.
         func grip(_ tab: @escaping () -> NSView?) -> () -> CGPoint? { at(tab, 0.45, 0.75) }
-        func pane(_ n: String) -> () -> Pane? { { [weak self] in self?.allDecks.flatMap(\.tabs).flatMap(\.panes).first { $0.customTitle == n } } }
+        func pane(_ n: String) -> () -> Pane? {
+            { [weak self] in
+                let all = self?.allDecks.flatMap(\.tabs).flatMap(\.panes) ?? []
+                if let id = names.ids[n] { return all.first { $0.id == id } }
+                return all.first { $0.customTitle == n }
+            }
+        }
         func paneView(_ n: String) -> () -> NSView? { { pane(n)()?.view } }
         func bar(_ n: String) -> () -> NSView? { { pane(n)()?.view.bar } }
         func tab(_ n: String) -> () -> NSView? {
             { [weak self] in
                 guard let self else { return nil }
                 for deck in self.decks {
-                    for (i, t) in deck.tabs.enumerated() where t.panes.contains(where: { $0.customTitle == n }) && t.panes.count == 1 {
+                    for (i, t) in deck.tabs.enumerated() where t.panes.contains(where: { $0 === pane(n)() }) && t.panes.count == 1 {
                         return deck.view.strip.buttons.indices.contains(i) ? deck.view.strip.buttons[i] : nil
                     }
                 }
@@ -428,7 +517,7 @@ extension TerminalWindowController {
             { [weak self] in
                 guard let self else { return nil }
                 for deck in self.decks {
-                    for (i, t) in deck.tabs.enumerated() where t.panes.contains(where: { $0.customTitle == n }) {
+                    for (i, t) in deck.tabs.enumerated() where t.panes.contains(where: { $0 === pane(n)() }) {
                         return deck.view.strip.buttons.indices.contains(i) ? deck.view.strip.buttons[i] : nil
                     }
                 }
@@ -497,13 +586,25 @@ extension TerminalWindowController {
             return p
         }
 
-        /// Presses a main-menu shortcut as a key event, through the window and SurfaceView to the
-        /// menu, as a person's press would go (works whether or not Dealer is the active app).
-        func menuKey(_ key: String, _ mods: NSEvent.ModifierFlags, keyCode: Int, _ label: String) {
+        /// Presses a main-menu shortcut: shows `glyphs` (e.g. "⌘D") as a keycap and sends the item's
+        /// action from the focused pane up the responder chain, as the menu would for a real press.
+        /// Not as a key event: the recorder's terminal is the active app, so Dealer has no key window,
+        /// and a posted ⇧⌘D then reached both the menu path and ghostty's own `new_split` keybind,
+        /// splitting twice. The self-test covers the key path (`shortcuts:`).
+        func menuKey(_ key: String, _ mods: NSEvent.ModifierFlags, _ glyphs: String) {
             mouse.run { [weak self] in
-                guard let self, let surface = self.focusedPane?.surface else { return }
-                let ok = self.pressMenuKeyForTest(key, mods, keyCode: keyCode, surface: surface)
-                print("DEMO KEY \(label) handled=\(ok) \(extras())"); fflush(stdout)
+                guard let self, let window = self.window, let surface = self.focusedPane?.surface,
+                      let item = Self.keyedMenuItems().first(where: { $0.keyEquivalent.lowercased() == key && Self.effectiveModifiers($0) == mods }),
+                      let action = item.action
+                else { print("DEMO KEY \(glyphs) missing"); fflush(stdout); return }
+                keycap.show(glyphs, in: band())
+                window.makeFirstResponder(surface)
+                var r: NSResponder? = surface
+                while let cur = r, !cur.responds(to: action) {
+                    r = cur === window ? (window.delegate as? NSResponder) ?? cur.nextResponder : cur.nextResponder
+                }
+                let ok = NSApp.sendAction(action, to: r, from: item)
+                print("DEMO KEY \(glyphs) handled=\(ok) \(extras())"); fflush(stdout)
             }
         }
         /// Types `chars` as key events to the first responder (the picker's field), at a readable pace.
@@ -514,6 +615,7 @@ extension TerminalWindowController {
             for c in chars {
                 mouse.run { [weak self] in
                     guard let self, let window = self.window else { return }
+                    if c == "\r" { keycap.show("⏎", in: band()) }
                     for type in [NSEvent.EventType.keyDown, .keyUp] {
                         guard let e = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
                                                        windowNumber: window.windowNumber, context: nil, characters: String(c),
@@ -525,9 +627,137 @@ extension TerminalWindowController {
                 mouse.wait(1 / perSecond)
             }
         }
+        /// Types `text` into pane `n`'s shell a character at a time, as a person would.
+        func typeIn(_ n: String, _ text: String, interval: TimeInterval = 0.055) {
+            for c in text {
+                mouse.run { pane(n)()?.surface.typeText(String(c)) }
+                mouse.wait(c == "\r" ? 0.3 : interval)
+            }
+        }
+        /// Tells the stand-in agent in pane `n` what to do next (record-demo.sh's `claude`).
+        func signal(_ n: String, _ action: String) {
+            mouse.run {
+                guard let p = pane(n)() else { print("DEMO MISSING pane \(n)"); fflush(stdout); return }
+                Demo.signal(p, action)
+            }
+        }
+        /// Waits out a layout motion (#94) before the next beat.
+        func settle() {
+            mouse.wait(0.05)
+            mouse.until(timeout: 2) { [weak self] in self.map { !LayoutAnimation.isAnimating(in: $0.contentView) } ?? true }
+        }
 
         let first = focusedPane
         switch name {
+        case "tour":
+            // One morning with agents (#98): the niceties come up as the work does, and captions
+            // only say what the user does. Start: three workspaces, sidebar closed, one shell.
+            if let ws = workspaces.first { rename(workspace: ws, to: "api") }
+            call(first, "shell"); type(first, "git --no-pager log --oneline\r")
+            // No workspace may wear an attention color (red failed, orange that reads as red, blue
+            // waiting): a chip or tint matching a dot would muddy the marks. So these take
+            // auto_assign's swatches with those skipped (demo only; auto_assign is unchanged).
+            var calm = Theme.swatches.filter { !["red", "orange", "blue"].contains($0.name) }.map(\.color).makeIterator()
+            for (ws, p, command) in [("web", "web", "ls src"), ("docs", "notes", "ls")] {
+                let w = newWorkspace(name: ws, workingDirectory: Demo.project(ws))
+                if Demo.autoAssignColors, let c = calm.next() { setColor(c, workspace: w) }
+                call(w.panes.first, p); type(w.panes.first, command + "\r")
+            }
+            if let api = workspaces.first { activate(api) }
+            if let first { focus(first) }
+            sidebarPreference = false
+            layoutNow()
+            let shellBody = at(paneView("shell"), 0.6, 0.7)
+
+            // Split/unsplit (#94): real splits through the menu keys, each one's glide waited out.
+            say("Put an agent on the flaky test")
+            mouse.move(to: shellBody)
+            mouse.wait(0.5)
+            menuKey("d", [.command], "⌘D")
+            mouse.run { [weak self] in call(self?.focusedPane, "login") }
+            settle()
+            mouse.wait(0.5)
+            typeIn("login", "claude \"fix the flaky login test\"\r")
+            mouse.wait(1.0)
+            say("Another one on pagination")
+            menuKey("d", [.command, .shift], "⇧⌘D")
+            mouse.run { [weak self] in call(self?.focusedPane, "pagination") }
+            settle()
+            mouse.wait(0.5)
+            typeIn("pagination", "claude \"add pagination to /items\"\r")
+            mouse.wait(1.0)
+            // Program status (OSC 7501, #89): release.sh reports 0→100 % over about 12 s, then done.
+            say("Cut a release from the shell")
+            mouse.click(shellBody)
+            typeIn("shell", "./release.sh\r")
+            mouse.wait(1.6)
+            // Stacks (#95): the agents' tab now carries two Claude marks and the release's ring.
+            say("Open a tab for the server log")
+            menuKey("t", [.command], "⌘T")
+            mouse.run { [weak self] in call(self?.focusedPane, "log") }
+            settle()
+            mouse.wait(0.4)
+            typeIn("log", "cat server.log\r")
+            // Near the agents' tab, not on it: hovering a tab swaps its dots for the ×.
+            mouse.move(to: at(tabOf("login"), 0.5, 2.2))
+            mouse.wait(1.8)
+            signal("login", "ask")
+            mouse.until(timeout: 5) { pane("login")()?.attention == .waiting }
+            mouse.wait(1.8)
+            // Workspace switching through the titlebar switcher (#96; the sidebar is closed): the
+            // button opens its dropdown on mouseDown, a row picks on mouseUp.
+            say("Switch to the web project")
+            mouse.click(at({ [weak self] in self?.titlebarSwitcher }))
+            mouse.until(timeout: 2) { [weak self] in self?.titlebarSwitcherMenu.isOpen ?? false }
+            mouse.wait(0.5)
+            mouse.click(at({ [weak self] in
+                guard let self, let web = self.workspaces.first(where: { $0.name == "web" }) else { return nil }
+                return self.titlebarSwitcherMenu.row(for: web)
+            }, 0.4, 0.5))
+            mouse.until(timeout: 2) { [weak self] in self?.activeWorkspace.name == "web" }
+            mouse.wait(0.6)
+            say("Run its tests in a split")
+            menuKey("d", [.command], "⌘D")
+            mouse.run { [weak self] in call(self?.focusedPane, "tests") }
+            settle()
+            mouse.wait(0.4)
+            typeIn("tests", "make test\r")
+            mouse.wait(1.0)
+            say("Close it")
+            menuKey("w", [.command], "⌘W")
+            settle()
+            mouse.wait(0.6)
+            // The release has finished by now (done, a dot of its own); the agent still works.
+            mouse.until(timeout: 15) { pane("shell")()?.programStatus.summary?.state == .done }
+            say("Check on the other projects")
+            menuKey("b", [.command], "⌘B")
+            settle()
+            mouse.move(to: at(row("api"), 0.6, 0.5))
+            mouse.wait(1.8)
+            // The pagination agent's turn ends in an API error: failed, beside waiting and done.
+            signal("pagination", "fail")
+            mouse.until(timeout: 5) { pane("pagination")()?.attention == .failed }
+            mouse.wait(1.6)
+            // Go to Pane (#66): to the agent that's asking, in its workspace.
+            say("Jump to the agent that's asking")
+            mouse.move(to: at(paneView("web"), 0.6, 0.6))
+            menuKey("a", [.command, .shift], "⇧⌘A")
+            mouse.wait(0.8)
+            typeKeys("flaky")
+            mouse.wait(0.6)
+            typeKeys("\r")
+            mouse.wait(1.0)
+            say("Allow the edit")
+            typeIn("login", "y\r")
+            mouse.wait(1.4)
+            say("Close the release shell")
+            mouse.click(shellBody)
+            mouse.wait(0.5)
+            menuKey("w", [.command], "⌘W")
+            settle()
+            mouse.wait(1.2)
+            say("")
+            mouse.wait(0.8)
         case "drag":
             // "Panes and Decks layout" (#79, the user's order): the README's first demo, so the core
             // ideas come first. Start: one deck, four tabs.
@@ -567,195 +797,6 @@ extension TerminalWindowController {
             say("")
             mouse.wait(0.8)
 
-        case "workspaces":
-            if let ws = workspaces.first { rename(workspace: ws, to: "app") }
-            named(first, "server"); type(first, "ls\r")
-            addTab("tests", in: focusedDeck, "make test")
-            if let d = focusedDeck, let t = d.tabs.first { select(tab: t, in: d) }
-            // More projects, so the sidebar shows a range of colors (#79). Created in sidebar order.
-            for (ws, p, command) in [("website", "dev", "ls src"), ("infra", "deploy", "cat README.md"),
-                                     ("docs", "notes", "git --no-pager log --oneline")] {
-                let w = newWorkspace(name: ws)
-                named(w.panes.first, p); type(w.panes.first, command + "\r")
-            }
-            if let app = workspaces.first { activate(app) }
-            if let first { focus(first) }
-            sidebarPreference = false  // closed, so the first beat can open it
-            layoutNow()
-
-            say("Open the workspace sidebar")
-            mouse.click(at({ [weak self] in self?.sidebarToggle }))
-            say("Add a workspace, say for a git worktree")
-            mouse.click(at({ [weak self] in self?.workspaceSidebar.addRow }))
-            mouse.run { [weak self] in
-                guard let self else { return }
-                named(self.focusedPane, "fix"); type(self.focusedPane, "git status -sb\r")
-            }
-            mouse.wait(0.8)
-            say("Double-click to rename it")
-            mouse.doubleClick(at({ [weak self] in
-                guard let self, let i = self.workspaces.firstIndex(where: { $0 === self.activeWorkspace }) else { return nil }
-                return self.workspaceSidebar.row(at: i)
-            }))
-            mouse.wait(0.3)
-            mouse.type("app bugfix worktree")
-            mouse.wait(0.4)
-            mouse.pressReturn()
-            mouse.wait(0.4)
-            say("Click to switch")
-            mouse.click(at(row("app")))
-            mouse.wait(0.5)
-            say("Drag a tab onto a workspace to move it there")
-            mouse.drag(from: grip(tab("tests")), to: at(row("app bugfix worktree")), hold: 0.5)
-            mouse.click(at(row("app bugfix worktree")))
-            mouse.wait(0.4)
-            mouse.move(to: at(tab("tests")))
-            mouse.wait(0.6)
-            // Groups (#80). The first group is made by the model call behind the row menu's Move to
-            // New Group… (a context menu's own tracking loop and window are beyond DemoMouse);
-            // joining it and collapsing it are real drags and clicks.
-            say("Gather workspaces into a group")
-            mouse.run { [weak self] in
-                guard let self, let web = self.workspaces.first(where: { $0.name == "website" }),
-                      let infra = self.workspaces.first(where: { $0.name == "infra" }) else { return }
-                self.move(infra, toGroup: self.moveToNewGroup(web, name: "side projects"))
-            }
-            mouse.wait(1.0)
-            say("Drag a workspace onto a group's header to add it")
-            mouse.drag(from: at(row("docs")), to: at(header("side projects")), hold: 0.4)
-            // Something in the group wants you, so the collapsed header has an outline to carry. Not
-            // docs: pressing its row to drag it made it the workspace you're looking at.
-            mouse.run { [weak self] in
-                guard let self, let deploy = self.workspaces.flatMap(\.panes).first(where: { $0.customTitle == "deploy" }) else { return }
-                self.setAttention(.waiting, on: deploy, event: "demo")
-            }
-            mouse.wait(0.8)
-            say("Click a header to collapse the group; it still shows its members' attention")
-            mouse.click(at(header("side projects")))
-            mouse.wait(1.2)
-            say("")
-            mouse.wait(0.5)
-
-        case "attention":
-            // The caffeinate cup (#69) shows while an agent works.
-            Settings.write("power.caffeinate", .bool(true))
-            if let ws = workspaces.first { rename(workspace: ws, to: "app") }
-            named(first, "editor")
-            split(first!, side: .right)
-            let agent = focusedPane
-            named(agent, "agent")
-            let build = addTab("build", in: focusedDeck)
-            if let d = focusedDeck, let t = d.tabs.first { select(tab: t, in: d) }
-            // No workspace here may wear an attention color (red failed, orange that reads as red,
-            // blue waiting): a chip or tint that matches an outline muddies what this demo teaches. So these
-            // take auto_assign's swatches with those skipped (demo only; auto_assign is unchanged).
-            var calm = Theme.swatches.filter { !["red", "orange", "blue"].contains($0.name) }.map(\.color).makeIterator()
-            for (ws, p) in [("billing", "ledger"), ("docs", "notes"), ("mobile", "simulator")] {
-                let w = newWorkspace(name: ws)
-                named(w.panes.first, p)
-                if Demo.autoAssignColors, let c = calm.next() { setColor(c, workspace: w) }
-            }
-            if let app = workspaces.first { activate(app) }
-            if let first { focus(first) }
-
-            // The agent is record-demo.sh's stand-in `claude`: it reports progress the way Claude
-            // Code does (docs/claude-code-states.md), and its name gets it Claude's mark (#81) on its
-            // tab and its workspace's entry. After 8 s it needs permission (DEMO_CLAUDE_ASKS_AFTER):
-            // the waiting mark outranks the spinner. The stand-in `cargo` fills a ring on the build's
-            // tab (OSC 9;4;1;N) in about 4 s, while it's in view, then again for its tests; at
-            // about 11 s the deploy fails.
-            say("An agent (right) is working: its tab spins. The build's tab fills as it goes")
-            mouse.run {
-                type(agent, "claude\r")
-                type(build, "cargo build --release && cargo test && make deploy || dealer notify --state failed --title Build --body 'make deploy failed'\r")
-            }
-            mouse.move(to: at(paneView("agent"), 0.5, 0.6))
-            mouse.wait(1.4)
-            say("While an agent works, the cup keeps the display awake")
-            mouse.move(to: at({ [weak self] in self?.caffeineIcon }))
-            mouse.wait(1.6)
-            // AppKit's tooltips follow the window server's cursor, so a demo hover may not raise the
-            // cup's tooltip; the log says whether one showed. The caption carries the meaning either way.
-            mouse.run { print("DEMO HOVER cup \(extras())"); fflush(stdout) }
-            say("Switch to another workspace: the agent's spins in the sidebar")
-            mouse.click(at(row("docs")))
-            mouse.wait(3.2)
-            say("It needs you: the spinner gives way to a big blue dot")
-            mouse.move(to: at(row("app"), 0.85, 0.5), duration: 0.9)
-            mouse.wait(0.9)
-            say("The build fails: a red dot joins in front, since failure outranks waiting")
-            mouse.wait(1.4)
-            mouse.move(to: at(row("app"), 0.5, 0.5), duration: 0.6)
-            mouse.wait(0.8)
-            say("Click it: the waiting pane is blue, the failed tab red")
-            mouse.click(at(row("app")))
-            mouse.wait(1.8)
-            say("Clicking into the pane clears it, with a short fade")
-            mouse.click(at(paneView("agent"), 0.5, 0.5))
-            mouse.wait(1.8)
-            say("Go to the failed tab: it fades out too")
-            mouse.click(at(tabOf("build"), 0.5, 0.5))
-            mouse.wait(2.4)
-            say("")
-            mouse.wait(0.4)
-
-        case "goto":
-            // Go to Pane (⌘⇧A, #66) with two agents working elsewhere. Keys go through the window as
-            // key events, so the menu-shortcut path runs; each one is captioned (no key overlay).
-            if let ws = workspaces.first { rename(workspace: ws, to: "app") }
-            named(first, "server"); type(first, "ls\r")
-            addTab("tests", in: focusedDeck, "make test")
-            // record-demo.sh's stand-in `claude` reports progress the way Claude Code does while it
-            // works (docs/claude-code-states.md), and gets Claude's mark (#81).
-            let working = "claude\r"
-            let web = newWorkspace(name: "website")
-            named(web.panes.first, "dev"); type(web.panes.first, "ls src\r")
-            if let dev = web.panes.first {
-                split(dev, side: .right)
-                named(focusedPane, "agent"); type(focusedPane, working)
-            }
-            addTab("storybook", in: focusedDeck, "cat README.md")
-            let fix = newWorkspace(name: "app bugfix worktree")
-            named(fix.panes.first, "bugfix agent"); type(fix.panes.first, working)
-            let docs = newWorkspace(name: "docs")
-            named(docs.panes.first, "notes"); type(docs.panes.first, "git --no-pager log --oneline\r")
-            if let app = workspaces.first { activate(app) }
-            if let d = focusedDeck, let t = d.tabs.first { select(tab: t, in: d) }
-            if let first { focus(first) }
-
-            say("Two agents are working, in website and in the worktree: their rows spin")
-            mouse.move(to: at(row("app bugfix worktree"), 0.6, 0.5))
-            mouse.wait(1.6)
-            mouse.move(to: at(paneView("server"), 0.6, 0.55))
-            mouse.wait(0.3)
-            say("⌘⇧A: Go to Pane lists every pane, most recent first")
-            mouse.wait(0.6)
-            menuKey("a", [.command, .shift], keyCode: 0, "cmd-shift-A")
-            mouse.wait(1.6)
-            say("Type “sto”: letters in order narrow the list")
-            mouse.wait(0.5)
-            typeKeys("sto")
-            mouse.wait(1.2)
-            say("⏎: jump to it, in its workspace")
-            mouse.wait(0.6)
-            typeKeys("\r")
-            mouse.wait(1.4)
-            say("⌘⇧A, “bug”, ⏎: straight into the other agent's pane")
-            mouse.wait(0.5)
-            menuKey("a", [.command, .shift], keyCode: 0, "cmd-shift-A")
-            mouse.wait(0.6)
-            typeKeys("bug")
-            mouse.wait(0.6)
-            typeKeys("\r")
-            mouse.wait(1.6)
-            say("⌘⇧A, then ⏎ with no query: back to the previous pane")
-            mouse.wait(0.5)
-            menuKey("a", [.command, .shift], keyCode: 0, "cmd-shift-A")
-            mouse.wait(0.9)
-            typeKeys("\r")
-            mouse.wait(1.6)
-            say("")
-            mouse.wait(0.4)
 
         default:
             say("unknown demo \(name)")
@@ -764,7 +805,6 @@ extension TerminalWindowController {
         // Let the shells start (and the recorder attach) before the pointer moves.
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { mouse.start() }
         Demo.mouse = mouse  // the ticker holds it only weakly
-        // The recorder stops when the app exits.
         // The recorder stops on this line, *then* the app exits: a frame recorded after the window
         // closes would show whatever is behind it on the user's screen.
         mouse.onFinish = {
