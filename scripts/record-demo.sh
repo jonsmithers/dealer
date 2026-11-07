@@ -156,6 +156,8 @@ for demo in $DEMOS; do
   DEALER_SELFTEST=1 DEALER_DEMO=$demo DEALER_DEMO_DIR=$DEMO_DIR $BIN > $OUT/$demo.log 2>&1 &
   PID=$!  # killed by the EXIT trap if the script stops early
   sleep 1.5
+  # Focus the window so macOS renders its active appearance (traffic lights, vibrancy).
+  osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $PID) to true" 2>/dev/null || true
   B=($($BOUNDS $PID)); SCALE=${B[5]}
   (( $#B == 5 )) || { print "no Dealer window found"; exit 1; }
   CROP="$((B[3]*SCALE)):$((B[4]*SCALE)):$((B[1]*SCALE)):$((B[2]*SCALE))"
