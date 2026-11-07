@@ -9,7 +9,7 @@ let package = Package(
         .executableTarget(
             name: "Dealer",
             dependencies: ["GhosttyKit"],
-            exclude: ["CLAUDE.md"],  // agent notes, not a resource
+            exclude: ["CLAUDE.md", "AGENTS.md"],  // agent notes, not a resource
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [
                 .linkedLibrary("c++"),
