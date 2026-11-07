@@ -21,6 +21,11 @@ import AppKit
 //   another deck, a strip moving into the titlebar) glides from where it was on screen.
 // - Translucent windows (#67): the chrome fill's card holes follow the moving cards while decks
 //   move (`BackdropFollower`); otherwise they'd be cut at the final frames for the whole motion.
+// - Zoom (#97) is the same pass: the zoomed pane (and, for a window-level zoom, its deck) grows to
+//   fill or shrinks back like any moved view, raised above its siblings (`zPosition`) while it
+//   moves. Zooming in, the panes or decks it hides leave fading pictures under it
+//   (`LayoutGhost.fades`); zooming out, the ones it reveals fade in at their final frames under it
+//   (`Pass.fadesRevealed`).
 //
 // Which changes animate is one list, `LayoutChange.animates`. Off with `[window] animate_layout =
 // false`, under Reduce Motion, during a live resize, and in self-test mode unless a step turns
@@ -60,13 +65,15 @@ enum LayoutChange: String, CaseIterable {
     case moveToWorkspace
     /// Anything done by a drag-and-drop. The drop preview already settles onto the result (#28).
     case drop
+    /// Toggle Zoom (⌘⇧↩, ghostty's `toggle_split_zoom`), in or out, pane or window level (#97).
+    case zoom
 
     /// Whether this change animates the layout. The user's call per path (#94).
     var animates: Bool {
         switch self {
         case .drop: return false  // no double motion with the settle glide
         case .split, .newTab, .cliCreate, .closePane, .closeTab, .closeWorkspace, .jobClose,
-             .promote, .fold, .swap, .movePane, .moveToNewTab, .moveTab, .mergeTab, .moveToWorkspace:
+             .promote, .fold, .swap, .movePane, .moveToNewTab, .moveTab, .mergeTab, .moveToWorkspace, .zoom:
             return true
         }
     }
@@ -187,6 +194,11 @@ enum LayoutAnimation {
         /// Views clipped while they move (they hold content laid out at its final size).
         private var masked: [NSView] = []
         private var movedDecks = false
+        /// Zoom (#97): the zoomed pane and its deck, drawn above their siblings while they move.
+        var raised: [NSView] = []
+        /// Zoom out (#97): panes, decks, strips and dividers shown again fade in under the
+        /// shrinking pane instead of popping.
+        var fadesRevealed = false
 
         init(snapshot: Snapshot) { self.snapshot = snapshot }
 
@@ -202,16 +214,25 @@ enum LayoutAnimation {
             CATransaction.begin()
             // Weak: a strong capture kept closed panes' views, and so their surfaces and shells,
             // alive until the motion ended (`layout anim:` memory step).
-            let unmask = WeakList()
+            let unmask = WeakList(), lower = WeakList()
             let id = NSNumber(value: LayoutAnimation.passes)
             CATransaction.setCompletionBlock {
-                // A newer pass that clipped the same view unclips it when its own motion ends.
+                // A newer pass that clipped (or raised) the same view undoes it when its own motion ends.
                 for v in unmask.views where Pass.clippedBy.object(forKey: v) == id {
                     v.layer?.masksToBounds = false
                     Pass.clippedBy.removeObject(forKey: v)
                 }
+                for v in lower.views where Pass.raisedBy.object(forKey: v) == id {
+                    v.layer?.zPosition = 0
+                    Pass.raisedBy.removeObject(forKey: v)
+                }
             }
-            for v in contentView.subviews where Snapshot.isChrome(v) { visit(v) }
+            for v in raised {
+                v.layer?.zPosition = 1
+                Pass.raisedBy.setObject(id, forKey: v)
+            }
+            lower.add(raised)
+            for v in contentView.subviews where Snapshot.isChrome(v) { visit(v, fading: false) }
             unmask.add(masked)
             for g in ghosts {
                 g.play(in: contentView)
@@ -223,6 +244,8 @@ enum LayoutAnimation {
 
         /// Which pass clipped a view last (weak keys).
         static let clippedBy = NSMapTable<NSView, NSNumber>.weakToStrongObjects()
+        /// Which pass raised a view last (weak keys).
+        static let raisedBy = NSMapTable<NSView, NSNumber>.weakToStrongObjects()
 
         private func mask(_ v: NSView) {
             guard let layer = v.layer else { return }
@@ -231,8 +254,16 @@ enum LayoutAnimation {
             masked.append(v)
         }
 
-        private func visit(_ v: NSView) {
+        private func visit(_ v: NSView, fading: Bool) {
             let id = ObjectIdentifier(v)
+            var fading = fading
+            // Zoom out: what the zoom hid comes back at its final frame, fading in (the outermost
+            // view only; its contents fade with it).
+            if fadesRevealed, !fading, v is PaneView || v is DeckView || v is TabStripView || v is DividerView,
+               !v.isHiddenOrHasHiddenAncestor, !snapshot.wasVisible(v), let layer = v.layer {
+                LayoutAnimation.fadeIn(layer)
+                fading = true
+            }
             if let s = v as? SurfaceView {
                 // Never resized per frame: only a moved origin glides (its bar came or went).
                 if let old = snapshot.oldFrame(s), !s.isHidden, old.origin != s.frame.origin {
@@ -242,7 +273,7 @@ enum LayoutAnimation {
                 return
             }
             if let bar = v as? PaneBarView, let pv = bar.superview as? PaneView {
-                visitBar(bar, in: pv)
+                if !fading { visitBar(bar, in: pv) }
                 return
             }
             let from = starts[id] ?? (explicitOnly.contains(id) ? nil : snapshot.oldFrame(v))
@@ -253,7 +284,7 @@ enum LayoutAnimation {
                 // deck's card, a new titlebar strip's tabs.
                 if v is PaneView || starts[id] != nil && (v is DeckView || v is TabStripView) { mask(v) }
             }
-            for s in v.subviews { visit(s) }
+            for s in v.subviews { visit(s, fading: fading) }
         }
 
         /// The pane bar shows only in a multi-pane tab, so it comes and goes with the first split and
@@ -269,7 +300,7 @@ enum LayoutAnimation {
                 } else if let from = snapshot.oldFrame(bar), from != bar.frame {
                     LayoutAnimation.animate(bar, from: from)
                 }
-                for s in bar.subviews { visit(s) }
+                for s in bar.subviews { visit(s, fading: false) }
             } else if wasShown, paneWasShown, !pv.isHidden, let image = LayoutGhost.image(ofHidden: bar) {
                 let ghost = LayoutGhostView(frame: bar.frame.offsetBy(dx: 0, dy: -bar.frame.height))
                 let l = CALayer()  // a sublayer: AppKit owns the view's own layer contents
@@ -318,6 +349,19 @@ enum LayoutAnimation {
         CATransaction.commit()
     }
 
+    /// An opacity fade over the motion's duration (zoom's siblings, #97). The model value is final.
+    static func fadeIn(_ layer: CALayer) { fade(layer, from: 0, to: 1) }
+
+    static func fade(_ layer: CALayer, from: Float, to: Float, completion: (() -> Void)? = nil) {
+        CATransaction.begin()
+        if let completion { CATransaction.setCompletionBlock(completion) }
+        let o = CABasicAnimation(keyPath: "opacity")
+        o.fromValue = from
+        o.toValue = to
+        add(o, to: layer, key: "opacity")
+        CATransaction.commit()
+    }
+
     private static func add(_ a: CABasicAnimation, to layer: CALayer, key: String) {
         a.duration = duration
         a.timingFunction = timing
@@ -360,6 +404,9 @@ struct LayoutGhost {
     var border: (color: CGColor?, width: CGFloat, radius: CGFloat, corners: CACornerMask)?
     var parts: [Part] = []
     let isDeck: Bool
+    /// Zoom in (#97): stays where it is and fades out under the zoomed pane (or deck) as that grows,
+    /// instead of collapsing.
+    var fades = false
 
     /// A pane collapsing into its split's far edge (`to`, in its container's coordinates).
     init?(pane: Pane, collapsedTo to: CGRect) {
@@ -443,6 +490,7 @@ struct LayoutGhost {
     func play(in contentView: NSView) {
         guard let container else { return }
         let ghost = LayoutGhostView(frame: to)
+        ghost.fades = fades
         ghost.layer?.masksToBounds = true
         ghost.layer?.backgroundColor = background
         if let border {
@@ -474,13 +522,21 @@ struct LayoutGhost {
         } else {
             container.addSubview(ghost)
         }
-        LayoutAnimation.animate(ghost, from: from, completion: { [weak ghost] in ghost?.removeFromSuperview() })
+        if fades, let layer = ghost.layer {
+            ghost.alphaValue = 0  // the model is final; the animation holds it visible meanwhile
+            LayoutAnimation.fade(layer, from: 1, to: 0, completion: { [weak ghost] in ghost?.removeFromSuperview() })
+        } else {
+            LayoutAnimation.animate(ghost, from: from, completion: { [weak ghost] in ghost?.removeFromSuperview() })
+        }
     }
 }
 
-/// A picture of a closed pane, deck, strip or bar while it collapses. Never takes events.
+/// A picture of a closed pane, deck, strip or bar while it collapses (or, for zoom, fades). Never
+/// takes events.
 final class LayoutGhostView: PassthroughView {
     override var isFlipped: Bool { true }
+    /// A zoom's fading picture (#97): no card hole is cut for it, as the deck it shows is going.
+    var fades = false
 }
 
 // MARK: - Translucent windows
@@ -524,7 +580,7 @@ enum BackdropFollower {
                     ? dv.strip.buttons[dv.deck.activeIndex] : nil
                 holes.append(CardHole(card: LayoutAnimation.presentedRect(dv.content, in: cv), squareTop: dv.squareTop,
                                       tab: tab.map { LayoutAnimation.presentedRect($0, in: cv) }))
-            } else if let g = v as? LayoutGhostView, let card = g.layer?.sublayers?.first, card.borderWidth > 0 {
+            } else if let g = v as? LayoutGhostView, !g.fades, let card = g.layer?.sublayers?.first, card.borderWidth > 0 {
                 let f = LayoutAnimation.presentedFrame(g)
                 holes.append(CardHole(card: card.frame.offsetBy(dx: f.minX, dy: f.minY).intersection(f),
                                       squareTop: card.maskedCorners == DeckView.bottomCorners, tab: nil))

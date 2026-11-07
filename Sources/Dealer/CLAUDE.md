@@ -475,6 +475,16 @@
   the completion block kept closed panes, their surfaces and shells alive until the motion ended.
 - Translucent windows: `BackdropFollower` re-cuts the chrome's card holes from the presented card
   frames each display frame while decks move; `layoutBackdrop` defers to it while it runs.
+- **Zoom (#97)** doesn't go through `finishChange`: `toggleZoom` sets `animatesNextLayout` itself
+  (`LayoutChange.zoom`) and runs the same pass. The zoomed pane and its deck are raised
+  (`Pass.raised`: layer `zPosition` 1, reset by the pass that raised them last, `raisedBy`) so they
+  cover their siblings while they move. Zooming in, `noteZooming` captures the panes or decks about
+  to be hidden as *fading* ghosts (`LayoutGhost.fades`: they stay put and fade out; no card hole is
+  cut for them). Zooming out, `Pass.fadesRevealed` fades in each outermost chrome view that wasn't
+  visible before (an opacity animation; its frame is final). Drops of the zoom elsewhere (a split,
+  `unzoom(hiding:in:)`, a focus change) are the change that caused them, not `.zoom`. Self-test:
+  `SelfTestZoomAnimation.swift` (`zoom anim:`), which counts terminal resizes with
+  `SurfaceView.sizeChanges`.
 - Self-test: `LayoutAnimation.isAnimating(in:)` (animation keys, clipped views, ghosts) is what a
   step waits on. Read a motion's start from the animation's `fromValue` (SelfTestLayoutAnimation
   `start`), never by sampling the presentation layer.

@@ -65,8 +65,8 @@ enum SettingsFile {
     # Safari's compact tabs. Empty titlebar space still drags the window.
     # tabs_in_titlebar = true
 
-    # Animate the layout when panes and decks are added, closed or moved: the frames glide, and each
-    # terminal is resized once. macOS's Reduce Motion turns it off too.
+    # Animate the layout when panes and decks are added, closed, moved or zoomed: the frames glide,
+    # and each terminal is resized once. macOS's Reduce Motion turns it off too.
     # animate_layout = true
 
     [tabs]

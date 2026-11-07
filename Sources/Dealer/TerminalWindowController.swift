@@ -58,6 +58,9 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     private var pendingGhosts: [LayoutGhost] = []
     /// Set by `performing(_:_:)`: the change every `finishChange` inside it counts as (drops).
     private var changeOverride: LayoutChange?
+    /// Set by `toggleZoom` around its animated layout (#97): the views drawn above their siblings
+    /// while they move (the zoomed pane and its deck).
+    private var zoomRaised: [NSView]?
     /// Which pooled divider view showed which split (Node) in the last pass, so an animated pass
     /// starts each split's divider where *that split's* divider was.
     private var dividerOwner: [ObjectIdentifier: ObjectIdentifier] = [:]
@@ -818,6 +821,10 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         // their strips would read freed decks later (#69 hit this).
         guard !isClosed else { return }
         let pass = animatesNextLayout ? LayoutAnimation.Pass(snapshot: .init(contentView)) : nil
+        if let pass, let zoomRaised {
+            pass.raised = zoomRaised
+            pass.fadesRevealed = true
+        }
         layoutPass = pass
         defer { layoutPass = nil }
         nextDividerOwner = [:]
@@ -1162,8 +1169,42 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         default:
             zoom = nil
         }
+        // #97: glides like a structural change (it doesn't go through `finishChange`).
+        if LayoutAnimation.allowed(changeOverride ?? .zoom, in: window) {
+            noteZooming(pane, to: zoom?.level ?? 0)
+            zoomRaised = [pane.view, loc.deck.view]
+            animatesNextLayout = true
+        }
         layoutNow()
+        animatesNextLayout = false
+        zoomRaised = nil
+        pendingGhosts = []
         focus(pane)
+    }
+
+    /// Before a zoom hides the focused pane's siblings (`level` 1) or the other decks (`level` 2):
+    /// pictures of them that fade out under the zoomed pane as it grows (#97). Hidden ones (already
+    /// zoomed away) have none.
+    private func noteZooming(_ pane: Pane, to level: Int) {
+        guard level > 0, let loc = locate(pane) else { return }
+        for p in loc.tab.panes where p !== pane {
+            if var g = LayoutGhost(pane: p, collapsedTo: LayoutAnimation.presentedFrame(p.view)) {
+                g.fades = true
+                pendingGhosts.append(g)
+            }
+        }
+        guard level >= 2 else { return }
+        for deck in decks where deck !== loc.deck {
+            let dv = deck.view
+            if var g = LayoutGhost(deck: deck, collapsedTo: LayoutAnimation.presentedFrame(dv), in: contentView) {
+                g.fades = true
+                pendingGhosts.append(g)
+            }
+            if dv.stripInTitlebar, var g = LayoutGhost(strip: dv.strip, collapsedTo: LayoutAnimation.presentedFrame(dv.strip)) {
+                g.fades = true
+                pendingGhosts.append(g)
+            }
+        }
     }
 
     @objc func equalize(_ sender: Any?) {

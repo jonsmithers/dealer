@@ -340,7 +340,9 @@ The GitHub repo is `jonsmithers/dealer`.
   the fade.
 - **What animates:** attention layers and drawings (#34), the drop settle (#28), and since #94 the
   chrome layout on structural changes (pane/deck frames, bars, dividers, strips; 0.18 s
-  ease-out, `Theme.Motion.standard`). **Terminal surfaces never animate:** each gets its final size
+  ease-out, `Theme.Motion.standard`), Toggle Zoom included (#97: the zoomed pane, or its deck for
+  a window zoom, grows from its frame and shrinks back, drawn above its siblings; the siblings it
+  hides fade out as pictures under it, and the ones it reveals fade in at their final frames). **Terminal surfaces never animate:** each gets its final size
   once, at the start of the motion (the user's call: reflow at the start, not the end), and at
   most its *position* glides. Which changes animate is one list, `LayoutChange.animates`
   (LayoutAnimation.swift); drops don't (the settle is their motion). On by default,

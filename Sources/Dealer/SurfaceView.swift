@@ -175,9 +175,15 @@ final class SurfaceView: NSView, NSTextInputClient {
         pushSize()
     }
 
+    /// Self-test hook: how often the size pushed to libghostty changed (#97 checks that a zoom
+    /// resizes a terminal once). A pass that re-sets the same frame pushes the same size again.
+    private(set) var sizeChanges = 0
+    private var lastPushed: CGSize?
+
     private func pushSize() {
         guard let surface, bounds.width > 0, bounds.height > 0 else { return }
         let px = convertToBacking(bounds.size)
+        if px != lastPushed { sizeChanges += 1; lastPushed = px }
         ghostty_surface_set_size(surface, UInt32(px.width), UInt32(px.height))
     }
 
