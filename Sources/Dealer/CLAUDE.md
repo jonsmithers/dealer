@@ -156,6 +156,9 @@
   takes first responder while open (↑/↓/return/esc), dismisses on outside clicks through a local
   event monitor (only events through `NSApp.sendEvent` reach it; the self-test's `window.sendEvent`
   clicks don't), and stays on top through `raiseTitlebarSwitcherMenu()` after `raiseOverlays()`.
+  `reload` (every `refreshChrome`, i.e. 1–2×/s while a pane reports progress) updates rows **in
+  place**, keyed by workspace/group: AppKit sends a release to the view that took the press, so a
+  row replaced mid-click lost the click (found by the #98 demo). Never rebuild them per refresh.
   Rows hold their workspace weakly and are dropped on close; `windowWillClose` closes it so its
   monitor goes. Every button, row and the dropdown answer `mouseDownCanMoveWindow == false` (#27).
 - Tests: `SelfTestTitlebarSwitcher.swift` (`DEALER_SELFTEST_ONLY=titlebar switcher:`, self-contained).

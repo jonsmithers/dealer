@@ -344,31 +344,52 @@ final class TitlebarSwitcherMenu: FlippedView, ThemeApplying {
     func reload() {
         guard let c = owner else { return }
         if c.activeWorkspace !== openedOn { return close(restoreFocus: false) }
-        let keep = highlighted?.workspace
-        let wasNew = highlighted?.isNewWorkspace ?? false
-        var kinds: [(TitlebarSwitcherRow.Kind, Workspace?)] = []
+        var kinds: [(TitlebarSwitcherRow.Kind, Workspace?, WorkspaceGroup?)] = []
         var lastGroup: WorkspaceGroup?
         for (i, ws) in c.workspaces.enumerated() {
-            if let g = ws.group, g !== lastGroup { kinds.append((.header(g.name), nil)) }
+            if let g = ws.group, g !== lastGroup { kinds.append((.header(g.name), nil, g)) }
             lastGroup = ws.group
-            kinds.append((.workspace(number: i < 9 ? i + 1 : nil, indented: ws.group != nil), ws))
+            kinds.append((.workspace(number: i < 9 ? i + 1 : nil, indented: ws.group != nil), ws, nil))
         }
-        kinds.append((.separator, nil))
-        kinds.append((.newWorkspace, nil))
-        rows.forEach { $0.removeFromSuperview() }
-        rows = kinds.map { k, ws in
-            let r = TitlebarSwitcherRow(kind: k, workspace: ws)
+        kinds.append((.separator, nil, nil))
+        kinds.append((.newWorkspace, nil, nil))
+        // Update rows in place, keyed by what they stand for. This runs on every chrome refresh (a
+        // pane reporting progress refreshes it once or twice a second), and a row replaced between
+        // a click's press and release would lose the click: AppKit sends the release to the view
+        // that took the press. Only rows whose subject is gone are removed.
+        var old = rows
+        func reuse(_ match: (TitlebarSwitcherRow) -> Bool) -> TitlebarSwitcherRow? {
+            guard let i = old.firstIndex(where: match) else { return nil }
+            return old.remove(at: i)
+        }
+        let next: [TitlebarSwitcherRow] = kinds.map { k, ws, g in
+            let found: TitlebarSwitcherRow?
+            switch k {
+            case .workspace: found = ws.flatMap { ws in reuse { $0.workspace === ws } }
+            case .header: found = reuse { $0.group != nil && $0.group === g }
+            case .separator: found = reuse { if case .separator = $0.kind { return true }; return false }
+            case .newWorkspace: found = reuse { $0.isNewWorkspace }
+            }
+            let r = found ?? TitlebarSwitcherRow(kind: k, workspace: ws, group: g)
+            r.kind = k
             r.isCurrent = ws != nil && ws === c.activeWorkspace
             if let ws {
                 r.title = ws.displayName
                 r.color = ws.color
                 r.attention = ws.attention
+            } else if case let .header(name) = k {
+                r.title = name
             }
-            addSubview(r)
+            if r.superview !== self { addSubview(r) }
             return r
         }
-        highlighted = rows.first { r in keep.map { r.workspace === $0 } ?? (wasNew && r.isNewWorkspace) }
-        place()
+        old.forEach { $0.removeFromSuperview() }
+        if let h = highlighted, !next.contains(where: { $0 === h }) { highlighted = nil }
+        let moved = next.count != rows.count || zip(next, rows).contains { $0 !== $1 }
+        let width = rows.map(\.idealWidth).max()
+        rows = next
+        // Frames only change when the rows or their widths do.
+        if moved || rows.map(\.idealWidth).max() != width || frame.isEmpty { place() }
     }
 
     /// Sizes the dropdown to its rows and puts it under the button.
@@ -420,18 +441,22 @@ final class TitlebarSwitcherRow: FlippedView {
         case newWorkspace
     }
 
-    let kind: Kind
+    /// What the row shows; updated in place by `reload`, which keeps a row as long as its subject.
+    var kind: Kind { didSet { needsDisplay = true } }
     /// A workspace row's workspace. Weak: the dropdown must never keep one alive (#43).
     private(set) weak var workspace: Workspace?
-    var isCurrent = false
-    var title = ""
-    var color: NSColor?
+    /// A header row's group (weak, like the workspace).
+    private(set) weak var group: WorkspaceGroup?
+    var isCurrent = false { didSet { if isCurrent != oldValue { needsDisplay = true } } }
+    var title = "" { didSet { if title != oldValue { needsDisplay = true } } }
+    var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true } } }
     /// The workspace's strongest attention: one dot (the sidebar row stacks them; this is a list).
-    var attention: Attention = .none
+    var attention: Attention = .none { didSet { if attention != oldValue { needsDisplay = true } } }
 
-    init(kind: Kind, workspace: Workspace? = nil) {
+    init(kind: Kind, workspace: Workspace? = nil, group: WorkspaceGroup? = nil) {
         self.kind = kind
         self.workspace = workspace
+        self.group = group
         super.init(frame: .zero)
         if case .newWorkspace = kind { title = "New Workspace" }
         if case let .header(name) = kind { title = name }

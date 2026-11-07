@@ -129,6 +129,32 @@ extension TerminalWindowController {
             self.clickForTest(button)
             self.clickForTest(button)
         }
+        var rowBefore: TitlebarSwitcherRow?
+        var rowKept = false, highlightKept = false, newRowAdded = false
+        t.step("titlebar switcher: a chrome refresh, or a new workspace, between a row's press and release keeps the row and its highlight; the click still picks", nil, {
+            all(rowBefore == nil ? "no row for ts-beta" : nil, rowKept ? nil : "the refresh replaced the pressed row",
+                highlightKept ? nil : "the refresh dropped the highlight",
+                newRowAdded ? nil : "the new workspace should get a row while the dropdown is open",
+                active(beta, "ts-beta"), menu.isOpen ? "the dropdown should close after the pick" : nil)
+        }) {
+            self.clickForTest(button)
+            guard let row = menu.row(for: beta!) else { return }
+            rowBefore = row
+            let p = center(row)
+            send(.leftMouseDown, at: p)
+            // A pane reporting progress or attention refreshes the chrome ~1-2 times a second.
+            self.refreshChrome()
+            self.layoutNow()
+            rowKept = menu.row(for: beta!) === row
+            menu.highlight(row)
+            // A workspace added meanwhile (the CLI) changes the list: rows that stay are kept too.
+            let delta = self.newWorkspace(name: "ts-delta", activate: false)
+            self.refreshChrome()
+            rowKept = rowKept && menu.row(for: beta!) === row
+            highlightKept = menu.highlighted === row
+            newRowAdded = menu.row(for: delta) != nil
+            send(.leftMouseUp, at: center(row))
+        }
         t.step("titlebar switcher: a workspace switch from elsewhere (⌃1–9, the CLI) closes an open dropdown", nil, {
             all(active(alpha, "ts-alpha"), menu.isOpen ? "the dropdown should close" : nil,
                 menu.rows.isEmpty ? nil : "a closed dropdown holds no rows",
@@ -210,7 +236,7 @@ extension TerminalWindowController {
                 menu.isOpen ? "the dropdown should be closed" : nil, menu.rows.isEmpty ? nil : "a closed dropdown holds no rows")
         }) {
             Settings.workspaceSwitcher = .sidebar
-            for ws in [alpha, beta, gamma].compactMap({ $0 }) { self.close(workspace: ws) }
+            for ws in [alpha, beta, gamma].compactMap({ $0 }) + self.workspaces.filter({ $0.name == "ts-delta" }) { self.close(workspace: ws) }
             alpha = nil; beta = nil; gamma = nil
             if let saved = savedPreference { self.sidebarPreference = saved }
             self.layoutNow()
