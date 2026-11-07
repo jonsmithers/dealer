@@ -55,7 +55,7 @@ extension TerminalWindowController {
             guard let data = fm.contents(atPath: dir + "/hooks/hooks.json"),
                   let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
                   let hooks = obj["hooks"] as? [String: Any] else { return "hooks.json doesn't parse" }
-            let want: Set = ["SessionStart", "PermissionRequest", "Notification", "Stop", "StopFailure"]
+            let want: Set = ["SessionStart", "SessionEnd", "PermissionRequest", "Notification", "Stop", "StopFailure"]
             let skill = (try? String(contentsOfFile: dir + "/skills/dealer/SKILL.md", encoding: .utf8)) ?? ""
             return all(Set(hooks.keys) == want ? nil : "hooks.json events: \(hooks.keys.sorted())",
                        fm.isExecutableFile(atPath: dir + "/hooks/dealer-hook.sh") ? nil : "dealer-hook.sh isn't executable",

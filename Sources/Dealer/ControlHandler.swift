@@ -36,6 +36,7 @@ enum ControlHandler {
             case "close": result = try close(args, ctx)
             case "run": result = try ControlJobs.run(args, ctx)
             case "job-done": result = try ControlJobs.done(args, ctx)
+            case "agent-session": result = try agentSession(args, ctx)
             case "diagnose": result = try Diagnostics.control(args)
             default: throw Failure(message: "unknown command '\(cmd)'")
             }
@@ -242,6 +243,7 @@ enum ControlHandler {
             "workspace_focus": p === ws.validFocusedPane,
             "visible": p.view.window != nil && !p.view.isHiddenOrHasHiddenAncestor,
             "agent_state": p.agentState.rawValue,
+            "agent_session": p.agentSession.map(agentSessionJSON) ?? NSNull(),
             "progress": [
                 "reporting": p.isReportingProgress,
                 "percent": p.progressPercent ?? NSNull(),

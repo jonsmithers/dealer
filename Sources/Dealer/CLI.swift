@@ -6,7 +6,7 @@ import Foundation
 enum CLI {
     static let commands: Set<String> = [
         "identify", "list", "ls", "find", "create", "new", "send-text", "send", "read", "focus", "resize",
-        "rename", "color", "notify", "status", "close", "run", "job-done", "diagnose", "help", "--help", "-h",
+        "rename", "color", "notify", "status", "close", "run", "job-done", "agent-session", "diagnose", "help", "--help", "-h",
     ]
 
     /// True when this process should act as the CLI rather than launch the app.
@@ -55,6 +55,10 @@ enum CLI {
                                                  the job pane marked done)
                                                  --quiet: no done mark or notification on success
                                                  --here: run next to this pane instead of routing
+      agent-session [-t T] [AGENT ID [--transcript PATH] | --end AGENT ID]
+                                                 the coding-agent session a pane runs, resumed when
+                                                 Dealer restores it (set by the Claude Code plugin);
+                                                 no arguments prints it
       diagnose [--leaks]                         write a memory diagnostics report (safe to attach to
                                                  an issue) and print its path; --leaks also runs
                                                  `leaks` (slow, pauses Dealer)
@@ -149,6 +153,7 @@ enum CLI {
             "run": target.union(focus).union(["--here", "--split", "--tab", "--size", "--bias", "--keep", "--quiet",
                                               "--title", "--cwd"]),
             "job-done": [],
+            "agent-session": target.union(["--transcript", "--end"]),
             "diagnose": ["--leaks"],
         ]
     }()
@@ -247,6 +252,8 @@ enum CLI {
             // calls in the notification log (#56). Not part of the CLI users should learn.
             case "--internal-log-source": a["source"] = try val()
             case "--leaks": a["leaks"] = true
+            case "--transcript": a["transcript"] = try val()
+            case "--end": a["end"] = true
             case "--scrollback": a["scrollback"] = true
             case "--lines": a["lines"] = try val()
             case "--wait":
@@ -298,6 +305,13 @@ enum CLI {
         case "job-done":
             guard positional.count == 1, Int(positional[0]) != nil else { throw Usage(message: "job-done takes the exit status") }
             a["status"] = Int(positional[0])
+        case "agent-session":
+            // AGENT ID records (or, with --end, forgets) a session; no arguments prints it (#93).
+            switch positional.count {
+            case 0: if a["end"] != nil { throw Usage(message: "agent-session --end takes the AGENT and session ID that ended") }
+            case 2: a["agent"] = positional[0]; a["id"] = positional[1]
+            default: throw Usage(message: "agent-session takes AGENT ID (e.g. claude 3f2a…), or nothing to print the pane's")
+            }
         case "rename":
             a["title"] = positional.joined(separator: " ")
         case "color":
@@ -374,6 +388,9 @@ enum CLI {
             return tree(r)
         case "resize":
             return ""
+        case "agent-session":
+            guard let s = r["session"] as? [String: Any], let agent = s["agent"], let id = s["id"] else { return "" }
+            return "\(agent) \(id)\n"
         default:
             return ""
         }

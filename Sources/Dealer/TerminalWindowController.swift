@@ -192,8 +192,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - Pane lifecycle
 
-    func makePane(workingDirectory: String?, command: String? = nil) -> Pane {
-        let pane = Pane(workingDirectory: workingDirectory, command: command)
+    func makePane(workingDirectory: String?, command: String? = nil, input: String? = nil) -> Pane {
+        let pane = Pane(workingDirectory: workingDirectory, command: command, input: input)
         pane.surface.onTitle = { [weak self, weak pane] title in
             guard let self, let pane else { return }
             let claude = Pane.claudeWorkingPrefixes.contains { title.hasPrefix($0) }

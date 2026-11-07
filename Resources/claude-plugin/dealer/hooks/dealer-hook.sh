@@ -1,5 +1,6 @@
 #!/bin/sh
-# Claude Code hook -> `dealer notify` (issue #12). Usage: dealer-hook.sh <event>; hook JSON on stdin.
+# Claude Code hook -> `dealer notify` (issue #12), or -> `dealer agent-session` for SessionStart and
+# SessionEnd (#93: the session a relaunch resumes). Usage: dealer-hook.sh <event>; hook JSON on stdin.
 # Prints nothing and always exits 0, so it never makes a permission decision or blocks Claude.
 
 # Only in a Dealer pane, only for interactive sessions (a nested `claude -p` that an agent runs from
@@ -13,6 +14,17 @@ input=$(cat)
 field() { printf '%s' "$input" | /usr/bin/plutil -extract "$1" raw -o - - 2>/dev/null; }
 
 case "${1:-}" in
+    # Every SessionStart (startup, resume, clear, compact) names the pane's session now; SessionEnd
+    # forgets it, only while it's still this one (Dealer checks), so /clear's End/Start can't race.
+    session-start|session-end)
+        id=$(field session_id)
+        [ -n "$id" ] || exit 0
+        if [ "$1" = session-start ]; then
+            "${DEALER_CLI:-dealer}" agent-session claude "$id" --transcript "$(field transcript_path)" >/dev/null 2>&1
+        else
+            "${DEALER_CLI:-dealer}" agent-session --end claude "$id" >/dev/null 2>&1
+        fi
+        exit 0 ;;
     permission)   state=waiting; body="Permission: $(field tool_name)" ;;
     notification) state=waiting; body=$(field message) ;;
     stop)         state=done;    body="Finished" ;;

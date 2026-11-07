@@ -64,6 +64,7 @@ enum Settings {
         "agent.command": .string,
         "agent.inject_hooks": .bool,
         "agent.errors_as_failed": .bool,
+        "agent.restore_sessions": .bool,
         "attention.failed_commands": .bool,
         "attention.done": .oneOf(["outline", "dot"]),
         "attention.unread": .oneOf(["dot", "outline"]),
@@ -271,6 +272,10 @@ enum Settings {
     /// marks the pane *failed* (red); false marks it *waiting* (blue) instead. Default true. Read when
     /// a pane's shell starts (exported as DEALER_CLAUDE_ERROR_STATE for the plugin's hook).
     static var agentErrorsAsFailed: Bool { bool("agent.errors_as_failed") ?? true }
+
+    /// `[agent] restore_sessions` (#93, AgentSession.swift): session restore resumes the Claude Code
+    /// session each pane was running (typed into its shell). Default true. Read at launch.
+    static var agentRestoreSessions: Bool { bool("agent.restore_sessions") ?? true }
 
     /// `[attention] failed_commands` (#29): a shell command that exits non-zero in a pane you aren't
     /// looking at marks it *failed* (red). Needs shell integration. Default true. Read live.

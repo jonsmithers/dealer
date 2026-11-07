@@ -61,6 +61,13 @@ install: its `dealer` skill teaches Claude the [`dealer` CLI](docs/cli.md). See
 [Claude Code hooks](#claude-code-hooks-automatic).
 </details>
 
+<details>
+<summary><b>6. Claude sessions survive a relaunch</b>: quit Dealer with Claude running in a pane, and the next launch resumes that conversation in the same pane</summary>
+
+The bundled plugin records each pane's Claude Code session, and session restore types
+`claude --resume` into the restored pane's shell. See [Session restore](#session-restore).
+</details>
+
 Demo videos are recorded with `scripts/record-demo.sh`.
 
 > [!WARNING]
@@ -350,6 +357,8 @@ Nothing is written to your `~/.claude` settings. The plugin's hooks:
 - `Stop`: *done*.
 - `StopFailure` (API errors such as rate limits or auth): *failed* (red). Set
   `[agent] errors_as_failed = false` to get *waiting* instead.
+- `SessionStart` / `SessionEnd`: record and forget the pane's session id, which a relaunch
+  resumes (see *Session restore*).
 
 The hooks do nothing outside Dealer (no `DEALER_PANE_ID`). They also do nothing for
 non-interactive runs (`claude -p`, the SDK), so an agent that runs `claude -p` from its Bash
@@ -479,6 +488,7 @@ File…** (⌘,) opens it, creating it from the commented
 command = "claude"       # what New Agent Pane runs; DEALER_AGENT_COMMAND overrides it
 inject_hooks = true      # load Dealer's Claude Code plugin in new panes
 errors_as_failed = true  # a Claude turn ending in an API error marks the pane failed (red); false: waiting
+restore_sessions = true  # relaunching resumes the Claude Code session each pane was running
 
 [workspaces]
 switcher = "sidebar"     # or "top" (pills in the titlebar)
@@ -577,6 +587,15 @@ normal: each pane's renderer takes tens of MB, even in a background tab.
 Quitting saves the full window → deck → tab → pane tree (sizes, working directories,
 tab names, focus) to `~/Library/Application Support/Dealer/session.json`; the next launch
 restores it. Closing the last window by hand starts fresh next time.
+
+**Claude Code sessions come back too** (#93). A pane that was running `claude` when you quit gets
+`claude --resume <its session>` typed into its shell at the next launch, so the conversation is
+there and you're back at a prompt when it exits. Resuming costs nothing until you send a turn.
+The plugin's `SessionStart` hook records each pane's session (`/clear`, `/resume` and compaction
+switch it) and `SessionEnd` forgets it, so a pane where you quit Claude stays a plain shell.
+Attention marks aren't restored. The executable is your agent command's first word when it's
+`claude` (`[agent] command`), otherwise nothing is resumed; a session whose transcript is gone is
+skipped. Turn it off with `restore_sessions = false` under `[agent]`.
 
 ## Self-test
 

@@ -24,6 +24,10 @@ enum SettingsFile {
     # Mark the pane failed (red) when a Claude turn ends in an API error (rate limit, overload,
     # auth); false marks it waiting (blue) instead. Applies to panes opened after the change.
     # errors_as_failed = true
+    # When Dealer restores your session at launch, resume the Claude Code session each pane was
+    # running (`claude --resume <id>`, typed into its shell; the agent command's executable when it
+    # is `claude`). Applies at the next launch.
+    # restore_sessions = true
 
     [attention]
     # The four attention states, most urgent first (a tab or workspace shows its most urgent pane,

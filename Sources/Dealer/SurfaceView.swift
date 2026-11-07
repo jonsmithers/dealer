@@ -26,7 +26,9 @@ final class SurfaceView: NSView, NSTextInputClient {
 
     /// `env` is added to the child process environment (e.g. DEALER_PANE_ID).
     /// `command` replaces the shell (`dealer create --command`); the pane closes when it exits.
-    init(workingDirectory: String?, env: [String: String] = [:], command: String? = nil) {
+    /// `input` is written to the pty once the shell starts, as if typed (ghostty's `input` config;
+    /// session restore's agent resume, #93). It replaces any `input` the ghostty config sets.
+    init(workingDirectory: String?, env: [String: String] = [:], command: String? = nil, input: String? = nil) {
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         registerForDraggedTypes(Array(Self.dropTypes))  // #51, SurfaceView+Drop.swift
         pwd = workingDirectory
@@ -47,6 +49,9 @@ final class SurfaceView: NSView, NSTextInputClient {
         let cCommand = command.map { strdup($0) }
         defer { cCommand.map { free($0) } }
         cfg.command = UnsafePointer(cCommand ?? nil)
+        let cInput = input.map { strdup($0) }
+        defer { cInput.map { free($0) } }
+        cfg.initial_input = UnsafePointer(cInput ?? nil)
 
         let make: () -> ghostty_surface_t? = {
             envVars.withUnsafeMutableBufferPointer { buf in

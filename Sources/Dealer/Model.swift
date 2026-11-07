@@ -231,10 +231,11 @@ final class Pane {
         return "shell"
     }
 
-    init(workingDirectory: String?, command: String? = nil) {
+    init(workingDirectory: String?, command: String? = nil, input: String? = nil) {
         id = Pane.nextID
         Pane.nextID += 1
-        surface = SurfaceView(workingDirectory: workingDirectory ?? Demo.workingDirectory, env: Pane.childEnvironment(id), command: command)
+        surface = SurfaceView(workingDirectory: workingDirectory ?? Demo.workingDirectory, env: Pane.childEnvironment(id),
+                              command: command, input: input)
         view = PaneView()
         surface.pane = self
         view.pane = self
@@ -252,6 +253,10 @@ final class Pane {
 
     /// Set by `dealer rename`; wins over the title the shell sets.
     var customTitle: String?
+
+    /// The Claude Code session running here, as the plugin's hooks report it (#93,
+    /// AgentSession.swift). Saved with the session, so a relaunch can resume it.
+    var agentSession: AgentSession?
 
     /// When the pane last took focus, as a process-wide sequence (0: never). The pane picker's
     /// empty query lists most recent first (#66).

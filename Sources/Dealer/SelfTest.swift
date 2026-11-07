@@ -350,6 +350,7 @@ extension TerminalWindowController {
         jobsSelfTestSteps(kit)
         cwdSelfTestSteps(kit)
         claudeHooksSelfTestSteps(kit)
+        sessionRestoreSelfTestSteps(kit)
         paneCloseSelfTestSteps(kit)
         themeSelfTestSteps(kit)
         dragSettleSelfTestSteps(kit)

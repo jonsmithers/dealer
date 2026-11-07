@@ -624,6 +624,8 @@
   is a permission decision. It keeps three guards: `DEALER_PANE_ID` set,
   `CLAUDE_CODE_ENTRYPOINT = cli` (skips nested `claude -p`), and `DEALER_CLAUDE_HOOKS != 0`.
   It uses `/usr/bin/plutil` for JSON, not `jq`. The self-test runs it against a stub `dealer`.
+  Its `session-start`/`session-end` events report to `dealer agent-session` instead of `notify`
+  (#93, session restore; `SelfTestSessionRestore.swift`, `DEALER_SELFTEST_ONLY=session restore:`).
 - The plugin also teaches Claude the CLI: `skills/dealer/SKILL.md` (the guide Claude loads; keep
   it in step with docs/cli.md when a command changes) and `hooks/session-start.sh`, whose stdout
   *is* the point (Claude Code adds a SessionStart hook's output to the session's context): it

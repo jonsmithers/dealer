@@ -10,6 +10,9 @@ struct PaneSnapshot: Codable {
     var pwd: String?
     var title: String?
     var focused: Bool
+    /// The Claude Code session the pane was running (#93); absent in older files and for plain
+    /// shells. Restore resumes it (`AgentSession.resumeLine`).
+    var agentSession: AgentSession? = nil
 }
 
 struct TabSnapshot: Codable {
@@ -103,7 +106,7 @@ extension TerminalWindowController {
         var focusedPane: Pane?
         func paneTree(_ n: Node<Pane>) -> TreeSnapshot<PaneSnapshot> {
             if let p = n.leaf {
-                return .leaf(PaneSnapshot(pwd: p.pwd, title: p.shellTitle, focused: p === focusedPane))
+                return .leaf(PaneSnapshot(pwd: p.pwd, title: p.shellTitle, focused: p === focusedPane, agentSession: p.agentSession))
             }
             return .split(axis: n.axis, ratio: n.ratio, a: paneTree(n.a!), b: paneTree(n.b!))
         }
@@ -157,7 +160,9 @@ extension TerminalWindowController {
         func paneTree(_ s: TreeSnapshot<PaneSnapshot>) -> Node<Pane> {
             switch s {
             case let .leaf(ps):
-                let p = makePane(workingDirectory: ps.pwd)
+                // #93: the agent session comes back by being resumed; its SessionStart hook then
+                // reports it again. Not carried over: a resume that fails would retry every launch.
+                let p = makePane(workingDirectory: ps.pwd, input: AgentSession.resumeLine(for: ps.agentSession).map { $0 + "\r" })
                 p.shellTitle = ps.title
                 if ps.focused { focus = p }
                 return Node(p)

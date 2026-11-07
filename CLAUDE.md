@@ -333,6 +333,16 @@ The GitHub repo is `jonsmithers/dealer`.
   - Routing is by panes' current cwds (deepest containing `$PWD`, caller's workspace on ties,
     else a new workspace named after the directory). The user rejected workspace root
     directories in the model; don't add them for this.
+- Claude sessions survive a relaunch (#93, `AgentSession.swift`): the plugin's `SessionStart` hook
+  (`dealer-hook.sh session-start`, `dealer agent-session claude ID`) records each pane's session on
+  every source, `SessionEnd` forgets it only while it's still that id, and `PaneSnapshot.agentSession`
+  (optional) saves it. Restore **types** `<agent command's first word> --resume 'ID'` through the
+  surface's `initial_input` (never the surface `command`), only when `[agent] restore_sessions`
+  (default on), that word's basename is `claude`, and the recorded transcript still exists
+  (`claude --resume <missing id>` exits 1 at once, which would mark the pane failed). The restored
+  pane doesn't carry the record over: the resumed session's own `SessionStart` reports it again, so
+  a resume that fails isn't retried every launch. Attention isn't restored. The hook keeps the
+  `CLAUDE_CODE_ENTRYPOINT = cli` guard, so a nested `claude -p` never replaces the pane's session.
 - New panes inherit the source pane's cwd (#32) through `WorkingDirectory.inherited(from:for:)`,
   which honors ghostty's `split-`/`tab-`/`window-inherit-working-directory` (workspaces map to
   `window`). Any new creation path should go through it; `dealer create` deliberately uses its
