@@ -411,7 +411,8 @@
   on the bar (`setHoveringForTest` in the self-test); the status line ends at `statusTrailing`.
 - After a drop, the drop preview settles (#28): `DragController.begin` keeps the highlight through
   `perform` and calls `HighlightView.settle(to:)` with the moved content's new frame, which glides
-  and fades the overlay only. Terminals are laid out once; never animate pane or surface frames.
+  and fades the overlay only. Terminals are laid out once. A drop's own layout change doesn't
+  glide (`performing(.drop)`, #94): the settle is its motion.
   `HighlightView` bumps a generation on every show/hide so a late settle completion can't hide a
   newer preview. Self-test: `SelfTestDragSettle.swift`.
 - Height math that includes deck chrome (promote keeping a pane's size) uses
@@ -421,6 +422,39 @@
   even share with the decks along that axis (`evenEdgeFraction`, counted after the source deck is
   detached), and the drag preview uses the same function. "Keep its size" for a tab meant the
   whole deck, clamped to 60/40. Self-test: `SelfTestEdgeSplit.swift`.
+
+## Layout motion (`LayoutAnimation.swift`, #94)
+
+- `finishChange(focus:change:)` takes the path's `LayoutChange`; `LayoutChange.animates` is the one
+  list of which paths animate (the user's call). A new path into `finishChange` gets its own case.
+  `performing(_:_:)` overrides the change for everything inside it (DragController wraps drops in
+  `.drop`). The motion also needs `Settings.animateLayout`, no Reduce Motion
+  (`AttentionFade.reduceMotion`), a visible window not in live resize, and `LayoutAnimation.enabled`
+  (off in self-test mode, on for demos; SelfTestLayoutAnimation turns it on).
+- **Model and view frames are final at once.** `layoutWindow` snapshots the chrome's presented
+  frames, runs the normal pass, then `Pass.run` adds explicit `position`/`bounds.size` CA
+  animations (keys `dealer.layout.*`) from old to new. Never animate through `animator()` or set
+  intermediate frames: a `SurfaceView` frame change is a `ghostty_surface_set_size` plus a
+  synchronous Metal draw. Surfaces get their final size in the normal pass and only a moved origin
+  glides (the bar coming or going). A growing pane is clipped (`masksToBounds`) while it moves;
+  `Pass.clippedBy` makes only the last pass that clipped a view unclip it.
+- Start frames for new panes/decks (and their new divider and titlebar strip) come from
+  `collapsedLayout`: the same tree with the new node's split ratio pushed to 0 or 1, so they slide
+  in from the far edge. "New" means no snapshot entry (`Snapshot.isNew`); a pane or deck that was
+  merely hidden (background tab, parked workspace) snaps. A view that changed superview glides from
+  where it was on screen. Pooled dividers are matched to their split `Node` (`dividerOwner`), not
+  their pool slot.
+- Closes leave ghosts (`LayoutGhost`/`LayoutGhostView`), captured *before* the model changes
+  (`noteClosing(pane:)`/`noteClosing(deck:)` in `remove`): the surfaces' last IOSurface (`layer.contents`)
+  and images of bars and strips (`cacheDisplay`; a layer-backed view's drawing isn't in its layer).
+  A ghost holds pictures only, never a Pane or view. A bar that goes away slides out as a ghost
+  inside its pane. Every closure in this path captures weakly (`WeakList`): a strong capture in
+  the completion block kept closed panes, their surfaces and shells alive until the motion ended.
+- Translucent windows: `BackdropFollower` re-cuts the chrome's card holes from the presented card
+  frames each display frame while decks move; `layoutBackdrop` defers to it while it runs.
+- Self-test: `LayoutAnimation.isAnimating(in:)` (animation keys, clipped views, ghosts) is what a
+  step waits on. Read a motion's start from the animation's `fromValue` (SelfTestLayoutAnimation
+  `start`), never by sampling the presentation layer.
 
 ## Attention and agent status (`Attention.swift`, `AgentStatus.swift`, `AgentLaunch.swift`)
 

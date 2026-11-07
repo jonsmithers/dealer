@@ -125,7 +125,7 @@ extension TerminalWindowController {
         let dst = target ?? makeEmptyWorkspace(after: src.workspace)
         place(tab: Tab(root: node), in: dst)
         if let moved { dst.focusedPane = moved }
-        finishChange(focus: follow ? moved : (src.workspace.validFocusedPane ?? stay))
+        finishChange(focus: follow ? moved : (src.workspace.validFocusedPane ?? stay), change: .moveToWorkspace)
         return dst
     }
 
@@ -138,7 +138,7 @@ extension TerminalWindowController {
         let dst = target ?? makeEmptyWorkspace(after: srcWs)
         place(tab: tab, in: dst)
         let followNow = follow || srcWs.root == nil
-        finishChange(focus: followNow ? moved : srcWs.validFocusedPane)
+        finishChange(focus: followNow ? moved : srcWs.validFocusedPane, change: .moveToWorkspace)
         return dst
     }
 
@@ -153,7 +153,7 @@ extension TerminalWindowController {
         place(deck: deck, in: dst)
         if let moved { dst.focusedPane = moved }
         let followNow = follow || srcWs.root == nil
-        finishChange(focus: followNow ? moved : srcWs.validFocusedPane)
+        finishChange(focus: followNow ? moved : srcWs.validFocusedPane, change: .moveToWorkspace)
         return dst
     }
 

@@ -218,7 +218,7 @@ enum ControlJobs {
         let close = { [weak pane] in
             lingering -= 1
             guard let pane, let wc = ControlHandler.locate(pane)?.wc else { return }
-            wc.remove(pane)
+            wc.remove(pane, change: .jobClose)
         }
         guard seconds > 0 else { return RunLoop.main.perform(inModes: [.default], block: close) }
         let timer = Timer(timeInterval: seconds, repeats: false) { _ in close() }

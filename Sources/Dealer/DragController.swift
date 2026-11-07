@@ -77,7 +77,8 @@ final class DragController {
         NSCursor.pop()
         let previewed = !view.dropHighlight.isHidden
         clear(keepHighlight: previewed)
-        if let target { perform(source, target) } else { recover(source) }
+        // A drop's own motion is the settle below, so its layout change doesn't animate (#94).
+        if let target { controller.performing(.drop) { perform(source, target) } } else { recover(source) }
         // The preview settles onto where the content landed (#28), or just goes away.
         if previewed, target != nil, let r = landedRect(source) {
             view.dropHighlight.settle(to: r)

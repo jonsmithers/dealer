@@ -307,8 +307,15 @@ The GitHub repo is `jonsmithers/dealer`.
   whole dot stack. Top-bar pills and their group label pills keep the single strongest mark (the
   user plans to rebuild them).
 - Attention clears in the model at once, but its ring/outline/dot fade out (~0.8 s, plus a 0.5 s hold
-  after ⌘⇧U or a notification click) so you see which pane called you (#34). Only those layers
-  and drawings animate, never terminal surfaces. Reduce Motion skips the fade.
+  after ⌘⇧U or a notification click) so you see which pane called you (#34). Reduce Motion skips
+  the fade.
+- **What animates:** attention layers and drawings (#34), the drop settle (#28), and since #94 the
+  chrome layout on structural changes (pane/deck frames, bars, dividers, strips; 0.18 s
+  ease-out, `Theme.Motion.standard`). **Terminal surfaces never animate:** each gets its final size
+  once, at the start of the motion (the user's call: reflow at the start, not the end), and at
+  most its *position* glides. Which changes animate is one list, `LayoutChange.animates`
+  (LayoutAnimation.swift); drops don't (the settle is their motion). On by default,
+  `[window] animate_layout`; Reduce Motion skips it.
 - Coding-agent keys: ⌘⇧U Jump to Next Unread, ⌥⌘A New Agent Pane, ⌥⇧⌘A New Agent Pane in
   Worktree, ⌘⇧A Go to Pane (#66, `PanePicker.swift`: picks focus through `reveal`, like ⌘⇧U; its
   key is an uppercase "A" so plain ⌘A stays Select All). The agent command comes from `DEALER_AGENT_COMMAND`, then `[agent] command` in

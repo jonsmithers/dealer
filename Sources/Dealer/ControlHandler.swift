@@ -861,7 +861,7 @@ extension TerminalWindowController {
         guard let loc = locate(target) else { return new }
         loc.tab.root = Node.insert(Node(new), beside: loc.node, side: side, fraction: fraction, root: loc.tab.root)
         unzoom(hiding: loc.tab, in: loc.workspace)
-        finishChange(focus: focus ? new : keep)
+        finishChange(focus: focus ? new : keep, change: .cliCreate)
         return new
     }
 
@@ -879,7 +879,7 @@ extension TerminalWindowController {
         } else if i <= deck.activeIndex {
             deck.activeIndex += 1
         }
-        finishChange(focus: focus ? pane : keep)
+        finishChange(focus: focus ? pane : keep, change: .cliCreate)
         return pane
     }
 
@@ -894,7 +894,7 @@ extension TerminalWindowController {
         let new = Deck(colorIndex: nextColorIndex(in: ws))
         new.tabs = [tab]
         ws.root = Node.insert(Node(new), beside: node, side: side, fraction: fraction, root: root)
-        finishChange(focus: focus ? pane : keep)
+        finishChange(focus: focus ? pane : keep, change: .cliCreate)
         return pane
     }
 

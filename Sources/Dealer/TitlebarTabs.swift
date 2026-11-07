@@ -53,7 +53,7 @@ extension TerminalWindowController {
                 let strip = deck.view.strip
                 if strip.superview !== contentView { contentView.addSubview(strip) }
                 deck.view.setTabStyle(.current)
-                strip.frame = CGRect(x: x, y: 0, width: maxX - x, height: area.minY + strip.style.overlap)
+                strip.frame = titlebarStripFrame(strip, deckFrame: r, clear: clear, end: end)
                 deck.view.stripInTitlebar = true
                 up.insert(ObjectIdentifier(deck))
                 upStrips.insert(ObjectIdentifier(strip))
@@ -71,6 +71,14 @@ extension TerminalWindowController {
             dv.setTabStyle(.current)
             dv.stripInTitlebar = false
         }
+    }
+
+    /// Where a deck at `r` puts its titlebar strip: its x-range clipped to the clear zone. For a deck
+    /// collapsed to zero width (#94's start and end frames) the strip is zero wide there too.
+    func titlebarStripFrame(_ strip: TabStripView, deckFrame r: CGRect, clear: CGFloat? = nil, end: CGFloat? = nil) -> CGRect {
+        let x = max(r.minX, clear ?? titlebarClearX)
+        let maxX = min(r.maxX, end ?? titlebarTrailingX)
+        return CGRect(x: min(x, maxX), y: 0, width: max(maxX - x, 0), height: deckArea.minY + strip.style.overlap)
     }
 
     /// A connected titlebar strip reaches 1pt over its deck's card (#84), so it must sit above the

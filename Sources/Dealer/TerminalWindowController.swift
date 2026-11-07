@@ -45,6 +45,20 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     private var windowDividers: [DividerView] = []
     private var paneDividers: [ObjectIdentifier: [DividerView]] = [:]
 
+    // Layout motion (#94, LayoutAnimation.swift).
+    /// Set by `finishChange` around its layout: that pass animates the chrome.
+    private var animatesNextLayout = false
+    /// The animated pass in progress, if any.
+    private var layoutPass: LayoutAnimation.Pass?
+    /// Closed panes and decks waiting to collapse in the next animated pass.
+    private var pendingGhosts: [LayoutGhost] = []
+    /// Set by `performing(_:_:)`: the change every `finishChange` inside it counts as (drops).
+    private var changeOverride: LayoutChange?
+    /// Which pooled divider view showed which split (Node) in the last pass, so an animated pass
+    /// starts each split's divider where *that split's* divider was.
+    private var dividerOwner: [ObjectIdentifier: ObjectIdentifier] = [:]
+    private var nextDividerOwner: [ObjectIdentifier: ObjectIdentifier] = [:]
+
     static var deckGap: CGFloat { Theme.Metrics.deckGap }
     static var paneGap: CGFloat { Theme.Metrics.paneGap }
 
@@ -252,18 +266,60 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     /// Removes a tab and its panes for good, without asking (`dealer close tab:N`, #60).
     func remove(tab: Tab) {
         guard let deck = deck(of: tab) else { return }
+        if deck.tabs.count == 1 { noteClosing(deck: deck, change: .closeTab) }
         detach(tab: tab, from: deck)
         tab.panes.forEach { $0.view.removeFromSuperview() }
-        finishChange(focus: nil)
+        finishChange(focus: nil, change: .closeTab)
     }
 
     /// Removes a pane for good (its shell exited or the user closed it).
-    func remove(_ pane: Pane) {
+    func remove(_ pane: Pane, change: LayoutChange = .closePane) {
+        noteClosing(pane: pane, change: change)
         pane.view.removeFromSuperview()
         guard let loc = locate(pane) else { return }
         let sibling = loc.node.sibling?.leaves.first
         detach(node: loc.node, from: loc.tab, in: loc.deck)
-        finishChange(focus: focusedPane === pane ? sibling : focusedPane)
+        finishChange(focus: focusedPane === pane ? sibling : focusedPane, change: change)
+    }
+
+    // MARK: - Layout motion (#94)
+
+    /// Runs `body` with every structural change in it counted as `change` (a drop: DragController).
+    func performing(_ change: LayoutChange, _ body: () -> Void) {
+        let saved = changeOverride
+        changeOverride = change
+        defer { changeOverride = saved }
+        body()
+    }
+
+    /// Before a pane closes: a picture of it to collapse into its split's far edge, or of its deck
+    /// when it's the deck's last pane.
+    private func noteClosing(pane: Pane, change: LayoutChange) {
+        guard LayoutAnimation.allowed(changeOverride ?? change, in: window), zoom == nil, let loc = locate(pane),
+              loc.workspace === activeWorkspace, loc.deck.activeTab === loc.tab else { return }
+        if loc.node.parent == nil {
+            if loc.deck.tabs.count == 1 { noteClosing(deck: loc.deck, change: change) }
+            return
+        }
+        if let c = LayoutAnimation.collapsedLayout(loc.tab.root, collapsing: loc.node, in: loc.deck.view.content.bounds, gap: Self.paneGap),
+           let to = c.frames.first(where: { $0.0 === pane })?.1, let ghost = LayoutGhost(pane: pane, collapsedTo: to) {
+            pendingGhosts.append(ghost)
+        }
+    }
+
+    /// Before a deck closes (its last pane or tab): a picture of it, and of its titlebar strip, to
+    /// collapse into its split's far edge while its neighbours grow. Not for the workspace's last deck.
+    private func noteClosing(deck: Deck, change: LayoutChange) {
+        guard LayoutAnimation.allowed(changeOverride ?? change, in: window), zoom == nil,
+              let ws = workspace(of: deck), ws === activeWorkspace, let root = ws.root, let node = root.node(for: deck),
+              let c = LayoutAnimation.collapsedLayout(root, collapsing: node, in: deckArea, gap: Self.deckGap),
+              let to = c.frames.first(where: { $0.0 === deck })?.1,
+              let ghost = LayoutGhost(deck: deck, collapsedTo: to, in: contentView) else { return }
+        pendingGhosts.append(ghost)
+        let strip = deck.view.strip
+        if deck.view.stripInTitlebar, let sg = LayoutGhost(strip: strip, collapsedTo: titlebarStripFrame(strip, deckFrame: to)) {
+            pendingGhosts.append(sg)
+        }
     }
 
     // MARK: - Structural helpers
@@ -296,7 +352,9 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     /// Common tail of every structural change: drop transient state, close emptied workspaces
     /// (and the window with the last one), lay out, restore focus.
-    func finishChange(focus target: Pane?) {
+    /// `change` says which path this is, for the layout motion (`LayoutChange.animates`, #94).
+    func finishChange(focus target: Pane?, change: LayoutChange) {
+        let change = changeOverride ?? change
         activeWorkspace.selection = nil
         if let z = zoom, z.pane.value.flatMap({ locate($0) })?.workspace !== activeWorkspace { zoom = nil }
         if let i = workspaces.firstIndex(where: { $0 === activeWorkspace }), activeWorkspace.root == nil {
@@ -308,7 +366,10 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             activeWorkspace = workspaces[min(i, workspaces.count - 1)]
         }
         workspaces.removeAll { $0.root == nil }
+        animatesNextLayout = LayoutAnimation.allowed(change, in: window)
         layoutNow()
+        animatesNextLayout = false
+        pendingGhosts = []
         if let p = target, locate(p) != nil {
             focus(p)
         } else if let p = focusedDeck?.activeTab?.focusTarget {
@@ -360,7 +421,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         guard workspaces.contains(where: { $0 === ws }) else { return }
         ws.decks.forEach { $0.view.removeFromSuperview() }
         ws.root = nil
-        finishChange(focus: nil)
+        finishChange(focus: nil, change: .closeWorkspace)
     }
 
     /// Places a tab in `ws`: a new tab after the active one in its focused deck, or its first deck.
@@ -398,7 +459,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         let new = makePane(workingDirectory: WorkingDirectory.inherited(from: pane, for: .split))
         loc.tab.root = Node.insert(Node(new), beside: loc.node, side: side, root: loc.tab.root)
         zoom = nil
-        finishChange(focus: new)
+        finishChange(focus: new, change: .split)
     }
 
     /// Drops a zoom that would hide a pane just added to `tab` (in `ws`), as the menu's `split`
@@ -413,7 +474,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         let i = min(deck.activeIndex + 1, deck.tabs.count)
         deck.tabs.insert(tab, at: i)
         deck.activeIndex = i
-        finishChange(focus: tab.panes.first)
+        finishChange(focus: tab.panes.first, change: .newTab)
     }
 
     func select(tab: Tab, in deck: Deck) {
@@ -456,7 +517,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         guard let dstNow = locate(target) else { return }
         dstNow.tab.root = Node.insert(node, beside: dstNow.node, side: side, root: dstNow.tab.root)
         if let i = dstNow.deck.index(of: dstNow.tab) { dstNow.deck.activeIndex = i }
-        finishChange(focus: node.leaves.first)
+        finishChange(focus: node.leaves.first, change: .movePane)
     }
 
     /// Drop a pane on the centre of another pane: they trade places.
@@ -464,7 +525,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         guard a !== b, let la = locate(a), let lb = locate(b) else { return }
         la.node.leaf = b
         lb.node.leaf = a
-        finishChange(focus: a)
+        finishChange(focus: a, change: .swap)
     }
 
     /// Drop a pane (or group) on a tab strip: it becomes its own tab there.
@@ -480,7 +541,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         let tab = Tab(root: node)
         deck.tabs.insert(tab, at: index)
         deck.activeIndex = index
-        finishChange(focus: node.leaves.first)
+        finishChange(focus: node.leaves.first, change: .moveToNewTab)
     }
 
     /// Reorder a tab, or move it into another deck's strip.
@@ -496,7 +557,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         index = min(index, deck.tabs.count)
         deck.tabs.insert(tab, at: index)
         deck.activeIndex = index
-        finishChange(focus: tab.focusTarget)
+        finishChange(focus: tab.focusTarget, change: .moveTab)
     }
 
     /// Drop a tab onto a pane's edge: it rejoins as a split.
@@ -507,7 +568,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         guard let dst = locate(target) else { return }
         dst.tab.root = Node.insert(tab.root, beside: dst.node, side: side, root: dst.tab.root)
         if let i = dst.deck.index(of: dst.tab) { dst.deck.activeIndex = i }
-        finishChange(focus: focus)
+        finishChange(focus: focus, change: .mergeTab)
     }
 
     // MARK: - Commands: decks
@@ -565,12 +626,12 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
         guard let current = ws.root else {
             ws.root = Node(deck)
-            finishChange(focus: focus)
+            finishChange(focus: focus, change: .promote)
             return true
         }
         ws.root = Node.insert(Node(deck), beside: current, side: edge, fraction: f, root: current)
         zoom = nil
-        finishChange(focus: focus)
+        finishChange(focus: focus, change: .promote)
         return true
     }
 
@@ -640,7 +701,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         deck.tabs = []
         detach(deck: deck)
         zoom = nil
-        finishChange(focus: focus)
+        finishChange(focus: focus, change: .fold)
         return true
     }
 
@@ -752,6 +813,10 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         // it's freed; laying out then would put back the deck views `releaseViews` took out, and
         // their strips would read freed decks later (#69 hit this).
         guard !isClosed else { return }
+        let pass = animatesNextLayout ? LayoutAnimation.Pass(snapshot: .init(contentView)) : nil
+        layoutPass = pass
+        defer { layoutPass = nil }
+        nextDividerOwner = [:]
         let area = deckArea
         var frames: [(Deck, CGRect)] = []
         var dividers: [Node<Deck>.Divider] = []
@@ -776,6 +841,18 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         }
         placeTabStrips(frames)  // #16: titlebar or in-deck, before the decks lay out
         sizeParked(allDecks.filter { !shown.contains(ObjectIdentifier($0)) }, area: area)
+        // #94: a new deck starts collapsed at the far edge of its split.
+        if let pass, zoomed == nil, let root {
+            for (deck, _) in frames where pass.snapshot.isNew(deck.view) {
+                guard let node = root.node(for: deck), let parent = node.parent,
+                      let c = LayoutAnimation.collapsedLayout(root, collapsing: node, in: area, gap: Self.deckGap),
+                      let start = c.frames.first(where: { $0.0 === deck })?.1 else { continue }
+                pass.setStart(deck.view, start)
+                pass.collapsedDividers[ObjectIdentifier(parent)] = c.dividers.first { $0.node === parent }?.frame
+                // Its titlebar strip slides in with it.
+                if deck.view.stripInTitlebar { pass.setStart(deck.view.strip, titlebarStripFrame(deck.view.strip, deckFrame: start)) }
+            }
+        }
         for (deck, r) in frames {
             let dv = deck.view
             if dv.superview !== contentView { contentView.addSubview(dv) }
@@ -796,6 +873,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
                 self?.layoutNow()
             })
         })
+        noteDividers(windowDividers, dividers.map(\.node), pass: pass)
         // Divider pools of decks that are gone (closed, or in another window now).
         let liveDecks = Set(allDecks.map(ObjectIdentifier.init))
         for key in paneDividers.keys where !liveDecks.contains(key) {
@@ -807,6 +885,29 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         layoutCaffeineIcon()
         contentView.raiseOverlays()
         updateSelectionHighlight()
+        dividerOwner = nextDividerOwner
+        if let pass {
+            pass.run(in: contentView, ghosts: pendingGhosts)
+            pendingGhosts = []
+        }
+    }
+
+    /// #94: records which pooled view shows which split, and in an animated pass gives each
+    /// divider its start: the collapsed position for a new split, else where its split's divider was.
+    private func noteDividers<Leaf>(_ pool: [DividerView], _ nodes: [Node<Leaf>], pass: LayoutAnimation.Pass?) {
+        for (view, node) in zip(pool, nodes) {
+            let n = ObjectIdentifier(node)
+            if let pass {
+                if let gap = pass.collapsedDividers[n] {
+                    pass.setStart(view, DividerView.hitFrame(for: gap, axis: node.axis))
+                } else if let prev = dividerOwner[n], let f = pass.snapshot.frame(of: prev) {
+                    pass.setStart(view, f)
+                } else {
+                    pass.setStart(view, nil)
+                }
+            }
+            nextDividerOwner[n] = ObjectIdentifier(view)
+        }
     }
 
     private func layout(deck: Deck, zoomed: Pane?) {
@@ -834,6 +935,16 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             frames = [(zoomed, bounds)]
         } else {
             active.root.layout(in: bounds, gap: Self.paneGap, frames: &frames, dividers: &dividers)
+        }
+        // #94: a new pane starts collapsed at the far edge of its split.
+        if let pass = layoutPass, zoomed == nil {
+            for (p, _) in frames where pass.snapshot.isNew(p.view) {
+                guard let node = active.root.node(for: p), let parent = node.parent,
+                      let c = LayoutAnimation.collapsedLayout(active.root, collapsing: node, in: bounds, gap: Self.paneGap),
+                      let start = c.frames.first(where: { $0.0 === p })?.1 else { continue }
+                pass.setStart(p.view, start)
+                pass.collapsedDividers[ObjectIdentifier(parent)] = c.dividers.first { $0.node === parent }?.frame
+            }
         }
         let visible = Set(frames.map { ObjectIdentifier($0.0) })
         let multi = active.panes.count > 1
@@ -872,6 +983,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
                 self?.layoutNow()
             })
         })
+        noteDividers(pool, dividers.map(\.node), pass: layoutPass)
         paneDividers[ObjectIdentifier(deck)] = pool
     }
 

@@ -355,6 +355,7 @@ extension TerminalWindowController {
         paneCloseSelfTestSteps(kit)
         themeSelfTestSteps(kit)
         dragSettleSelfTestSteps(kit)
+        layoutAnimationSelfTestSteps(kit)
         edgeSplitSelfTestSteps(kit)
         reloadSelfTestSteps(kit)
         transparencySelfTestSteps(kit)

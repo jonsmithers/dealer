@@ -232,6 +232,15 @@ workspace pills in top-bar mode. A deck too narrow for that keeps its strip. Emp
 including the space after a strip's tabs, still drags the window, and double-clicking it zooms or
 minimizes per System Settings. Tabs there drag and drop as usual. The change applies live.
 
+### Layout motion
+
+When a split is created or closed, or a pane or deck is promoted, folded or moved, the panes,
+decks, dividers and tab strips glide to their new places (0.18 s) instead of jumping: a new pane
+slides in from the far edge of its split, and a closed one slides out. Only the frames move; each
+terminal is resized once, at the start, so the program in it redraws once. Drag-and-drop keeps its
+own landing glide instead. `[window] animate_layout = false` in [settings.toml](#settings) turns
+it off, and so does macOS **Reduce Motion**.
+
 ### Tab style
 
 Tabs are "connected" by default: the active tab joins its deck's content below it, with no seam,
@@ -498,6 +507,7 @@ switcher = "sidebar"     # or "top" (pills in the titlebar)
 
 [window]
 tabs_in_titlebar = true  # put top-edge decks' tab strips in the titlebar row
+animate_layout = true    # panes and decks glide when added, closed or moved (off under Reduce Motion)
 
 [tabs]
 style = "connected"      # or "pill": the active tab joins its deck's content, or floats as a pill

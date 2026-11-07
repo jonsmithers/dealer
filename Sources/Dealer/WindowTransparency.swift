@@ -82,6 +82,11 @@ extension WindowContentView {
     func layoutBackdrop() {
         backdrop.frame = bounds
         if subviews.first !== backdrop { addSubview(backdrop, positioned: .below, relativeTo: nil) }
+        // While decks glide (#94) the holes follow the cards on screen, not their final frames.
+        if BackdropFollower.isFollowing(self) {
+            backdrop.layoutChrome(holes: BackdropFollower.presentedHoles(self))
+            return
+        }
         let cards = subviews.compactMap { $0 as? DeckView }.filter { !$0.isHidden }.map { dv -> CardHole in
             // A connected active tab (#84) is cut out with its card, as one outline.
             let tab = dv.squareTop && TabStyle.connectedMatchesTerminal && dv.strip.buttons.indices.contains(dv.deck.activeIndex)
