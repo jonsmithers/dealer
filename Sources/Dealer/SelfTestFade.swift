@@ -12,7 +12,7 @@ extension TerminalWindowController {
         /// These steps assert the timing itself (solid hold, half-faded, gone), so they run the
         /// animation at its real speed; the ends are condition waits with the same deadlines.
         func spin(_ secs: TimeInterval) { SelfTest.waitUntil(timeout: secs) { false } }
-        func ring(_ p: Pane) -> CALayer? { p.view.layer?.sublayers?.first { $0.name == "dealer.attentionRing" } }
+        func ring(_ p: Pane) -> CALayer? { p.view.attentionRingLayer }
         func tabButton(_ p: Pane) -> TabButton? {
             guard let loc = locate(p), let i = loc.deck.index(of: loc.tab),
                   loc.deck.view.strip.buttons.indices.contains(i) else { return nil }
@@ -69,7 +69,7 @@ extension TerminalWindowController {
         t.step("fade: a re-raise mid-fade cancels it and shows the new state solidly", nil, {
             guard let p = target, let btn = tabButton(p) else { return "setup failed" }
             return all(opacity(p) == 1 ? nil : "ring opacity should be 1, is \(opacity(p).map { String($0) } ?? "gone")",
-                       PixelProbe.matches(ring(p)?.borderColor.flatMap { NSColor(cgColor: $0) }, Theme.attentionWaiting) ? nil : "ring should be waiting blue",
+                       PixelProbe.matches(p.view.attentionRingColor, Theme.attentionWaiting) ? nil : "ring should be waiting blue",
                        !btn.attentionFade.isFading ? nil : "the fade should be cancelled",
                        PixelProbe.isWaitingOutlined(btn) ? nil : "tab outline should be solid blue")
         }) {

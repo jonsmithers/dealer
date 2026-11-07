@@ -14,7 +14,7 @@ extension TerminalWindowController {
             return loc.deck.view.strip.buttons[i]
         }
         func ring(_ p: Pane) -> NSColor? {
-            (p.view.layer?.sublayers?.first { $0.name == "dealer.attentionRing" }?.borderColor).flatMap { NSColor(cgColor: $0) }
+            p.view.attentionRingColor
         }
         func hex(_ c: NSColor?) -> String { c?.hexString ?? "nil" }
         /// Two panes the user isn't looking at, in one tab, plus one in another tab.

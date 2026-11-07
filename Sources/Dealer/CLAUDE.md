@@ -424,7 +424,8 @@
   view after the dividers without that re-raise makes the divider ungrabbable.
 - The unfocused-pane veil is a subview kept on top of the surface in `PaneView.layout`.
   `dimsWhenUnfocused` is set by the controller in `layout(deck:)` (on when more than one pane is on
-  screen). The attention ring is a separate sublayer at zPosition 20, above the veil.
+  screen). The attention ring is a separate sublayer at zPosition 20, above the veil: a
+  `CAShapeLayer` (`attentionRingLayer`; tests read `attentionRingColor`, not a border color).
 - What the C API can read (#23): plain colors (`background`, `foreground`, `unfocused-split-fill`,
   `split-divider-color`) and `palette` (`ghostty_config_palette_s`, 256 entries; `Theme.ansi` keeps
   0–15). `TerminalColor` keys (`cursor-color`, `cursor-text`, `selection-background`/`-foreground`)
@@ -575,6 +576,14 @@
   halves from the top edge's middle (`ChromeShape.outlineHalves`), so a dash always covers the
   pixel the self-test samples (`PixelProbe.isWaitingOutlined`); don't inset a tab's or pill's
   outline or draw it in a sublayer.
+- The pane ring is dashed too (#99): `AttentionStyle.dashedRing`, the tabs' `dashPattern` scaled to
+  its 2pt line (`dash(lineWidth:)`, so 5.3/4pt), as plain segments with no dash phase: a dash folded
+  round each corner and whole dashes at evenly stretched gaps between. Its path is built per size
+  (`layoutAttentionRing`, from `PaneView.layout` too) with actions off, and a fade changes only
+  `opacity`, so it never crawls during layout motion (#94) or a fade (#34). A window-backed pane's
+  offscreen render leaves out the ring sublayer, so its pixels are checked on a detached `PaneView`
+  (`SelfTestPaneRing.swift`, `DEALER_SELFTEST_ONLY=pane ring:`, self-contained) and the live ring by
+  its layer.
 - "running" is `Pane.isReportingProgress` (OSC 9;4 from `GHOSTTY_ACTION_PROGRESS_REPORT`), not a
   process check; attention outranks it in `agentState`. *Who* reports it (#81) is a process check:
   `ProgressSource.note` records each report and decides Claude-or-not from the foreground process

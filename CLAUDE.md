@@ -304,8 +304,8 @@ The GitHub repo is `jonsmithers/dealer`.
   rows, pills and collapsed group headers. Pills also get the `Theme.workspaceSelection` fill;
   sidebar rows don't. **The sidebar's solid outline always means "selected"**: attention there is
   a *dashed* outline just inside the edge (2a0285f, after #91 had none), a `sidebarDotSize` dot
-  (9pt, with the `?`/`!` scaled) and the faint tint, also on a waiting or failed row. Tabs draw
-  dashed attention outlines too; pills and panes solid ones, and on a pill the selection outline
+  (9pt, with the `?`/`!` scaled) and the faint tint, also on a waiting or failed row. Tabs and
+  pane rings (#99) draw dashed attention outlines too; pills solid ones, and on a pill the selection outline
   gives way to one.
   **A workspace's color shows only on its switcher entry**: the sidebar row, the titlebar
   switcher (#96), or the pill in top-bar mode (#15, #18; the user's call). Not in the deck area, and it has no effect

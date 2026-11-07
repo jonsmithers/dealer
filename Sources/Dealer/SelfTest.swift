@@ -319,6 +319,7 @@ extension TerminalWindowController {
         failedSelfTestSteps(kit)
         waitingGlyphSelfTestSteps(kit)
         fadeSelfTestSteps(kit)
+        paneRingSelfTestSteps(kit)
         workspaceSelfTestSteps(kit)
         shortcutsSelfTestSteps(kit)
         paneSearchSelfTestSteps(kit)

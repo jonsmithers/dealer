@@ -408,39 +408,64 @@ final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate {
 
 extension PaneView {
     private static let ringName = "dealer.attentionRing"
+    /// The ring's line width (wider than chrome's `AttentionStyle.outlineWidth`: it frames a whole pane).
+    static let ringWidth: CGFloat = 2
 
     /// An accent ring over the whole pane while its state is outlined (#7: waiting and failed, plus
     /// done/unread when `[attention]` outlines them, #61). Its own layer, above the
-    /// Metal surface, so it doesn't fight the pane's focus styling.
+    /// Metal surface, so it doesn't fight the pane's focus styling. Dashed since #99, like the tab
+    /// and sidebar outlines (`AttentionStyle.dashedRing`).
     func updateAttentionRing() {
         if attentionFade.onChange == nil { attentionFade.onChange = { [weak self] in self?.applyAttentionRing() } }
         attentionFade.set(pane?.attention ?? .none, subject: pane)
         applyAttentionRing()
     }
 
+    /// The ring's layer while one shows (self-test hook; it's found by name).
+    var attentionRingLayer: CAShapeLayer? { layer?.sublayers?.first { $0.name == Self.ringName } as? CAShapeLayer }
+    /// The ring's stroke color, nil without a ring (self-test hook).
+    var attentionRingColor: NSColor? { attentionRingLayer?.strokeColor.flatMap(NSColor.init(cgColor:)) }
+
     /// Renders the ring from `attentionFade` (#34): the current state, or a cleared one fading out.
+    /// A fade changes only the layer's opacity, never the path, so the dashes hold still.
     func applyAttentionRing() {
         guard let layer else { return }
-        let existing = layer.sublayers?.first { $0.name == Self.ringName }
+        let existing = attentionRingLayer
         let a = attentionFade.shown
         guard a.outlined, let color = a.color else {
             existing?.removeFromSuperlayer()
             return
         }
         let ring = existing ?? {
-            let l = CALayer()
+            let l = CAShapeLayer()
             l.name = Self.ringName
             l.zPosition = 20
-            l.borderWidth = 2
-            l.cornerRadius = layer.cornerRadius
+            l.fillColor = nil
+            l.lineWidth = Self.ringWidth
+            l.lineCap = .butt
+            l.lineJoin = .miter
             layer.addSublayer(l)
             return l
         }()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        ring.frame = layer.bounds
-        ring.borderColor = color.cgColor
+        layoutAttentionRing(ring)
+        ring.strokeColor = color.cgColor
         ring.opacity = Float(attentionFade.alpha)
+        CATransaction.commit()
+    }
+
+    /// Fits the ring to the pane's bounds (from `layout()` too, so a resize that doesn't refresh
+    /// chrome, such as a divider drag, still re-fits it). The path is built once per size, at the
+    /// final size: during layout motion (#94) only the pane's presentation moves, so the dashes
+    /// neither stretch nor crawl.
+    func layoutAttentionRing(_ ring: CAShapeLayer? = nil) {
+        guard let layer, let ring = ring ?? attentionRingLayer else { return }
+        guard ring.frame != layer.bounds || ring.path == nil else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)  // `path` is animatable; never morph it
+        ring.frame = layer.bounds
+        ring.path = AttentionStyle.dashedRing(in: CGRect(origin: .zero, size: layer.bounds.size), lineWidth: Self.ringWidth)
         CATransaction.commit()
     }
 }
@@ -476,8 +501,53 @@ extension TabButton {
 /// Call it last in `draw(_:)`, so the outline sits on top of the element's own fill.
 enum AttentionStyle {
     static let outlineWidth: CGFloat = 1.5
-    /// Dash and gap of a dashed outline (tabs, sidebar).
+    /// Dash and gap of a dashed outline (tabs, sidebar), at `outlineWidth`.
     static let dashPattern: [CGFloat] = [4, 3]
+
+    /// `dashPattern` for a line `lineWidth` wide: the same dash, scaled with the line, so a wider
+    /// stroke (the 2pt pane ring, #99) keeps the tabs' proportions.
+    static func dash(lineWidth: CGFloat) -> (dash: CGFloat, gap: CGFloat) {
+        let s = lineWidth / outlineWidth
+        return (dashPattern[0] * s, dashPattern[1] * s)
+    }
+
+    /// A dashed rectangle `lineWidth` wide, inside `rect`, as plain segments to stroke without a
+    /// dash pattern (the pane ring, #99). Anchored at the corners: each corner gets one dash
+    /// folded round it (half along each side), and each side between holds whole dashes at even
+    /// gaps, the gap stretched or shrunk slightly so the side comes out even. So the pattern is
+    /// symmetric, every corner reads as a corner, and it depends only on the size.
+    static func dashedRing(in rect: CGRect, lineWidth: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        let b = rect.insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
+        guard b.width > 0, b.height > 0 else { return path }
+        let (d, g) = dash(lineWidth: lineWidth)
+        // Clockwise from the top-left (flipped or not, the ring is symmetric).
+        let corners = [CGPoint(x: b.minX, y: b.minY), CGPoint(x: b.maxX, y: b.minY),
+                       CGPoint(x: b.maxX, y: b.maxY), CGPoint(x: b.minX, y: b.maxY)]
+        func toward(_ p: CGPoint, _ q: CGPoint, _ t: CGFloat) -> CGPoint {
+            let len = hypot(q.x - p.x, q.y - p.y)
+            return CGPoint(x: p.x + (q.x - p.x) * t / len, y: p.y + (q.y - p.y) * t / len)
+        }
+        for i in 0..<4 {
+            let prev = corners[(i + 3) % 4], c = corners[i], next = corners[(i + 1) % 4]
+            // The corner's dash: half a dash along each side (all of a side shorter than a dash).
+            path.move(to: toward(c, prev, min(d / 2, hypot(prev.x - c.x, prev.y - c.y) / 2)))
+            path.addLine(to: c)
+            let side = hypot(next.x - c.x, next.y - c.y)
+            path.addLine(to: toward(c, next, min(d / 2, side / 2)))
+            // Whole dashes between this corner's half and the next one's.
+            let inner = side - d
+            guard inner > g else { continue }
+            let n = max(0, Int(((inner - g) / (d + g)).rounded()))
+            let gap = (inner - CGFloat(n) * d) / CGFloat(n + 1)
+            for k in 0..<n {
+                let start = d / 2 + gap * CGFloat(k + 1) + d * CGFloat(k)
+                path.move(to: toward(c, next, start))
+                path.addLine(to: toward(c, next, start + d))
+            }
+        }
+        return path
+    }
 
     /// `alpha` < 1 while a cleared state fades out (#34).
     static func draw(_ attention: Attention, in rect: CGRect, cornerRadius: CGFloat, dotRect: CGRect?, alpha: CGFloat = 1,

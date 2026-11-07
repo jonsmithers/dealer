@@ -49,7 +49,7 @@ extension TerminalWindowController {
             return workspaceSidebar.row(at: i)
         }
         func ring(_ p: Pane) -> NSColor? {
-            (p.view.layer?.sublayers?.first { $0.name == "dealer.attentionRing" }?.borderColor).flatMap { NSColor(cgColor: $0) }
+            p.view.attentionRingColor
         }
         /// The blue look, on the live pane, its tab and its workspace row (selected: the
         /// workspace is active), on the top and left edges so no neutral stroke hides under it.

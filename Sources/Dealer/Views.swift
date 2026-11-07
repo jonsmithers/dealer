@@ -73,7 +73,7 @@ final class PaneView: FlippedView, ThemeApplying {
         veil.layer?.backgroundColor = Theme.unfocusedFill.cgColor
         // The veil's strength comes from the config too (`unfocused-split-opacity`).
         veil.alphaValue = dimsWhenUnfocused && !isFocusedPane ? Theme.unfocusedAlpha : 0
-        applyAttentionRing()  // its border color is a Theme color (Attention.swift)
+        applyAttentionRing()  // its stroke color is a Theme color (Attention.swift)
         searchBar?.applyTheme()
     }
 
@@ -110,6 +110,7 @@ final class PaneView: FlippedView, ThemeApplying {
         layoutSearchBar(surfaceFrame: pane?.surface.frame ?? bounds)
         veil.frame = bounds
         if subviews.last !== veil { addSubview(veil, positioned: .above, relativeTo: nil) }
+        layoutAttentionRing()  // Attention.swift: the dashes are fitted to the size
         updateChrome()
     }
 }

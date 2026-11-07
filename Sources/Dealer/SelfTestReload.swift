@@ -97,6 +97,10 @@ extension TerminalWindowController {
                 guard !l.isHidden else { return }
                 check(l.backgroundColor, "\(owner) layer \(l.name ?? "") background")
                 check(l.borderColor, "\(owner) layer \(l.name ?? "") border")
+                if let s = l as? CAShapeLayer {  // the pane ring (#99)
+                    check(s.strokeColor, "\(owner) layer \(l.name ?? "") stroke")
+                    check(s.fillColor, "\(owner) layer \(l.name ?? "") fill")
+                }
                 l.sublayers?.forEach { walk($0, owner) }
             }
             func walk(_ v: NSView) {
@@ -203,10 +207,10 @@ extension TerminalWindowController {
             SelfTest.waitUntil(timeout: 2) { cell() > cellHeight }
         }
         t.step("reload: a waiting pane's ring and its tab's outline re-theme too (#34's layers)", nil, {
-            let ring = paneA().view.layer?.sublayers?.first { $0.name == "dealer.attentionRing" }
+            let ring = paneA().view.attentionRingColor
             let button = tab.flatMap { self.deck(of: $0) }?.view.strip.buttons.first { $0.isActive }
             return all(themeIs(frappe),
-                       ring.flatMap { $0.borderColor.flatMap(NSColor.init(cgColor:)) }.map { near($0, Theme.attentionWaiting) } == true
+                       ring.map { near($0, Theme.attentionWaiting) } == true
                            ? nil : "the ring should be \(hex(Theme.attentionWaiting))",
                        PixelProbe.isWaitingOutlined(button) ? nil : "the tab should be outlined in \(hex(Theme.attentionWaiting))",
                        noStaleColors())
