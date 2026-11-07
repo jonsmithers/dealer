@@ -19,8 +19,8 @@ extension TerminalWindowController {
     /// Narrowest titlebar strip worth showing (about two tabs plus "+"); narrower stays in the deck.
     static let titlebarStripMinWidth: CGFloat = 140
 
-    /// The x where titlebar strips may begin: after the traffic lights, the sidebar toggle, and
-    /// (in top-bar mode) the workspace pills.
+    /// The x where titlebar strips may begin: after the traffic lights, the sidebar toggle and the
+    /// titlebar switcher (#96), or (in top-bar mode) the workspace pills.
     var titlebarClearX: CGFloat {
         var x: CGFloat = 0
         if let zoom = window?.standardWindowButton(.zoomButton), zoom.superview != nil {
@@ -30,7 +30,9 @@ extension TerminalWindowController {
             workspaceBar.reload()
             x = max(x, WorkspaceBarView.leadingInset + workspaceBar.contentWidth)
         } else {
-            x = max(x, sidebarToggle.frame.width > 0 ? sidebarToggle.frame.maxX : WorkspaceBarView.leadingInset + 28)
+            // The toggle, then the titlebar switcher while the sidebar is hidden (#96). Both frames are
+            // computed, not read: strips are placed before `layoutWorkspaceSidebar` sets them.
+            x = max(x, showsTitlebarSwitcher ? titlebarSwitcherFrame.maxX : sidebarToggleFrame.maxX)
         }
         return x + 8
     }

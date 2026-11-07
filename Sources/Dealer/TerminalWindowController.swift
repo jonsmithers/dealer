@@ -30,6 +30,10 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     let settingsBanner = SettingsBannerView()
     /// The sidebar toggle in the titlebar row (WorkspaceSidebar.swift).
     let sidebarToggle = SidebarToggleButton()
+    /// The current workspace's name in the titlebar row while the sidebar is hidden, and its
+    /// dropdown (#96, TitlebarSwitcher.swift).
+    let titlebarSwitcher = TitlebarSwitcherButton()
+    let titlebarSwitcherMenu = TitlebarSwitcherMenu()
     /// The coffee cup at the right of the titlebar row while the display is kept awake (#69).
     let caffeineIcon = CaffeineIconView()
     /// The user's explicit sidebar choice for this window; `nil` means automatic (shown with 2+
@@ -884,6 +888,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         layoutWorkspaceSidebar()
         layoutCaffeineIcon()
         contentView.raiseOverlays()
+        raiseTitlebarSwitcherMenu()  // #96: an open dropdown stays above the overlays
         updateSelectionHighlight()
         dividerOwner = nextDividerOwner
         if let pass {
@@ -1080,6 +1085,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         window?.title = focusedPane?.title ?? "Dealer"
         workspaceSidebar.reload()
         workspaceBar.reload()
+        refreshTitlebarSwitcher()  // #96
         // The automatic sidebar appears with a second workspace: that changes the deck area.
         if workspaceSidebar.isHidden == isSidebarVisible { contentView.needsLayout = true }
         Caffeinate.shared.update()  // #69: the spinner's change points are the assertion's
@@ -1219,6 +1225,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         isClosed = true
+        titlebarSwitcherMenu.close(restoreFocus: false)  // drops its event monitor (#96)
         releaseViews()
         onClose?(self)
     }

@@ -35,6 +35,7 @@ extension TerminalWindowController {
                 if let v = self.window?.standardWindowButton(b), v.superview != nil { keepOut.append(("traffic light", v.convert(v.bounds, to: self.contentView))) }
             }
             if !self.sidebarToggle.isHidden { keepOut.append(("sidebar toggle", self.sidebarToggle.frame)) }
+            if !self.titlebarSwitcher.isHidden { keepOut.append(("titlebar switcher", self.titlebarSwitcher.frame)) }  // #96
             if !self.workspaceSidebar.isHidden { keepOut.append(("sidebar", self.workspaceSidebar.frame)) }
             if !self.workspaceBar.isHidden { keepOut.append(("pill segment", self.workspaceBar.frame)) }
             let strips = self.titlebarStripDecks.map { ("strip of \(t.name($0.activeTab!.focusTarget!))", $0.view.strip.frame) }

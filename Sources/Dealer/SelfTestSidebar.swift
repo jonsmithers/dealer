@@ -3,7 +3,7 @@ import AppKit
 // MARK: - Self-test section: workspace sidebar (issue #6)
 
 extension TerminalWindowController {
-    private func mouseEventForTest(_ type: NSEvent.EventType, at p: CGPoint) -> NSEvent? {
+    func mouseEventForTest(_ type: NSEvent.EventType, at p: CGPoint) -> NSEvent? {
         guard let window else { return nil }
         return NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
                                   windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)

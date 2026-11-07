@@ -456,7 +456,7 @@ extension TerminalWindowController {
         let area = deckArea
         let toggle = sidebarToggle
         if toggle.superview !== contentView { contentView.addSubview(toggle) }
-        toggle.frame = CGRect(x: 78, y: ((area.minY - 22) / 2).rounded(), width: 28, height: 22)
+        toggle.frame = sidebarToggleFrame
         toggle.isOn = isSidebarVisible
         toggle.isHidden = WorkspaceSwitcher.style != .sidebar
 
@@ -468,6 +468,7 @@ extension TerminalWindowController {
         // reload() runs inside the window's layout pass, where its needsLayout would be dropped.
         sb.layoutSubtreeIfNeeded()
         layoutWorkspaceBar()
+        layoutTitlebarSwitcher()  // #96, right of the toggle
         layoutSettingsBanner()
     }
 }

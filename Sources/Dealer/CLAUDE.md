@@ -119,9 +119,12 @@
   not a strip living outside it. Only strip views move; never recreate decks or surfaces for this.
   Match leftover strips by the strip's own identity: `TabStripView.deck` is `unowned`, and a
   leftover strip's deck may already be freed, so reading it there can crash.
-- The clear line (`titlebarClearX`) is the zoom button, the sidebar toggle, or in top-bar mode the
-  pill segment (`WorkspaceBarView.contentWidth`); the bar shrinks to its pills in this mode so it
-  doesn't cover strips. New titlebar chrome must push `titlebarClearX` right.
+- The clear line (`titlebarClearX`) is the zoom button, the sidebar toggle (or, with the sidebar
+  hidden, the titlebar switcher after it, #96), or in top-bar mode the pill segment
+  (`WorkspaceBarView.contentWidth`); the bar shrinks to its pills in this mode so it doesn't cover
+  strips. New titlebar chrome must push `titlebarClearX` right. Strips are placed before
+  `layoutWorkspaceSidebar` sets the toggle's and switcher's frames, so the clear line computes
+  them (`sidebarToggleFrame`, `titlebarSwitcherFrame`) rather than reading `frame`.
 - Titlebar clicks are decided by the window server *before* the app sees them: wherever the view
   under the pointer answers `mouseDownCanMoveWindow == true` (NSView's default for non-opaque views),
   a press drags the window and never reaches the view. Every interactive view that can sit in the
@@ -140,6 +143,22 @@
 - Tests: the strip's frame must equal its deck's x-range clipped at the clear line. For the
   empty-space hit test, pick a point after the strip's last control; with several tabs a strip can
   be full.
+
+## Titlebar switcher (`TitlebarSwitcher.swift`, #96)
+
+- `TitlebarSwitcherButton` sits in the titlebar row right of the toggle, placed by
+  `layoutTitlebarSwitcher()` from `layoutWorkspaceSidebar()`; `refreshChrome()` reloads it
+  (`refreshTitlebarSwitcher`) and asks for a layout when its width changes, since strips start
+  after it. Its attention is `otherWorkspacesAttention`, one dot, faded with the window as the
+  subject so a switch doesn't reset a fade.
+- `TitlebarSwitcherMenu` (one per window) is an overlay subview of the content view, not an NSMenu
+  (the demo posts window events at it; an NSMenu's tracking loop and window would escape both). It
+  takes first responder while open (↑/↓/return/esc), dismisses on outside clicks through a local
+  event monitor (only events through `NSApp.sendEvent` reach it; the self-test's `window.sendEvent`
+  clicks don't), and stays on top through `raiseTitlebarSwitcherMenu()` after `raiseOverlays()`.
+  Rows hold their workspace weakly and are dropped on close; `windowWillClose` closes it so its
+  monitor goes. Every button, row and the dropdown answer `mouseDownCanMoveWindow == false` (#27).
+- Tests: `SelfTestTitlebarSwitcher.swift` (`DEALER_SELFTEST_ONLY=titlebar switcher:`, self-contained).
 
 ## Tab style (`TabShape.swift`, #84)
 
@@ -258,7 +277,8 @@
   inside the window's layout pass, so its `needsLayout` is dropped and the rows keep zero frames.
   The sidebar then draws nothing, but the self-test still passes.
 - Test hooks: `WorkspaceSidebarView.row(at:)` / `addRow` and `WorkspaceBarView.button(at:)` /
-  `addButton`. `clickForTest`/`dragForTest` refuse hidden views: a click on a hidden target lands on
+  `addButton`, and for the titlebar switcher (#96) `titlebarSwitcher` and
+  `titlebarSwitcherMenu.row(for:)` / `newWorkspaceRow` (the README demo targets them too). `clickForTest`/`dragForTest` refuse hidden views: a click on a hidden target lands on
   whatever is below (a pane bar starts DragController's modal loop and the self-test hangs). The self-test clicks and drags rows
   through `window.sendEvent` (row reorder is plain mouseDown/Dragged/Up on `WorkspaceRow`, which the
   window routes to the pressed view), and runs DragController's real tracking loop by
@@ -280,7 +300,7 @@
 ## Colors (`Colors.swift`)
 
 - `Workspace.color` is read only by the switcher entries (sidebar `WorkspaceRow`, top-bar
-  `WorkspaceButton`), the context menus, the session and the CLI (#15, #18). Don't read it in tab,
+  `WorkspaceButton`, the titlebar switcher and its dropdown rows, #96), the context menus, the session and the CLI (#15, #18). Don't read it in tab,
   deck or window drawing. The self-test renders the deck-area band, every tab strip and every tab button with
   and without a workspace color and requires identical bytes (`PixelProbe.pixels`); the sidebar row
   is the control that must differ. Don't byte-compare views that contain terminals: the Metal
