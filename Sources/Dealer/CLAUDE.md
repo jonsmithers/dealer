@@ -344,6 +344,9 @@
   - Before typing into a pane created in the same step, call `surface.waitForShell()` (SelfTest.swift,
     #62): it types a sentinel echo until the shell answers. A line typed into a shell that is still
     starting was sometimes lost in loaded full runs.
+  - "Not at its prompt" isn't "running the program": a shell leaves its prompt (hands the terminal
+    to its fork) before the fork execs, and meanwhile `foregroundName` reads `zsh` (#100). Wait
+    for the program's name when a check needs it.
   - Panes in an inactive workspace aren't laid out, and their shells reported no foreground
     process in testing; activate the workspace before checking one.
 - **Pixel checks go through `PixelProbe` only** (SelfTestPixels.swift): `sample(_:at:)`, `pixels` (raw bytes for "renders identically"),
@@ -501,9 +504,14 @@
   after any background change (e.g. a `dealer run` job pane closing), and that must not wipe a mark.
   Desktop notifications are suppressed whenever `Presence.inFront`, whatever the window or pane;
   the marks carry it. Self-test seam: `Presence.override` (facts: app active, locked, key window).
-  With no override, self-test mode counts focus changes as seen (`focusCountsAsSeen`), as before
-  #71, so steps that clear marks by focusing keep their meaning; `SelfTestPresence.swift` sets the
-  override. Authorization is re-read on every activation and before a post while not allowed
+  **With no override a self-test run is away (#100, `Presence.selfTestFacts`)**: not active, no key
+  window, whatever AppKit says, and `windowDidBecomeKey` clears nothing (it clears only while
+  `Presence.isKey`). Whether a run's app is active isn't up to the run (any click, ⌘-Tab or app
+  switch can make it so), and an active run skipped marks on its focused pane: `tab style:`
+  failed by chance in merges. Launching the run through Launch Services, which activates it,
+  reproduced that every time. Still, self-test mode counts
+  focus changes as seen (`focusCountsAsSeen`), as before #71, so steps that clear marks by focusing
+  keep their meaning; `SelfTestPresence.swift` sets the override. Authorization is re-read on every activation and before a post while not allowed
   (`AttentionNotifier.refreshStatus`, test seam `statusReader`). It refreshes
   chrome and posts the macOS notification; don't assign `pane.attention` elsewhere.
 - Automatic sources (bell, OSC 9/99/777, long `COMMAND_FINISHED`) pass `raiseOnly: true` so they

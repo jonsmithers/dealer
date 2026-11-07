@@ -29,6 +29,12 @@ extension TerminalWindowController {
             write("[window]\ntabs_in_titlebar = \(titlebar)\n" + (style.map { "[tabs]\nstyle = \"\($0.rawValue)\"\n" } ?? ""))
         }
         func deck() -> Deck? { locate(t.pane("ts2")).map(\.deck) }
+        /// The model under the waiting pixel checks: ts2 is the focused pane, so a run that counted
+        /// as present would skip the mark (#100; the self-test counts as away, Presence.selfTestFacts).
+        func marked() -> String? {
+            let p = t.pane("ts2")
+            return p.attention == .waiting ? nil : "ts2 should be waiting, is \(p.attention.name) (\(NotificationLog.context(self)))"
+        }
         func active() -> TabButton? {
             guard let d = deck() else { return nil }
             let b = d.view.strip.buttons
@@ -157,7 +163,8 @@ extension TerminalWindowController {
             set(.pill, titlebar: false)
             let pill = (PixelProbe.isWaitingOutlined(b), bottomOutlined())
             set(.connected, titlebar: false)
-            return all([connected.0 ? nil : "the connected tab should be waiting-outlined at the top",
+            return all([marked(),
+                        connected.0 ? nil : "the connected tab should be waiting-outlined at the top",
                         !connected.1 ? nil : "the connected tab's outline should leave the bottom open",
                         pill.0 && pill.1 ? nil : "a pill's outline should be closed (top \(pill.0), bottom \(pill.1))"])
         }) {
@@ -206,7 +213,7 @@ extension TerminalWindowController {
             // The outline's 10% tint lies over the whole tab, the line included; its stroke leaves
             // the bottom open, so nothing else is drawn on or next to the underline.
             let tint = Theme.attentionWaiting
-            return all([PixelProbe.isWaitingOutlined(b) ? nil : "the tab should be waiting-outlined",
+            return all([marked(), PixelProbe.isWaitingOutlined(b) ? nil : "the tab should be waiting-outlined",
                         underline(acc.mixed(with: tint, 0.10), above: Theme.surface.mixed(with: tint, 0.10))])
         }) {
             self.setAttention(.waiting, on: t.pane("ts2"))

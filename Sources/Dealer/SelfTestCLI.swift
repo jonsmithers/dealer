@@ -260,7 +260,11 @@ extension TerminalWindowController {
                 }
                 // The same shell running a program isn't at its prompt.
                 t.pane("c2").surface.typeText("sleep 30\r")
-                let busy = SelfTest.waitUntil(timeout: 15) { !ControlHandler.atShellPrompt(t.pane("c2")) }
+                // #100: the shell leaves its prompt when it hands the terminal to its fork, before
+                // that fork execs `sleep`; until then the foreground program reads as zsh.
+                let busy = SelfTest.waitUntil(timeout: 15) {
+                    !ControlHandler.atShellPrompt(t.pane("c2")) && ControlHandler.foregroundName(t.pane("c2")) == "sleep"
+                }
                 let running = ControlHandler.handle(["cmd": "send-text", "args": ["target": "right", "if_idle": true, "text": "x"],
                                                      "caller": ids["c0"]!])
                 call("send-text", ["target": "\(ids["c2"]!)", "items": [["key": "ctrl+c"]]])

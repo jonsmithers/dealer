@@ -178,6 +178,9 @@ extension TerminalWindowController {
     }
 
     @objc func windowDidBecomeKey(_ notification: Notification) {
+        // Always true in a real run; a self-test run without an override counts its window as
+        // never key (Presence.selfTestFacts, #100), so AppKit activating it can't clear a mark.
+        guard Presence.isKey(window) else { return }
         if let p = focusedPane { clearAttention(p, cause: "window-became-key") }
     }
 }

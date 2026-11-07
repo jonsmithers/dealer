@@ -194,6 +194,9 @@ The GitHub repo is `jonsmithers/dealer`.
   windows (`DEALER_SELFTEST=quit`) ignore real mouse events, so a click over them reaches the
   window below instead of ending a drag step's drop. Steps post or send events to the window
   directly, which still works. `DEALER_SELFTEST=1` keeps the mouse, for poking at the UI.
+  Nor can activation: a self-test run counts as away (app not active, no key window) unless a step
+  sets `Presence.override` (#100); a run that happened to be active skipped marks on its focused
+  pane.
 - **The self-test never shows modals (#38).** Close and quit confirmations go through
   `Confirmation.skip` (one switch, on in self-test and demo mode), which accepts and logs
   `(auto-accepted confirmation: …)`. After every step the runner fails the step that left a sheet or

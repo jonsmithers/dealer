@@ -65,6 +65,23 @@ extension TerminalWindowController {
             self.layoutNow()
         }
 
+        // #100: whether the run's app is active isn't up to the run, so with no override it counts as away.
+        t.step("presence: with no override a self-test run counts as away, whatever AppKit says: the focused pane is marked, and AppKit's became-key leaves it (#100)", nil, {
+            all([has("notify attention:set", who("pa"), "none → waiting")])
+        }) {
+            resetLog()
+            guard let a = pane("pa") else { return }
+            Presence.override = nil
+            if Presence.appActive || Presence.isKey(self.window) || self.userPresent() {
+                problems.append("the run should count as away (app active \(Presence.appActive), window key \(Presence.isKey(self.window)))")
+            }
+            if self.focusedPane !== a || !a.surface.isEffectivelyVisible { problems.append("pa should be focused and drawn") }
+            self.setAttention(.waiting, on: a, event: "notify")
+            self.windowDidBecomeKey(Notification(name: NSWindow.didBecomeKeyNotification, object: self.window))
+            if a.attention != .waiting { problems.append("pa should stay waiting, is \(a.attention.name) (\(NotificationLog.context(self)))") }
+            self.setAttention(.none, on: a, event: "notify")
+        }
+
         t.step("presence: away (Dealer not active): focus moved to a marked pane keeps the mark; the window becoming key clears it", nil, {
             all([has("focus attention:kept", who("pb"), "focus moved here while you weren't looking", "app inactive"),
                  has("window-became-key attention:cleared", who("pb"), "waiting → none")])

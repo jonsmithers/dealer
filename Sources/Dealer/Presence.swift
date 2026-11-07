@@ -18,14 +18,23 @@ enum Presence {
     /// Self-test seam: when set, every decision uses these facts instead of AppKit and the session.
     static var override: Facts?
 
-    /// Self-test runs are usually not the active app. With no `override`, a focus change there still
+    /// A self-test run without an `override` takes the user as away (#100): Dealer not active, no
+    /// key window, unlocked. Whether a run's app is really active isn't up to the run (a click,
+    /// ⌘-Tab, an app switch), and an active run skipped marks on its focused pane (`isLookingAt`),
+    /// so steps passed or failed by chance. Steps about presence set `override`.
+    static let selfTestFacts = Facts(appActive: false, screenLocked: false, keyWindow: nil)
+
+    /// The facts in force instead of AppKit's and the session's, if any.
+    private static var fixed: Facts? { override ?? (SelfTest.enabled ? selfTestFacts : nil) }
+
+    /// Self-test runs count as away (`selfTestFacts`). With no `override`, a focus change there still
     /// counts as seen, as it did before #71, so steps that clear marks by focusing keep their meaning.
     static var focusCountsAsSeen: Bool { SelfTest.enabled && override == nil }
 
-    static var appActive: Bool { override?.appActive ?? NSApp.isActive }
+    static var appActive: Bool { fixed?.appActive ?? NSApp.isActive }
 
     static var screenLocked: Bool {
-        if let o = override { return o.screenLocked }
+        if let o = fixed { return o.screenLocked }
         return (CGSessionCopyCurrentDictionary() as? [String: Any])?["CGSSessionScreenIsLocked"] as? Bool ?? false
     }
 
@@ -34,7 +43,7 @@ enum Presence {
 
     static func isKey(_ w: NSWindow?) -> Bool {
         guard let w else { return false }
-        if let o = override { return o.keyWindow === w }
+        if let o = fixed { return o.keyWindow === w }
         return w.isKeyWindow
     }
 
