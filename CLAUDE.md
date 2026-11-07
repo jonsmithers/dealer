@@ -145,8 +145,10 @@ The GitHub repo is `jonsmithers/dealer`.
   the orphan `media` branch, never on master. The README embeds the MP4s as videos (#79), which
   GitHub only plays from `github.com/user-attachments/assets/<id>` URLs on a line of their own
   (a `<video>` tag or a link to the media branch is stripped or shown as a link). So after
-  publishing, the user uploads each `<demo>.mp4` to an issue comment (`gh issue comment N
-  --attach …`; agents can't), and the README's URL for that demo is replaced.
+  publishing, the user uploads each `<demo>.mp4` to a comment on **issue #79, always** (closed;
+  every demo upload goes there, the user's call), with `gh issue comment 79 -R jonsmithers/dealer
+  --body "Demo videos" --attach <demo>.mp4 …` (agents can't attach), and the README's URL for
+  that demo is replaced. Never upload to the feature's own issue.
   - How it works: `DEALER_SELFTEST=1 DEALER_DEMO=<name>` runs a script in `Demo.swift`.
     `DemoMouse` posts real mouse events (`window.postEvent`) along eased paths at 60 Hz, so
     DragController's tracking loop, buttons and rows handle them as they would a person's, and

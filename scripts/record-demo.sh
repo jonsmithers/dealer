@@ -43,6 +43,9 @@ if [[ $1 == --publish ]]; then
   program_status done "Demos committed on media" "push with: git -C $WT push origin media"
   git --no-pager -C $WT log --oneline -1
   print "Committed on media. After reviewing $OUT/review, publish with:\n  git -C $WT push origin media"
+  # README videos: always uploaded to issue #79 (CLAUDE.md, "README demo recordings").
+  print "Then upload the MP4s (always to issue #79) and put each user-attachments URL in README.md:"
+  print "  gh issue comment 79 -R jonsmithers/dealer --body 'Demo videos'${(j::)${(@f)$(for f in $OUT/*.mp4(N); do [[ $f == *-raw.mp4 ]] || print -r -- " --attach ${(q)f}"; done)}}"
   exit 0
 fi
 

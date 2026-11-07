@@ -102,7 +102,8 @@ Agent IDs don't outlive a session; brief a fresh agent with the issues that hold
   `open -na /Applications/Ghostty.app --args -e <script>`.
 - Sometimes on **metered wifi**: then no large downloads/uploads (dep fetches, clones, media);
   small `gh` calls and code pushes are OK when they say so.
-- README video uploads: `gh issue comment N -R jonsmithers/dealer --attach <file>.mp4` (user only).
+- README video uploads go to **issue #79, always** (the user's call): `gh issue comment 79 -R
+  jonsmithers/dealer --body "Demo videos" --attach <file>.mp4` (user only).
 
 ## Dealer-specific incidents
 
