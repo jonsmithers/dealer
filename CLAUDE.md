@@ -162,7 +162,9 @@ The GitHub repo is `jonsmithers/dealer`.
     "connected"` (one switch each, `Demo.tabsInTitlebar`, `Demo.autoAssignColors` and `Demo.tabStyle`,
     written to the demo's temp settings; #79). Connected tabs, the app's default, are the user's
     call for the README (they were pills before #87). The chrome shade is the default
-    `chrome_contrast` (+0.3).
+    `chrome_contrast` (+0.3). Layout motion (#94) and the working marks' animation are on in demos
+    (`LayoutAnimation.enabled`, `RunningSpinner.animating`), though both are off in the self-test, so a
+    beat that follows a split or close should wait out the 0.18 s glide before the next action.
     The first workspace stays uncolored, as in normal use. Grab tabs with the `grip(…)` helper (lower half = tab drag; the upper
     half drags the window, #27). Captions sit in a band under the decks (`Demo.captionBand`, 0
     outside demos, subtracted in `deckArea`). Each caption logs `DEMO BEAT <tree>`, so a run

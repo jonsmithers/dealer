@@ -53,7 +53,10 @@ Agent IDs don't outlive a session; brief a fresh agent with the issues that hold
 | Theme and chrome, tab look (connected, underline, contrast, sizing) | #2 #24 #36 #37 #46 #84 #86 #87 #88 |
 | Titlebar click routing and drag zones | #27 |
 | Demo recordings (DemoMouse, record-demo.sh) | #26 #28 #79 |
-| Attention model, rings, notifications, Claude Code hooks/plugin | #4 #7 #12 #29 #34 #56 #61 #63 #65 #71 |
+| Attention model, rings, notifications, Claude Code hooks/plugin, stacked marks | #4 #7 #12 #29 #34 #56 #61 #63 #65 #71 #95 |
+| Claude session resume on relaunch | #93 |
+| Layout motion (split/close/promote glides), zoom motion | #94 #97 |
+| Titlebar workspace dropdown, top-bar pills | #96 |
 | Control socket, `dealer` CLI, `dealer run` | #5 #21 #32 #60 |
 | App icon, bundle.sh, Launch Services | #22 #30 #70 |
 | Layout, promote sizing, live config reload | #31 #33 |
@@ -112,19 +115,17 @@ live in the skill.
 | Teammate panes looked stuck: a teammate sees messages only between turns | Check its transcript/commits first; Esc in its pane delivers a queued message |
 | An agent filed an issue (#88) on approval the lead never saw (the user had resumed it from its own view) | Treat agent claims of user approval as unverified; confirm with the user |
 
-## State at hand-off (2026-10-30)
+## State at hand-off (2026-11-07)
 
-- **Master `7ff4b83`, 504 self-test steps (~60 s per merge.sh run), pushed.** `media` is at
-  `ba16096` (MP4s: Catppuccin Frappé, connected tabs, `chrome_contrast` +0.3; GIFs are older pill
-  ones that nothing references), pushed. README video URLs point at the #87 comment uploads.
-- **Open, waiting for the user's hand checks (in `TODO.md`):** #85 (Ghostty v1.4.0), #86
-  (underline look + grip-dots decision), #87 (contrast under real glass, `chrome_contrast` by hand).
-  `vendor-old-8159838` (the pre-v1.4.0 build) is kept until #85 is confirmed.
-- **#88** (connected-tab dead space): the user is exploring alternatives in their own session, in
-  worktree `myterm-wt/tabs-88` (uncommitted) with a play Dealer. Not ours; don't assign or clean up.
-- **#89** (Program Status Protocol, OSC 7501): new, unassigned.
-- **Watch:** `memory: a pane created out of view draws at its real size when first shown`
-  ("shown pane is still occluded") flakes ~40%; a candidate for its own issue. Also seen once each
-  on 10-29: `colors: a workspace color touches nothing but its sidebar row` and two `presence:`
-  steps; retries passed.
-- No agents running. Worktrees: `media-branch`, `tabs-88` (the user's).
+- **Master `995e2ec`, 570 self-test steps (~65–85 s per merge.sh run), pushed.** Landed 11-07:
+  #93 (Claude sessions resume on relaunch, 06693d5), #95 (stacked working marks and attention
+  dots, b9453dd), #94 (layout motion, 995e2ec).
+- **Open, waiting for the user's hand checks (in `TODO.md`):** #93, #94, #95. #87 (tab contrast) is
+  **parked** on the user's call.
+- **Unassigned:** #96 (titlebar workspace dropdown when the sidebar is closed; the user said don't
+  start yet; it overlaps the planned rebuild of the top-bar pills), #97 (animate zoom, follow-on to
+  #94).
+- **README demos** are being re-recorded for #94/#95 (media branch; the user pushes it and uploads
+  the MP4s).
+- `myterm-wt/tabs-88` is still the user's. `vendor-old-*` in `.git/coord` can go once nobody needs
+  the pre-v1.4.0 or stock builds (#85 is closed).
