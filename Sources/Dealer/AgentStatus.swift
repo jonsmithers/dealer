@@ -116,19 +116,31 @@ enum WorkingMark: Equatable {
         }
     }
 
-    /// The one roll-up for a set of panes (a tab, a workspace, or a group of workspaces): the
-    /// highest-ranked mark, and of several rings the least complete. Nil when none is working.
+    /// The strongest mark of a set of panes: the highest-ranked, and of several rings the least
+    /// complete; nil when none is working. The front of a stack (#95, `workingMarks`), and all a
+    /// top-bar pill shows.
     static func strongest(of panes: some Sequence<Pane>) -> WorkingMark? {
         strongest(panes.compactMap(\.workingMark))
     }
 
     static func strongest(_ marks: some Sequence<WorkingMark>) -> WorkingMark? {
-        marks.reduce(nil) { best, m in
-            guard let best else { return m }
-            if m.rank != best.rank { return m.rank > best.rank ? m : best }
-            if case .ring(let a) = m, case .ring(let b) = best { return .ring(min(a, b)) }
-            return best
-        }
+        ordered(marks).first
+    }
+
+    /// Whether `self` goes in front of `other` in a stack (#95): higher rank, and of two rings the
+    /// less complete.
+    func outranks(_ other: WorkingMark) -> Bool {
+        if rank != other.rank { return rank > other.rank }
+        if case .ring(let a) = self, case .ring(let b) = other { return a < b }
+        return false
+    }
+
+    /// The marks strongest first (stable among equals): a working stack's order (#95), whose front
+    /// mark is `strongest`.
+    static func ordered(_ marks: some Sequence<WorkingMark>) -> [WorkingMark] {
+        marks.enumerated().sorted { a, b in
+            a.element.outranks(b.element) || (!b.element.outranks(a.element) && a.offset < b.offset)
+        }.map(\.element)
     }
 }
 

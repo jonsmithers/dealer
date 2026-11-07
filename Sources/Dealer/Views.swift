@@ -390,8 +390,8 @@ final class TabStripView: FlippedView {
             b.isActive = i == deck.activeIndex
             b.accent = deck.color  // #86: whatever the number of decks
             b.style = style
-            b.attention = tab.attention
-            b.working = tab.workingMark  // AgentStatus.swift
+            b.attentionMarks = tab.panes.attentionMarks  // #95: a dot per pane
+            b.workingMarks = tab.panes.workingMarks  // AgentStatus.swift, MarkStack.swift
             b.color = tab.color
             b.toolTip = tab.focusTarget?.statusLine  // AgentStatus.swift
         }
@@ -408,12 +408,14 @@ final class TabStripView: FlippedView {
     // selecting a tab doesn't resize it. No animation: titles change often (shells set them per
     // command), and a width that glides on every prompt would be distracting.
 
-    /// The width a tab wants for `title`, before any shrinking. A tab whose agent is working (#73)
-    /// also wants the spinner's slot, so the mark doesn't eat a short title; the strip reflows when
-    /// an agent starts or stops, as it does whenever a shell retitles a tab.
-    static func naturalWidth(_ title: String, running: Bool = false) -> CGFloat {
+    /// The width a tab wants for `title`, before any shrinking. A tab whose agents are working (#73)
+    /// also wants room for its working stack, and one with several panes wanting attention room for
+    /// the dots behind the front one (#95), so the marks don't eat a short title; the strip reflows
+    /// when they change, as it does whenever a shell retitles a tab.
+    static func naturalWidth(_ title: String, working: Int = 0, dots: Int = 0) -> CGFloat {
         let text = title.isEmpty ? 0 : ceil((title as NSString).size(withAttributes: [.font: Theme.Fonts.tabActive]).width)
-        let chrome = TabButton.chromeWidth + (running ? RunningSpinner.slot : 0)
+        let chrome = TabButton.chromeWidth + RunningSpinner.stackWidth(working)
+            + MarkStack.extra(count: dots, size: Theme.Metrics.switcherDotSize)
         return min(max(text + chrome, Theme.Metrics.tabMinWidth), Theme.Metrics.tabMaxWidth)
     }
 
@@ -436,17 +438,20 @@ final class TabStripView: FlippedView {
         return natural.map { min($0, level) }
     }
 
-    private var fitCache: (titles: [String], running: [Bool], width: CGFloat, widths: [CGFloat])?
+    private var fitCache: (titles: [String], marks: [[Int]], width: CGFloat, widths: [CGFloat])?
 
-    /// Current tab widths, from the model's titles and working states (the buttons may lag a reload
-    /// behind).
+    /// Current tab widths, from the model's titles and how many marks each tab stacks (the buttons
+    /// may lag a reload behind).
     var tabWidths: [CGFloat] {
-        let titles = deck.tabs.map(\.title), running = deck.tabs.map(\.isWorking)
-        if let c = fitCache, c.titles == titles, c.running == running, c.width == bounds.width { return c.widths }
+        let titles = deck.tabs.map(\.title)
+        let marks = deck.tabs.map { t in
+            [min(t.panes.workingMarks.count, MarkStack.cap), min(t.panes.attentionMarks.count, MarkStack.cap)]
+        }
+        if let c = fitCache, c.titles == titles, c.marks == marks, c.width == bounds.width { return c.widths }
         let n = CGFloat(titles.count)
         let avail = bounds.width - Self.inset * 2 - Self.addWidth - n * Theme.Metrics.tabSpacing
-        let widths = Self.fit(zip(titles, running).map { Self.naturalWidth($0, running: $1) }, available: avail)
-        fitCache = (titles, running, bounds.width, widths)
+        let widths = Self.fit(zip(titles, marks).map { Self.naturalWidth($0, working: $1[0], dots: $1[1]) }, available: avail)
+        fitCache = (titles, marks, bounds.width, widths)
         return widths
     }
 
@@ -554,25 +559,41 @@ final class TabButton: FlippedView {
     var shape: ChromeShape { style == .connected ? .connectedTab : .rounded(Theme.Metrics.tabRadius) }
     /// The tab's own color (#9): its underline (instead of the deck accent) and a faint tint.
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true } } }
-    /// Badge for the most urgent pane in this tab (#4); drawn by `drawAttentionDot` in Attention.swift.
-    var attention: Attention = .none {
+    /// The panes in this tab that want attention (#4, #95): the outline and tint show the most urgent
+    /// (`attention`, faded by `attentionFade`), and each pane gets a dot in the stack (`dots`); drawn
+    /// by `drawAttentionDot` in Attention.swift.
+    var attentionMarks: [PaneAttention] = [] {
         didSet {
             if attentionFade.onChange == nil { attentionFade.onChange = { [weak self] in self?.needsDisplay = true } }
             attentionFade.set(attention, subject: tab)  // #34: a cleared tab fades out
-            if attention != oldValue { needsDisplay = true }
+            if dots.onChange == nil { dots.onChange = { [weak self] in self?.needsDisplay = true } }
+            dots.set(attentionMarks, subject: tab)  // each dot fades on its own
+            if attentionMarks != oldValue { needsDisplay = true }
         }
+    }
+    /// The most urgent state inside; setting it stands for a single pane in that state.
+    var attention: Attention {
+        get { attentionMarks.map(\.state).max() ?? .none }
+        set { attentionMarks = newValue == .none ? [] : [PaneAttention(pane: PaneAttention.element, state: newValue)] }
     }
     let attentionFade = AttentionFadeState()
-    /// Set while something in this tab is working (#64, #81, RunningSpinner.swift): its working mark in
-    /// front of the title, in a slot the strip adds to the tab's width (`TabStripView.naturalWidth`).
-    /// A tab already at its maximum, or shrunk to fit, gives the slot from its title instead.
-    var working: WorkingMark? {
+    let dots = AttentionStackState()
+    /// Set while something in this tab is working (#64, #81, #95, RunningSpinner.swift): one working
+    /// mark per working pane, strongest first, in front of the title, in room the strip adds to the
+    /// tab's width (`TabStripView.naturalWidth`). A tab already at its maximum, or shrunk to fit,
+    /// gives the room from its title instead.
+    var workingMarks: [WorkingMark] = [] {
         didSet {
             if spinner.onChange == nil { spinner.onChange = { [weak self] in self?.needsDisplay = true } }
-            spinner.set(working)
+            spinner.set(workingMarks)
         }
     }
-    var isRunning: Bool { working != nil }
+    /// The front (strongest) mark; setting it stands for a single working pane.
+    var working: WorkingMark? {
+        get { spinner.mark }
+        set { workingMarks = newValue.map { [$0] } ?? [] }
+    }
+    var isRunning: Bool { spinner.isRunning }
     let spinner = RunningSpinnerState()
     private var hovering = false { didSet { needsDisplay = true } }
     private var hoveringClose = false { didSet { if hoveringClose != oldValue { needsDisplay = true } } }
@@ -583,16 +604,19 @@ final class TabButton: FlippedView {
     /// Everything but the title (#46): leading pad plus the trailing ×/dot slot.
     static var chromeWidth: CGFloat { Theme.Metrics.tabLeadingPad + Theme.Metrics.tabTrailingSlot }
     /// Where the title is drawn (also read by the self-test). While an agent works, it starts after
-    /// the spinner's slot and is that much narrower.
+    /// the working stack and is that much narrower; dots behind the front one (#95) take their room
+    /// from its right end, hovered or not, so the title doesn't move when the × appears.
     var titleRect: CGRect {
         let font = Theme.Fonts.tabActive
         let h = ceil(font.ascender - font.descender)
         let lead = Theme.Metrics.tabLeadingPad + spinner.leading
         return CGRect(x: lead, y: (bodyHeight - h) / 2,
-                      width: max(bounds.width - Self.chromeWidth - spinner.leading, 0), height: h)
+                      width: max(bounds.width - Self.chromeWidth - spinner.leading - dotStackExtra, 0), height: h)
     }
-    /// The spinner's box, in the leading pad (also read by the self-test).
+    /// The front working mark's box, in the leading pad (also read by the self-test).
     var spinnerBox: CGRect { RunningSpinner.box(in: bounds, x: Theme.Metrics.tabLeadingPad) }
+    /// Every working mark's box, front first (self-test hook).
+    var spinnerBoxes: [CGRect] { RunningSpinner.stackBoxes(count: spinner.marks.count, front: spinnerBox) }
     private var showsClose: Bool { hovering }
 
     override init(frame: NSRect) {
@@ -672,8 +696,8 @@ final class TabButton: FlippedView {
         ]
         // The trailing slot is always reserved, so the title stays put when the × appears (#46).
         (title as NSString).draw(in: titleRect, withAttributes: attrs)
-        if let mark = spinner.mark {
-            RunningSpinner.draw(mark, in: spinnerBox, phase: RunningSpinner.phase())
+        if spinner.isRunning {
+            RunningSpinner.drawStack(spinner.marks, front: spinnerBox, phase: RunningSpinner.phase())
         }
 
         if showsClose {

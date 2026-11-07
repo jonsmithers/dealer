@@ -330,6 +330,7 @@ extension TerminalWindowController {
         attentionStyleSelfTestSteps(kit)
         spinnerSelfTestSteps(kit)
         workingMarksSelfTestSteps(kit)
+        stacksSelfTestSteps(kit)
         progressTimeoutSelfTestSteps(kit)
         programStatusSelfTestSteps(kit)
         titlesSelfTestSteps(kit)

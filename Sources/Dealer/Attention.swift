@@ -443,13 +443,20 @@ extension PaneView {
 }
 
 extension TabButton {
-    /// Where the badge sits: the close button's slot, which only shows on hover.
+    /// Where the badge sits: the close button's slot, which only shows on hover. With several panes
+    /// wanting attention (#95) this is the front (most urgent) dot; the others sit to its left.
     var attentionDotRect: CGRect { CGRect(x: closeRect.midX - 4, y: (bodyHeight - 8) / 2, width: 8, height: 8) }
 
-    /// The outline stays while hovering; only the dot gives way to the close button.
+    /// Every dot of the stack, front first (self-test hook).
+    var attentionDotRects: [CGRect] { MarkStack.boxes(count: dots.count, front: attentionDotRect, direction: -1) }
+
+    /// What the dots behind the front one take from the title (the front one has the × slot).
+    var dotStackExtra: CGFloat { MarkStack.extra(count: dots.count, size: attentionDotRect.width) }
+
+    /// The outline (the roll-up) stays while hovering; only the dots give way to the close button.
     func drawAttentionDot(hidden: Bool) {
-        AttentionStyle.draw(attentionFade.shown, in: bodyRect, shape: shape,
-                            dotRect: hidden ? nil : attentionDotRect, alpha: attentionFade.alpha, dashed: true)
+        AttentionStyle.draw(attentionFade.shown, in: bodyRect, shape: shape, dotRect: nil, alpha: attentionFade.alpha, dashed: true)
+        if !hidden { AttentionStyle.drawDots(dots.shown, in: attentionDotRects) }
     }
 }
 
@@ -497,12 +504,23 @@ enum AttentionStyle {
                 }
             }
         }
-        if let dotRect {
-            color.setFill()
-            NSBezierPath(ovalIn: dotRect).fill()
-            if attention == .failed { drawBang(in: dotRect, alpha: alpha) }
-            if attention == .waiting { drawQuestion(in: dotRect, alpha: alpha) }
-        }
+        if let dotRect { drawDot(attention, in: dotRect, alpha: alpha) }
+    }
+
+    /// One dot: the state's color, with the failed `!` or the waiting `?`.
+    static func drawDot(_ attention: Attention, in dotRect: CGRect, alpha: CGFloat = 1) {
+        guard alpha > 0, let base = attention.color else { return }
+        base.withAlphaComponent(base.alphaComponent * alpha).setFill()
+        NSBezierPath(ovalIn: dotRect).fill()
+        if attention == .failed { drawBang(in: dotRect, alpha: alpha) }
+        if attention == .waiting { drawQuestion(in: dotRect, alpha: alpha) }
+    }
+
+    /// A dot stack (#95), front (most urgent) first, each dot at its own fade alpha in `rects`
+    /// (`MarkStack.boxes`). A fading dot's knock-out ring fades with it.
+    static func drawDots(_ dots: [(state: Attention, alpha: CGFloat)], in rects: [CGRect]) {
+        let n = min(dots.count, rects.count)
+        MarkStack.draw(Array(rects.prefix(n)), knockout: { dots[$0].alpha }) { i, r in drawDot(dots[i].state, in: r, alpha: dots[i].alpha) }
     }
 
     /// A `?` knocked out of the waiting dot (#65), drawn like the `!`: since #61 an outlined *done*

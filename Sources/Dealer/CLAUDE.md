@@ -458,6 +458,15 @@
 - Shell-driven events (ghostty actions, socket requests from a shell) reach `setAttention` through
   `DispatchQueue.main.async`. A `SelfTest.waitUntil` in the same step sees them (the runner starts
   steps from a timer, #47).
+- Dot stacks (#95, MarkStack.swift): tabs, sidebar rows and group headers take `attentionMarks`
+  (`[PaneAttention]`, one per pane wanting attention, keyed by pane id; `panes.attentionMarks`).
+  Their `attention` is the max of it (setting it stands for one pane, `PaneAttention.element`):
+  that roll-up drives `attentionFade`, the outline and tint, and `AttentionStyle.draw` is called with
+  `dotRect: nil`. The dots come from `dots` (`AttentionStackState`: an `AttentionFadeState` per pane,
+  so each fades on its own; a new subject drops them) through `AttentionStyle.drawDots`, front dot
+  at `attentionDotRect`, the rest inward (`attentionDotRects`). `MarkStack.draw` knocks a `gap`
+  ring out of the marks behind each one in a transparency layer, scaled by the front mark's fade
+  alpha; one mark draws exactly as before. Tests: `SelfTestStacks.swift` (`stacks:`, self-contained).
 - Fade-out (#34): elements never draw `pane.attention`/`attention` directly. They draw
   `attentionFade.shown` at `attentionFade.alpha` (`AttentionFadeState`, one per PaneView ring,
   TabButton, WorkspaceRow and WorkspaceButton), fed the model value on every refresh with the
@@ -545,18 +554,25 @@
   pill or collapsed group header that holds a working pane. Which one is a `WorkingMark` (#81,
   AgentStatus.swift): Claude's sprite (`SpinnerAnimation.claude`, #73) for Claude Code, a turning
   arc for any other program, a ring filled to the percentage of a determinate report.
-  Roll-ups go through **one helper**, `WorkingMark.strongest` (Claude > arc > ring, the least
-  complete ring); tabs, workspaces and group headers all use it. Elements hold a
-  `working: WorkingMark?` (`isRunning` is derived) and draw through `RunningSpinner.draw(_:in:phase:)`.
+  Order goes through **one helper**, `WorkingMark.ordered` (Claude > arc > ring, the least complete
+  ring first; `strongest` is its first). Since #95 (MarkStack.swift) tabs, sidebar rows and collapsed
+  sidebar headers stack one mark per working pane (`panes.workingMarks`, capped at
+  `MarkStack.cap` by `RunningSpinnerState.set`); top-bar pills and label pills are fed only the
+  strongest. Elements hold `workingMarks` (`working` is the front mark, and setting it stands for
+  one pane; `isRunning` is derived) and draw through `RunningSpinner.drawStack`, which draws each
+  mark with `RunningSpinner.draw(_:in:phase:)` at one shared phase. The front mark's box is
+  `spinnerBox` (where the single mark always sat); `spinnerBoxes` lists them all.
 - **It is never a colour.** It draws in the element's own title colour, because colours and
   outlines on chrome mean attention (#7, #9). It is orthogonal to attention and sits on the
   opposite side of the element from the dot, so the two never collide; a *waiting* pane doesn't
   spin (`isWorking` reads `agentState`).
 - Elements own a `RunningSpinnerState`, fed `set(_:)` on every refresh (the `isRunning` properties,
   set from `reload()` like `attention`), and draw through `RunningSpinner.draw` only — one drawer,
-  like `AttentionStyle`. A tab keeps its width and gives the slot to its title (a strip must not
-  reflow whenever an agent starts or stops); a pill, which is sized to its content, grows by
-  `RunningSpinner.slot`, as it already does for the attention dot.
+  like `AttentionStyle`. A tab's natural width includes its stacks
+  (`TabStripView.naturalWidth(_:working:dots:)`: the working stack, and the dots behind the front
+  one, which has the × slot), so the strip reflows when they change, as on a retitle; a tab at its
+  maximum or shrunk to fit gives the room from its title. A pill, which is sized to its content,
+  grows by `RunningSpinner.slot`, as it already does for the attention dot.
 - `SpinnerTicker` is one timer in the common run-loop modes for every spinning element, running
   only while something spins. Unlike `AttentionFader` it holds its states **weakly**: a fade ends
   and unregisters itself, but a spin has no end, so a strong reference would keep a closed pane's

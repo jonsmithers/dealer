@@ -277,10 +277,11 @@ The GitHub repo is `jonsmithers/dealer`.
 - The selected workspace's switcher entry (the user's calls; #90 tried an edge bar instead and was
   reversed): a neutral `Theme.text` outline (#52's width and path) and a heavier title, on sidebar
   rows, pills and collapsed group headers. Pills also get the `Theme.workspaceSelection` fill;
-  sidebar rows don't. **The sidebar draws no attention outlines** (#91's sidebar part): attention
-  there is a large dot (`sidebarDotSize`, 14pt, with the `?`/`!` scaled) plus the faint tint, so
-  an outline on the sidebar always means "selected", also on a waiting or failed row. Pills, tabs
-  and panes keep attention outlines, and on a pill the selection outline gives way to one.
+  sidebar rows don't. **The sidebar's solid outline always means "selected"**: attention there is
+  a *dashed* outline just inside the edge (2a0285f, after #91 had none), a `sidebarDotSize` dot
+  (9pt, with the `?`/`!` scaled) and the faint tint, also on a waiting or failed row. Tabs draw
+  dashed attention outlines too; pills and panes solid ones, and on a pill the selection outline
+  gives way to one.
   **A workspace's color shows only on its switcher entry**: the sidebar row, or
   the pill in top-bar mode (#15, #18; the user's call). Not in the deck area, and it has no effect
   at all on tabs (tint, underline, fill, or deck-color fallback). Tabs get color only from their own `Tab.color`; the
@@ -293,6 +294,18 @@ The GitHub repo is `jonsmithers/dealer`.
   terminal (#86; #84 had dropped it). On translucent windows a connected active tab is opaque
   like pills (#87, `TabStyle.translucent = .opaque`; `.tinted` shows the terminal through it
   with a faint tint, `.clearInactive` also drops the inactive pills; the user may revisit).
+- **Marks stack (#95, the user's call):** a tab button (strip or titlebar, connected or pill), a
+  sidebar row and a collapsed sidebar group header show **one mark per pane**, not only the
+  strongest: working marks on the **left** (Claude, then the arc, then the least complete ring,
+  strongest in front) and attention dots on the **right** (failed, waiting, done, unread, most
+  urgent in front), at most 3 each (`MarkStack.cap`; no `+N`, the user may ask for one),
+  overlapping like an avatar stack with a ring knocked out behind each mark (MarkStack.swift). A
+  pane is in a stack by its `agentState`, so a waiting pane is a dot, not a spinner (an *unread*
+  pane that still works is in both, as before). Outlines and tints stay the roll-up of the highest
+  state; only the marks stack, and each dot fades on its own (#34). Several Claude sprites share
+  the one clock. Tabs widen for the stacks (titles truncate first); on hover the × replaces the
+  whole dot stack. Top-bar pills and their group label pills keep the single strongest mark (the
+  user plans to rebuild them).
 - Attention clears in the model at once, but its ring/outline/dot fade out (~0.8 s, plus a 0.5 s hold
   after ⌘⇧U or a notification click) so you see which pane called you (#34). Only those layers
   and drawings animate, never terminal surfaces. Reduce Motion skips the fade.

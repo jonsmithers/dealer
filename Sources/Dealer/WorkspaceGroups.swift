@@ -413,23 +413,39 @@ final class GroupHeaderView: FlippedView {
     var count = 0 { didSet { if count != oldValue { needsDisplay = true } } }
     /// Collapsed with the active workspace inside: the selection outline, as on a selected entry.
     var isActive = false { didSet { if isActive != oldValue { needsDisplay = true } } }
-    var attention: Attention = .none {
+    /// The members' panes that want attention: the outline shows the most urgent, and each pane gets
+    /// a dot (#95). The sidebar feeds every pane; the top bar's label pill one (`attention`).
+    var attentionMarks: [PaneAttention] = [] {
         didSet {
             if attentionFade.onChange == nil { attentionFade.onChange = { [weak self] in self?.needsDisplay = true } }
             attentionFade.set(attention, subject: group)  // #34
-            if attention != oldValue { needsDisplay = true; superview?.needsLayout = true }
+            if dots.onChange == nil { dots.onChange = { [weak self] in self?.needsDisplay = true } }
+            dots.set(attentionMarks, subject: group)
+            if attentionMarks != oldValue { needsDisplay = true; superview?.needsLayout = true }
         }
+    }
+    /// The most urgent state inside; setting it stands for a single pane in that state.
+    var attention: Attention {
+        get { attentionMarks.map(\.state).max() ?? .none }
+        set { attentionMarks = newValue == .none ? [] : [PaneAttention(pane: PaneAttention.element, state: newValue)] }
     }
     let attentionFade = AttentionFadeState()
-    var working: WorkingMark? {
+    let dots = AttentionStackState()
+    /// One working mark per working pane, strongest first (#95); the label pill is fed one.
+    var workingMarks: [WorkingMark] = [] {
         didSet {
-            guard working != oldValue else { return }
             if spinner.onChange == nil { spinner.onChange = { [weak self] in self?.needsDisplay = true } }
-            spinner.set(working)
-            if (working == nil) != (oldValue == nil) { superview?.needsLayout = true }
+            let before = spinner.marks.count
+            spinner.set(workingMarks)
+            if spinner.marks.count != before { superview?.needsLayout = true }
         }
     }
-    var isRunning: Bool { working != nil }
+    /// The front (strongest) mark; setting it stands for a single working pane.
+    var working: WorkingMark? {
+        get { spinner.mark }
+        set { workingMarks = newValue.map { [$0] } ?? [] }
+    }
+    var isRunning: Bool { spinner.isRunning }
     let spinner = RunningSpinnerState()
     private var hovering = false { didSet { needsDisplay = true } }
     private var tracker = SwitcherDragTracker()
@@ -461,7 +477,7 @@ final class GroupHeaderView: FlippedView {
     /// Sidebar only: on a pill a bare number would read as a ⌃N workspace number.
     private var countText: String { style == .row && isCollapsed && count > 0 ? "\(count)" : "" }
     private var countWidth: CGFloat { countText.isEmpty ? 0 : ceil((countText as NSString).size(withAttributes: countAttrs).width) + 6 }
-    private var dotWidth: CGFloat { attentionFade.shown > .none ? dotSize + 6 : 0 }
+    private var dotWidth: CGFloat { dots.count > 0 ? dotSize + 6 + MarkStack.extra(count: dots.count, size: dotSize) : 0 }
 
     /// A label pill's width (top bar).
     var idealWidth: CGFloat {
@@ -474,6 +490,9 @@ final class GroupHeaderView: FlippedView {
         let d = dotSize
         return CGRect(x: bounds.width - padding - d, y: (bounds.height - d) / 2, width: d, height: d)
     }
+
+    /// Every dot of the stack, front (most urgent, rightmost) first (self-test hook).
+    var attentionDotRects: [CGRect] { MarkStack.boxes(count: dots.count, front: attentionDotRect, direction: -1) }
 
     /// The disclosure triangle's box (self-test hook).
     var triangleRect: CGRect { CGRect(x: padding, y: (bounds.height - 10) / 2, width: 10, height: 10) }
@@ -506,9 +525,9 @@ final class GroupHeaderView: FlippedView {
         tri.fill()
 
         var x = padding + Self.triangleColumn
-        if let mark = spinner.mark {
-            RunningSpinner.draw(mark, in: RunningSpinner.box(in: bounds, x: x), phase: RunningSpinner.phase())
-            x += RunningSpinner.slot
+        if spinner.isRunning {
+            RunningSpinner.drawStack(spinner.marks, front: RunningSpinner.box(in: bounds, x: x), phase: RunningSpinner.phase())
+            x += spinner.leading
         }
         let font = Theme.Fonts.groupHeader
         let h = ceil(font.ascender - font.descender)
@@ -525,9 +544,10 @@ final class GroupHeaderView: FlippedView {
             SelectionStyle.drawOutline(in: bounds, cornerRadius: radius, yieldingTo: attentionFade.shown, attentionAlpha: attentionFade.alpha)
         }
         if attentionFade.shown > .none {
-            AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: radius, dotRect: attentionDotRect,
+            AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: radius, dotRect: nil,
                                 alpha: attentionFade.alpha, dashed: style == .row, insideEdge: style == .row)
         }
+        AttentionStyle.drawDots(dots.shown, in: attentionDotRects)
         if isActive && style == .row { SelectionStyle.drawOutline(in: bounds, cornerRadius: radius) }
     }
 

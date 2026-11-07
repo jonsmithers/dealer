@@ -11,7 +11,8 @@ import AppKit
 //
 // Which mark is a `WorkingMark` (#81): Claude's sprite when the progress comes from Claude Code
 // (`ProgressSource`), a turning arc for any other program, and a ring filled to the percentage when
-// the report carries one. A roll-up (tab, workspace, collapsed group) shows its strongest:
+// the report carries one. A roll-up (tab, sidebar row, collapsed sidebar group) shows one mark per
+// working pane, stacked strongest first (#95, MarkStack.swift); a top-bar pill shows the strongest,
 // `WorkingMark.strongest`.
 //
 // It is the only *motion* in the chrome that isn't a fade. It has no hue, because colors and
@@ -99,6 +100,26 @@ enum RunningSpinner {
         dimmest + (1 - dimmest) * (0.5 + 0.5 * cos(phase * 2 * .pi))
     }
 
+    /// The distance between neighbouring marks of a working stack (#95).
+    static var stackStep: CGFloat { MarkStack.step(size: size) }
+
+    /// The room a stack of `count` marks takes in front of a title: the front mark's slot plus a step
+    /// per mark behind it; 0 for none.
+    static func stackWidth(_ count: Int) -> CGFloat {
+        count > 0 ? slot + MarkStack.extra(count: count, size: size) : 0
+    }
+
+    /// The boxes of a stack, front (strongest, leftmost) first; `front` is the front mark's box.
+    static func stackBoxes(count: Int, front: CGRect) -> [CGRect] {
+        MarkStack.boxes(count: count, front: front, direction: 1)
+    }
+
+    /// A working stack (#95): the strongest mark in front at `front`, the others behind it to its
+    /// right. Every mark runs on the one clock, so several Claude sprites pulse together.
+    static func drawStack(_ marks: [WorkingMark], front: CGRect, phase: CGFloat) {
+        MarkStack.draw(stackBoxes(count: marks.count, front: front)) { i, box in draw(marks[i], in: box, phase: phase) }
+    }
+
     /// The one drawer. Every element calls this, so the look changes in one place.
     static func draw(_ mark: WorkingMark, in box: CGRect, phase: CGFloat) {
         switch mark {
@@ -159,27 +180,36 @@ enum RunningSpinner {
     }
 }
 
-/// Whether one chrome element (tab button, workspace row or pill) shows a working mark, which one,
+/// Whether one chrome element (tab button, workspace row or pill) shows working marks, which ones,
 /// and its registration with the shared timer. Same shape as `AttentionFadeState`: feed it the
-/// model's value on every refresh (`set(_:)`), draw `mark` while there is one, redraw from `onChange`.
+/// model's value on every refresh (`set(_:)`), draw `marks` while there are any, redraw from
+/// `onChange`.
 final class RunningSpinnerState {
-    /// Called on every tick, and when the element's mark changes; the element redraws.
+    /// Called on every tick, and when the element's marks change; the element redraws.
     var onChange: (() -> Void)?
-    private(set) var mark: WorkingMark?
-    var isRunning: Bool { mark != nil }
+    /// Strongest first, at most `MarkStack.cap` (#95).
+    private(set) var marks: [WorkingMark] = []
+    /// The front (strongest) mark.
+    var mark: WorkingMark? { marks.first }
+    var isRunning: Bool { !marks.isEmpty }
 
-    /// `slot` while a mark shows, else 0: what the element must leave free in front of its title.
-    var leading: CGFloat { isRunning ? RunningSpinner.slot : 0 }
+    /// What the element must leave free in front of its title: the stack's width, 0 without marks.
+    var leading: CGFloat { RunningSpinner.stackWidth(marks.count) }
 
-    func set(_ mark: WorkingMark?) {
-        guard mark != self.mark else { return }
+    /// One mark per working pane (#95); ordered and capped here.
+    func set(_ marks: [WorkingMark]) {
+        let marks = Array(WorkingMark.ordered(marks).prefix(MarkStack.cap))
+        guard marks != self.marks else { return }
         let was = isRunning
-        self.mark = mark
+        self.marks = marks
         if was != isRunning {
             if isRunning { SpinnerTicker.shared.add(self) } else { SpinnerTicker.shared.remove(self) }
         }
         onChange?()
     }
+
+    /// A single mark (top-bar pills, the pane picker).
+    func set(_ mark: WorkingMark?) { set(mark.map { [$0] } ?? []) }
 
     deinit { SpinnerTicker.shared.remove(self) }
 }

@@ -207,7 +207,7 @@ so ⌘⇧A ↩ goes back to the previous pane.
 
 Double-click a tab (or press ⌘⇧R) to rename it; middle-click or hover × to close it. A pane's bar (shown once a tab has two panes) has the same hover ×, which closes the pane like ⌘W.
 
-Workspaces are listed in a sidebar on the left: number, name, attention dot, and a dim line
+Workspaces are listed in a sidebar on the left: number, working marks, name, attention dots, and a dim line
 with the focused pane's agent state, cwd and branch. Click a row to switch, double-click (or ⌃⇧R) to
 rename, right-click for a menu, middle-click to close, drag to reorder, "New Workspace" to add.
 It shows by itself once a window has two workspaces; the toggle right of the traffic lights (or
@@ -282,8 +282,9 @@ exactly like waiting by default: blue ring, outline and dot. **Unread** (somethi
 command finished) is deliberately quieter: a muted grey dot on the tab and workspace, with no ring
 or outline. Both looks are settings (`[attention] done` and `unread`, below). The blue is a lighter shade
 on dark ghostty themes and a deeper one on light themes, and so is the red. Focusing the pane
-clears all of it. A tab or workspace shows its most urgent pane: failed, then waiting, then done,
-then unread. **⌘⇧U** (Window > Jump to Next Unread) goes to the most urgent pane in any window,
+clears all of it. A tab or workspace's outline shows its most urgent pane: failed, then waiting,
+then done, then unread. Its dots stack, one per pane that wants you (up to three, overlapping, the
+most urgent in front), so you can count them at a glance; a top-bar pill shows only the most urgent. **⌘⇧U** (Window > Jump to Next Unread) goes to the most urgent pane in any window,
 in the same order. When Dealer isn't the active app, or the screen is locked, a mark also posts a
 macOS notification (bundled app only), and clicking it focuses the pane. While Dealer is in front,
 the marks alone carry it, in every window. When the mark clears, or the pane closes, its
@@ -434,7 +435,9 @@ The pane bar shows the pane's status on the right: agent state, cwd and git bran
 - **running**: the program is reporting progress with OSC 9;4. Claude Code does this while it works.
   A running pane also puts Claude's working mark (#64, #73; the animated spark from claude.ai) in front of the title on its **tab** and on its
   **workspace**'s sidebar row or pill, so you can see at a glance which tabs and workspaces have an
-  agent working right now — including ones you aren't looking at. It's drawn in the terminal's
+  agent working right now — including ones you aren't looking at. Several working panes stack
+  their marks (up to three, overlapping, Claude in front of other programs' arcs and rings), so you
+  can count the agents at work; a top-bar pill shows only the strongest. It's drawn in the terminal's
   foreground colour and pulses brighter and dimmer, never in an attention colour, and a pane that's
   *waiting* on you doesn't show it even though Claude keeps progress set while a dialog is open.
   With macOS **Reduce Motion** on, the mark stands still at full brightness.

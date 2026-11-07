@@ -98,6 +98,7 @@ extension TerminalWindowController {
                         want("the Claude tab", tabButton(a)?.working, .claude),
                         want("the ring tab", tabButton(b)?.working, .ring(40)),
                         want("the sidebar row", row(w)?.working, .claude),
+                        row(w)?.spinner.marks == [.claude, .ring(40)] ? nil : "the sidebar row should stack [claude, ring 40] (#95)",
                         want("the pill", pill(w)?.working, .claude),
                         b.statusLine.hasPrefix("running") ? nil : "the ring pane's bar should say running: \(b.statusLine)"])
         }) {
@@ -137,13 +138,15 @@ extension TerminalWindowController {
             pane("mk-a")?.surface.onTitle?("◐ task")
         }
 
-        t.step("marks: a collapsed group's header shows its members' strongest mark, Claude first, in the sidebar and the top bar", nil, {
+        t.step("marks: a collapsed group's header stacks its members' marks with Claude in front (#95) in the sidebar, and shows the strongest in the top bar", nil, {
             guard let g = self.groups.first(where: { $0.name == "Marks" }), let h = self.workspaceSidebar.header(for: g)
             else { return all(["setup failed: no group header"]) }
-            var p: [String?] = [want("the collapsed header", h.working, .claude)]
+            var p: [String?] = [want("the collapsed header", h.working, .claude),
+                                h.spinner.marks == [.claude, .arc] ? nil : "the collapsed header stacks \(h.spinner.marks), want [claude, arc]"]
             Settings.workspaceSwitcher = .top
             self.refreshChrome(); self.layoutNow()
             p.append(want("the collapsed label pill", self.workspaceBar.label(for: g)?.working, .claude))
+            p.append(self.workspaceBar.label(for: g)?.spinner.marks.count == 1 ? nil : "the label pill should show one mark")
             report("mk-a", false)
             p.append(want("the label pill without Claude", self.workspaceBar.label(for: g)?.working, .arc))
             Settings.workspaceSwitcher = savedSwitcher

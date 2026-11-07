@@ -683,7 +683,7 @@ extension TerminalWindowController {
             say("It needs you: the spinner gives way to a big blue dot")
             mouse.move(to: at(row("app"), 0.85, 0.5), duration: 0.9)
             mouse.wait(0.9)
-            say("Then the build fails: red, since a failure outranks waiting")
+            say("The build fails: a red dot joins in front, since failure outranks waiting")
             mouse.wait(1.4)
             mouse.move(to: at(row("app"), 0.5, 0.5), duration: 0.6)
             mouse.wait(0.8)

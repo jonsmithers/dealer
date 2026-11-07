@@ -59,8 +59,8 @@ final class WorkspaceSidebarView: FlippedView, ThemeApplying, SwitcherDragHost {
             r.detail = pane?.shortStatusLine ?? ""  // #68: the cwd's name; the tooltip has the path
             r.toolTip = pane.map(\.statusLine).flatMap { $0.isEmpty ? nil : $0 }
             r.isActive = ws === c.activeWorkspace
-            r.attention = ws.attention
-            r.working = ws.workingMark  // AgentStatus.swift
+            r.attentionMarks = ws.panes.attentionMarks  // #95: a dot per pane
+            r.workingMarks = ws.panes.workingMarks  // AgentStatus.swift, MarkStack.swift
             r.color = ws.color
             r.isHidden = ws.group?.isCollapsed == true
         }
@@ -78,8 +78,10 @@ final class WorkspaceSidebarView: FlippedView, ThemeApplying, SwitcherDragHost {
             h.count = c.members(of: g).count
             // Collapsed, it stands in for its members: their attention, spinner and selection.
             h.isActive = g.isCollapsed && c.activeWorkspace.group === g
-            h.attention = g.isCollapsed ? c.attention(of: g) : .none
-            h.working = g.isCollapsed ? WorkingMark.strongest(c.members(of: g).compactMap(\.workingMark)) : nil
+            // #95: stacked like a row's marks, over every member's panes.
+            let panes = g.isCollapsed ? c.members(of: g).flatMap(\.panes) : []
+            h.attentionMarks = panes.attentionMarks
+            h.workingMarks = panes.workingMarks
         }
         needsLayout = true
     }
@@ -152,23 +154,39 @@ final class WorkspaceRow: FlippedView {
     var title = "" { didSet { if title != oldValue { needsDisplay = true } } }
     var detail = "" { didSet { if detail != oldValue { needsDisplay = true } } }
     var isActive = false { didSet { if isActive != oldValue { needsDisplay = true } } }
-    var attention: Attention = .none {
+    /// The workspace's panes that want attention (#95): the dashed outline and tint show the most
+    /// urgent (`attention`, faded by `attentionFade`), and each pane gets a dot in the stack at the
+    /// right end (`dots`), each fading on its own (#34).
+    var attentionMarks: [PaneAttention] = [] {
         didSet {
             if attentionFade.onChange == nil { attentionFade.onChange = { [weak self] in self?.needsDisplay = true } }
             attentionFade.set(attention, subject: workspace)  // #34: a cleared workspace fades out
-            if attention != oldValue { needsDisplay = true }
+            if dots.onChange == nil { dots.onChange = { [weak self] in self?.needsDisplay = true } }
+            dots.set(attentionMarks, subject: workspace)
+            if attentionMarks != oldValue { needsDisplay = true }
         }
+    }
+    /// The most urgent state inside; setting it stands for a single pane in that state.
+    var attention: Attention {
+        get { attentionMarks.map(\.state).max() ?? .none }
+        set { attentionMarks = newValue == .none ? [] : [PaneAttention(pane: PaneAttention.element, state: newValue)] }
     }
     let attentionFade = AttentionFadeState()
-    /// Set while something in this workspace is working (#64, #81, RunningSpinner.swift): its working mark
-    /// between the number and the name.
-    var working: WorkingMark? {
+    let dots = AttentionStackState()
+    /// Set while something in this workspace is working (#64, #81, #95, RunningSpinner.swift): one
+    /// working mark per working pane, strongest first, between the number and the name.
+    var workingMarks: [WorkingMark] = [] {
         didSet {
             if spinner.onChange == nil { spinner.onChange = { [weak self] in self?.needsDisplay = true } }
-            spinner.set(working)
+            spinner.set(workingMarks)
         }
     }
-    var isRunning: Bool { working != nil }
+    /// The front (strongest) mark; setting it stands for a single working pane.
+    var working: WorkingMark? {
+        get { spinner.mark }
+        set { workingMarks = newValue.map { [$0] } ?? [] }
+    }
+    var isRunning: Bool { spinner.isRunning }
     let spinner = RunningSpinnerState()
     /// The workspace's color (#9): a chip at the left edge plus a faint tint.
     var color: NSColor? { didSet { if color?.hexString != oldValue?.hexString { needsDisplay = true } } }
@@ -201,12 +219,18 @@ final class WorkspaceRow: FlippedView {
         return CGRect(x: bounds.width - Self.padding - d, y: ((bounds.height - d) / 2).rounded(), width: d, height: d)
     }
 
-    /// The spinner's box, between the number and the name, on the title line (self-test hook).
+    /// Every dot of the stack, front (most urgent, rightmost) first (self-test hook).
+    var attentionDotRects: [CGRect] { MarkStack.boxes(count: dots.count, front: attentionDotRect, direction: -1) }
+
+    /// The front working mark's box, between the number and the name, on the title line (self-test
+    /// hook).
     var spinnerBox: CGRect {
         let m = titleMetrics
         return RunningSpinner.box(in: CGRect(x: 0, y: m.y, width: 0, height: m.height),
                                   x: Self.padding + Self.numberColumn)
     }
+    /// Every working mark's box, front (leftmost) first (self-test hook).
+    var spinnerBoxes: [CGRect] { RunningSpinner.stackBoxes(count: spinner.marks.count, front: spinnerBox) }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -280,13 +304,15 @@ final class WorkspaceRow: FlippedView {
             (number as NSString).draw(at: CGPoint(x: x, y: titleY + (titleH - nh) / 2), withAttributes: numberAttrs)
         }
         x += Self.numberColumn
-        if let mark = spinner.mark, !isAddRow {
-            RunningSpinner.draw(mark, in: spinnerBox, phase: RunningSpinner.phase())
-            x += RunningSpinner.slot
+        if spinner.isRunning, !isAddRow {
+            RunningSpinner.drawStack(spinner.marks, front: spinnerBox, phase: RunningSpinner.phase())
+            x += spinner.leading
         }
 
         let dot = attentionFade.shown > .none && !isAddRow
-        let right = bounds.width - Self.padding - (dot ? Self.dotSize + 6 : 0)
+        let shownDots = isAddRow ? [] : dots.shown
+        let right = bounds.width - Self.padding
+            - (shownDots.isEmpty ? 0 : Self.dotSize + 6 + MarkStack.extra(count: shownDots.count, size: Self.dotSize))
         (title as NSString).draw(in: CGRect(x: x, y: titleY, width: max(right - x, 0), height: titleH), withAttributes: titleAttrs)
         if hasDetail {
             // The dot is centred on the row, so the status line clears it too.
@@ -296,8 +322,9 @@ final class WorkspaceRow: FlippedView {
         if dot {
             // Dashed: the solid outline on the sidebar is selection.
             AttentionStyle.draw(attentionFade.shown, in: bounds, cornerRadius: radius,
-                                dotRect: attentionDotRect, alpha: attentionFade.alpha, dashed: true, insideEdge: true)
+                                dotRect: nil, alpha: attentionFade.alpha, dashed: true, insideEdge: true)
         }
+        AttentionStyle.drawDots(shownDots, in: MarkStack.boxes(count: shownDots.count, front: attentionDotRect, direction: -1))
         // After attention, whose tint would wash over it; nothing on the sidebar covers it (#91).
         if selected { SelectionStyle.drawOutline(in: bounds, cornerRadius: radius) }
     }
