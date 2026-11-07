@@ -177,6 +177,9 @@ The GitHub repo is `jonsmithers/dealer`.
     without it every pane counts as busy and closing one asks for confirmation. Each tour workspace
     has its project below it (`Demo.project`: api, web, docs; the drag demo uses api), and the
     shell titles panes with the directory's name, not the full path.
+  - Demos prefer the pointer on a visible control (the titlebar's sidebar toggle, a strip's +, a
+    pane bar's ×) over its key shortcut: mouse work shows how it's done (the user's call). Keys
+    stay only where the shortcut is the point (⇧⌘A Go to Pane) or no control reads well (splits).
   - Keyboard beats go through `menuKey` (Demo.swift), which shows the keys as a keycap at the
     right of the caption band and sends the menu item's action from the focused pane. It doesn't
     post key events: Dealer isn't the active app while recording, and a posted ⇧⌘D reached both the

@@ -641,6 +641,21 @@ extension TerminalWindowController {
                 Demo.signal(p, action)
             }
         }
+        /// Closes pane `n` with its bar's ×: one move straight to where the × is laid out (its frame
+        /// is set even while hidden), which shows as the pointer enters the bar (the hover driver
+        /// sends `mouseEntered`), then a click.
+        func closeByBar(_ n: String) {
+            mouse.move(to: {
+                guard let b = pane(n)()?.view.bar, b.window != nil, !b.isHiddenOrHasHiddenAncestor else { return nil }
+                let f = b.closeButton.frame
+                return b.convert(CGPoint(x: f.midX, y: f.midY), to: nil)
+            })
+            mouse.wait(0.2)
+            mouse.press()
+            mouse.wait(0.08)
+            mouse.release()
+            mouse.wait(0.25)
+        }
         /// Waits out a layout motion (#94) before the next beat.
         func settle() {
             mouse.wait(0.05)
@@ -693,7 +708,7 @@ extension TerminalWindowController {
             mouse.wait(1.6)
             // Stacks (#95): the agents' tab now carries two Claude marks and the release's ring.
             say("Open a tab for the server log")
-            menuKey("t", [.command], "⌘T")
+            mouse.click(at({ [weak self] in self?.focusedDeck?.view.strip.addButton }))
             mouse.run { [weak self] in call(self?.focusedPane, "log") }
             settle()
             mouse.wait(0.4)
@@ -724,13 +739,13 @@ extension TerminalWindowController {
             typeIn("tests", "make test\r")
             mouse.wait(1.0)
             say("Close it")
-            menuKey("w", [.command], "⌘W")
+            closeByBar("tests")
             settle()
             mouse.wait(0.6)
             // The release has finished by now (done, a dot of its own); the agent still works.
             mouse.until(timeout: 15) { pane("shell")()?.programStatus.summary?.state == .done }
             say("Check on the other projects")
-            menuKey("b", [.command], "⌘B")
+            mouse.click(at({ [weak self] in self?.sidebarToggle }))
             settle()
             mouse.move(to: at(row("api"), 0.6, 0.5))
             mouse.wait(1.8)
@@ -751,11 +766,12 @@ extension TerminalWindowController {
             typeIn("login", "y\r")
             mouse.wait(1.4)
             say("Close the release shell")
-            mouse.click(shellBody)
-            mouse.wait(0.5)
-            menuKey("w", [.command], "⌘W")
+            closeByBar("shell")
             settle()
-            mouse.wait(1.2)
+            // Off the bar the pointer now rests on (its × and hand would linger): into the agent's
+            // terminal, which the hover driver leaves with mouseExited.
+            mouse.move(to: at(paneView("login"), 0.6, 0.62))
+            mouse.wait(1.0)
             say("")
             mouse.wait(0.8)
         case "drag":
