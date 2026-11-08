@@ -1,19 +1,26 @@
 #!/bin/zsh
 # Regenerates the README demo recordings (#26, #28): scripted mouse demos (Sources/Dealer/Demo.swift),
-# recorded, encoded to GIF + MP4, size-checked, with contact sheets for the privacy review.
+# recorded, encoded to MP4 (the README's videos), size-checked, with contact sheets for the privacy
+# review. No GIF: nobody used it. WebM (VP9) was measured instead and dropped too: at the MP4's
+# quality it was only ~10% smaller and took ~20x as long to encode.
 #
 #   scripts/record-demo.sh <out-dir> [demo…]                       # record (default: all demos)
+#   scripts/record-demo.sh <out-dir> --encode-only [demo…]         # re-encode <demo>-raw.mp4 takes
 #   scripts/record-demo.sh <out-dir> --publish <media-worktree>    # copy reviewed files to `media`
 #
 # Recording needs an unlocked screen and Screen Recording permission for the app running this
 # script (Terminal, Ghostty, …). It runs `.build/debug/Dealer`, so `swift build` first. The demo
 # window floats over everything while it records; don't use the machine meanwhile.
 #
-# Publishing is never implicit: --publish only copies the GIFs/MP4s from <out-dir> into
-# <media-worktree>/demos (a worktree of the orphan `media` branch), removes demos that are no longer
-# produced, commits there, and prints the push command. Review <out-dir>/review/*.png first.
+# --encode-only redoes the MP4s and contact sheets from the raw captures already in <out-dir>
+# (default: every demo that has one), without recording; it needs no screen access.
+#
+# Publishing is never implicit: --publish only copies the MP4s from <out-dir> into
+# <media-worktree>/demos (a worktree of the orphan `media` branch), removes everything else there
+# (old GIFs, demos that are no longer produced), commits there, and prints the push command.
+# Review <out-dir>/review/*.png first.
 set -e; setopt pipefail
-ROOT=${0:A:h:h}; OUT=${1:?usage: record-demo.sh <out-dir> [demo…] | <out-dir> --publish <media-worktree>}; shift
+ROOT=${0:A:h:h}; OUT=${1:?usage: record-demo.sh <out-dir> [demo…] | <out-dir> --encode-only [demo…] | <out-dir> --publish <media-worktree>}; shift
 # Program status (OSC 7501, #89): working per demo, done when the contact sheets are ready to
 # review, failed otherwise. A no-op outside a terminal; DEALER_PROGRAM_STATUS=0 turns it off.
 source $ROOT/scripts/lib/program-status.sh
@@ -23,7 +30,7 @@ trap 'st=$?; [[ -n $PID ]] && kill $PID 2>/dev/null; program_status_exit $st' EX
 trap 'exit 130' INT
 trap 'exit 143' TERM
 ALL=(tour drag)
-GIF_BUDGET=$((5 * 1024 * 1024))
+VIDEO_BUDGET=$((5 * 1024 * 1024))  # per README video
 mkdir -p $OUT
 OUT=${OUT:A}
 
@@ -31,13 +38,14 @@ if [[ $1 == --publish ]]; then
   WT=${2:?--publish needs the media worktree path}
   [[ $(git -C $WT rev-parse --abbrev-ref HEAD) == media ]] || { print "$WT is not on the media branch"; exit 1; }
   mkdir -p $WT/demos
-  for f in $WT/demos/*(N); do
-    name=${f:t}; [[ ${ALL[(Ie)${name:r}]} -gt 0 ]] || git -C $WT rm -q "demos/$name"
-  done
   for d in $ALL; do
-    [[ -f $OUT/$d.gif && -f $OUT/$d.mp4 ]] || { print "missing $OUT/$d.gif or .mp4; record all demos first"; exit 1; }
-    cp $OUT/$d.gif $OUT/$d.mp4 $WT/demos/
+    [[ -f $OUT/$d.mp4 ]] || { print "missing $OUT/$d.mp4; record (or --encode-only) all demos first"; exit 1; }
   done
+  # Only the current demos' MP4s stay: old GIFs and dropped demos go.
+  for f in $WT/demos/*(N); do
+    name=${f:t}; [[ $name == *.mp4 && ${ALL[(Ie)${name:r}]} -gt 0 ]] || { git -C $WT rm -rqf --ignore-unmatch "demos/$name"; rm -rf $f; }
+  done
+  for d in $ALL; do cp $OUT/$d.mp4 $WT/demos/; done
   git -C $WT add -A demos
   git -C $WT commit -qm "Regenerate demo recordings (scripts/record-demo.sh)" || { print "nothing changed"; exit 0; }
   program_status done "Demos committed on media" "push with: git -C $WT push origin media"
@@ -45,7 +53,39 @@ if [[ $1 == --publish ]]; then
   print "Committed on media. After reviewing $OUT/review, publish with:\n  git -C $WT push origin media"
   # README videos: always uploaded to issue #79 (CLAUDE.md, "README demo recordings").
   print "Then upload the MP4s (always to issue #79) and put each user-attachments URL in README.md:"
-  print "  gh issue comment 79 -R jonsmithers/dealer --body 'Demo videos'${(j::)${(@f)$(for f in $OUT/*.mp4(N); do [[ $f == *-raw.mp4 ]] || print -r -- " --attach ${(q)f}"; done)}}"
+  print "  gh issue comment 79 -R jonsmithers/dealer --body 'Demo videos'${(j::)${(@f)$(for d in $ALL; do print -r -- " --attach ${(q)OUT}/$d.mp4"; done)}}"
+  exit 0
+fi
+
+# encode DEMO: <out-dir>/DEMO-raw.mp4 → DEMO.mp4 (budget-checked) and review/DEMO-NN.png.
+encode() {
+  local demo=$1
+  rm -f $OUT/review/$demo-*.png(N) $OUT/$demo.gif $OUT/$demo-palette.png  # GIF leftovers of older runs
+  # Drop the first second (shells starting). Full resolution, x264 CRF 26: the terminal text stays
+  # crisp, and it plays everywhere GitHub embeds it. Metadata is stripped.
+  ffmpeg -v error -y -ss 1 -i $OUT/$demo-raw.mp4 -c:v libx264 -crf 26 -preset slow -pix_fmt yuv420p -movflags +faststart -map_metadata -1 -an $OUT/$demo.mp4
+  local size=$(stat -f %z $OUT/$demo.mp4)
+  (( size <= VIDEO_BUDGET )) || { print "$demo.mp4 is $size bytes, over the 5 MB budget"; exit 1; }
+  # Privacy review: every frame of the published MP4, 4 per second, tiled; read all of them before publishing.
+  ffmpeg -v error -y -i $OUT/$demo.mp4 -vf "fps=4,scale=480:-1,tile=4x6" $OUT/review/$demo-%02d.png
+  printf '%-11s mp4 %5d KB  %ss  review: %s\n' $demo $((size / 1024)) \
+    $(ffprobe -v error -show_entries format=duration -of csv=p=0 $OUT/$demo.mp4 | cut -c1-4) "$OUT/review/$demo-*.png"
+}
+
+if [[ $1 == --encode-only ]]; then
+  shift
+  DEMOS=($@)
+  if (( ! $#DEMOS )); then  # by default, the demos that have a take
+    for d in $ALL; do [[ -f $OUT/$d-raw.mp4 ]] || continue; DEMOS+=($d); done
+  fi
+  (( $#DEMOS )) || { print "no <demo>-raw.mp4 in $OUT"; exit 1; }
+  mkdir -p $OUT/review
+  for demo in $DEMOS; do
+    [[ -f $OUT/$demo-raw.mp4 ]] || { print "missing $OUT/$demo-raw.mp4"; exit 1; }
+    program_status working "Demos: encoding $demo" "MP4 and contact sheets" $(( 100 * (${DEMOS[(i)$demo]} - 1) / $#DEMOS ))
+    encode $demo
+  done
+  program_status done "Demos encoded" "Review the contact sheets in $OUT/review before publishing"
   exit 0
 fi
 
@@ -177,20 +217,7 @@ for demo in $DEMOS; do
   if grep -q "DEMO TIMEOUT" $OUT/$demo.log; then
     print "$demo: a beat timed out (see $OUT/$demo.log); check the take or record it again"
   fi
-  program_status working "Demos: encoding $demo" "GIF, MP4 and contact sheets"
-
-  # Drop the first second (shells starting). GIF: two-pass palette, 25 fps, 960px wide. MP4: the
-  # full-resolution "full quality" link. Metadata is stripped from both.
-  F="trim=start=1,setpts=PTS-STARTPTS,fps=25,scale=960:-1:flags=lanczos"
-  ffmpeg -v error -y -i $OUT/$demo-raw.mp4 -vf "$F,palettegen=stats_mode=diff:max_colors=128" $OUT/$demo-palette.png
-  ffmpeg -v error -y -i $OUT/$demo-raw.mp4 -i $OUT/$demo-palette.png -lavfi "${F}[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" -map_metadata -1 $OUT/$demo.gif
-  ffmpeg -v error -y -ss 1 -i $OUT/$demo-raw.mp4 -c:v libx264 -crf 26 -preset slow -pix_fmt yuv420p -movflags +faststart -map_metadata -1 -an $OUT/$demo.mp4
-  SIZE=$(stat -f %z $OUT/$demo.gif)
-  (( SIZE <= GIF_BUDGET )) || { print "$demo.gif is $SIZE bytes, over the 5 MB budget"; exit 1; }
-
-  # Privacy review: every frame of the GIF, 4 per second, tiled; read all of them before publishing.
-  ffmpeg -v error -y -i $OUT/$demo.gif -vf "fps=4,scale=480:-1,tile=4x6" $OUT/review/$demo-%02d.png
-  printf '%-11s gif %5d KB  mp4 %5d KB  %ss  review: %s\n' $demo $((SIZE / 1024)) $(( $(stat -f %z $OUT/$demo.mp4) / 1024 )) \
-    $(ffprobe -v error -show_entries format=duration -of csv=p=0 $OUT/$demo.mp4 | cut -c1-4) "$OUT/review/$demo-*.png"
+  program_status working "Demos: encoding $demo" "MP4 and contact sheets"
+  encode $demo
 done
 program_status done "Demos recorded" "Review the contact sheets in $OUT/review before publishing"

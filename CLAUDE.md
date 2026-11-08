@@ -137,12 +137,16 @@ The GitHub repo is `jonsmithers/dealer`.
   naming them: captions say what the user does ("Put an agent on the flaky test"), never the
   feature ("Layout motion", "stacked marks"). Keep new beats that way. Prerequisites: an unlocked screen, Screen Recording permission for the
   app running the script, ffmpeg, and hands off the machine while it runs (the demo window floats
-  on top). The script writes `<demo>.gif` (5 MB budget, enforced), `<demo>.mp4`, and contact sheets
-  in `<out-dir>/review/`. **Read every sheet before publishing** (privacy: only `/tmp/demo` paths,
-  an `api $`/`web $`/`docs $` prompt, nothing but the Dealer window). Then publish explicitly with
-  `scripts/record-demo.sh <out-dir> --publish <worktree of the media branch>`, which commits there
-  and prints the `git push origin media` to run. Nothing is pushed implicitly. GIFs/MP4s live only on
-  the orphan `media` branch, never on master. The README embeds the MP4s as videos (#79), which
+  on top). The script writes `<demo>.mp4` (5 MB budget, enforced) and contact sheets built from
+  it in `<out-dir>/review/`; it keeps the capture as `<demo>-raw.mp4`, and `scripts/record-demo.sh
+  <out-dir> --encode-only [demo…]` redoes the MP4s and sheets from those without recording (no
+  screen access needed). No GIF (nobody used it), and no WebM: VP9 at the MP4's quality was only
+  ~10% smaller and ~20x slower to encode (measured on the #104 take). **Read every sheet before
+  publishing** (privacy: only `/tmp/demo` paths, an `api $`/`web $`/`docs $` prompt, nothing but
+  the Dealer window). Then publish explicitly with `scripts/record-demo.sh <out-dir> --publish
+  <worktree of the media branch>`, which copies the MP4s, removes anything else in `demos/` (old
+  GIFs included), commits there and prints the `git push origin media` to run. Nothing is pushed
+  implicitly. MP4s live only on the orphan `media` branch, never on master. The README embeds the MP4s as videos (#79), which
   GitHub only plays from `github.com/user-attachments/assets/<id>` URLs on a line of their own
   (a `<video>` tag or a link to the media branch is stripped or shown as a link). So after
   publishing, the user uploads each `<demo>.mp4` to a comment on **issue #79, always** (closed;
