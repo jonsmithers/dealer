@@ -291,7 +291,7 @@ enum Settings {
 
     /// `[window] tabs_in_titlebar` (#16): top-edge decks' tab strips sit in the titlebar row.
     static var tabsInTitlebar: Bool { bool("window.tabs_in_titlebar") ?? true }
-    /// `[window] animate_layout` (#94, zoom #97): panes and decks glide when the layout changes (chrome only;
+    /// `[window] animate_layout` (#94, zoom #97, tab widths #103): panes and decks glide when the layout changes (chrome only;
     /// terminals are resized once). Reduce Motion turns it off regardless (LayoutAnimation.swift).
     static var animateLayout: Bool { bool("window.animate_layout") ?? true }
 

@@ -359,6 +359,7 @@ extension TerminalWindowController {
         dragSettleSelfTestSteps(kit)
         layoutAnimationSelfTestSteps(kit)
         zoomAnimationSelfTestSteps(kit)
+        tabWidthAnimationSelfTestSteps(kit)
         edgeSplitSelfTestSteps(kit)
         reloadSelfTestSteps(kit)
         transparencySelfTestSteps(kit)

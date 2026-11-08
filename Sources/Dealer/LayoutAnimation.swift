@@ -27,6 +27,12 @@ import AppKit
 //   (`LayoutGhost.fades`); zooming out, the ones it reveals fade in at their final frames under it
 //   (`Pass.fadesRevealed`).
 //
+// - Tab widths (#103): when a strip re-lays out with the same tabs at the same width but its tabs
+//   want new widths (a retitle, focus moving within a tab, a mark stack), the buttons glide to them
+//   (`TabWidthGlide`). Unlike the pass above this sets real intermediate frames each display frame:
+//   a tab button is a small drawn view (no terminal), and its title must truncate at the width it
+//   has on screen, which a stretched or pinned layer picture can't do.
+//
 // Which changes animate is one list, `LayoutChange.animates`. Off with `[window] animate_layout =
 // false`, under Reduce Motion, during a live resize, and in self-test mode unless a step turns
 // `LayoutAnimation.enabled` on (README demos animate, as they should look like the app).
@@ -67,13 +73,18 @@ enum LayoutChange: String, CaseIterable {
     case drop
     /// Toggle Zoom (⌘⇧↩, ghostty's `toggle_split_zoom`), in or out, pane or window level (#97).
     case zoom
+    /// Not a structural change and not a path into `finishChange` (#103): a strip re-laid out with
+    /// the same tabs at the same width, whose tabs want new widths (a retitle, focus moving within
+    /// a tab, a mark stack growing or shrinking). `TabWidthGlide` moves the tab buttons.
+    case tabWidth
 
     /// Whether this change animates the layout. The user's call per path (#94).
     var animates: Bool {
         switch self {
         case .drop: return false  // no double motion with the settle glide
         case .split, .newTab, .cliCreate, .closePane, .closeTab, .closeWorkspace, .jobClose,
-             .promote, .fold, .swap, .movePane, .moveToNewTab, .moveTab, .mergeTab, .moveToWorkspace, .zoom:
+             .promote, .fold, .swap, .movePane, .moveToNewTab, .moveTab, .mergeTab, .moveToWorkspace, .zoom,
+             .tabWidth:
             return true
         }
     }
@@ -175,6 +186,7 @@ enum LayoutAnimation {
     /// (self-test seam, and what a pass waits on before it clears masks).
     static func isAnimating(in root: NSView) -> Bool {
         if root is LayoutGhostView || Pass.clippedBy.object(forKey: root) != nil { return true }
+        if (root as? TabStripView)?.isGliding == true { return true }  // #103
         if root.layer?.animationKeys()?.contains(where: { $0.hasPrefix(keyPrefix) }) == true { return true }
         return root.subviews.contains { isAnimating(in: $0) }
     }
@@ -381,6 +393,80 @@ enum LayoutAnimation {
         var d: [Node<Leaf>.Divider] = []
         root.layout(in: rect, gap: gap, frames: &f, dividers: &d)
         return (f, d)
+    }
+}
+
+// MARK: - Tab widths (#103)
+
+/// A strip's tab widths gliding from where they are to where they're wanted, owned by the strip
+/// (`TabStripView.layout`). The buttons get real frames each display frame (a run-loop timer in the
+/// common modes, like `BackdropFollower`), so a title truncates at the width on screen; the title
+/// text itself is already the new one. A new target mid-glide restarts the clock from the widths on
+/// screen (`retarget`): nothing queues or stacks, so a program that retitles quickly (Claude's
+/// spinner) only ever moves toward its latest width.
+final class TabWidthGlide {
+    private(set) var from: [CGFloat] = []
+    private(set) var to: [CGFloat] = []
+    private var startTime: CFTimeInterval = 0
+    private var timer: Timer?
+    var isRunning: Bool { timer != nil }
+    /// Self-test hook: glides started, retargets included.
+    private(set) static var starts = 0
+
+    /// Starts (or restarts) a glide from `from` to `to`; `tick` lays the buttons out each frame.
+    func retarget(from: [CGFloat], to: [CGFloat], tick: @escaping () -> Void) {
+        self.from = from
+        self.to = to
+        startTime = CACurrentMediaTime()
+        Self.starts += 1
+        guard timer == nil else { return }
+        let t = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if self.progress >= 1 { self.stop() }
+                tick()
+            }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    deinit { timer?.invalidate() }
+
+    /// 0…1 through the motion, before easing.
+    private var progress: CGFloat {
+        CGFloat(min(max((CACurrentMediaTime() - startTime) / LayoutAnimation.duration, 0), 1))
+    }
+
+    /// The widths to show now: the target once stopped.
+    var widths: [CGFloat] {
+        guard isRunning, from.count == to.count else { return to }
+        let e = Self.ease(progress)
+        return zip(from, to).map { $0 + ($1 - $0) * e }
+    }
+
+    /// `LayoutAnimation.timing` (a cubic Bézier) at `x`, solved for its curve parameter by bisection.
+    static func ease(_ x: CGFloat) -> CGFloat {
+        guard x > 0 else { return 0 }
+        guard x < 1 else { return 1 }
+        var c1 = [Float](repeating: 0, count: 2), c2 = [Float](repeating: 0, count: 2)
+        LayoutAnimation.timing.getControlPoint(at: 1, values: &c1)
+        LayoutAnimation.timing.getControlPoint(at: 2, values: &c2)
+        func bezier(_ t: CGFloat, _ a: Float, _ b: Float) -> CGFloat {
+            let u = 1 - t
+            return 3 * u * u * t * CGFloat(a) + 3 * u * t * t * CGFloat(b) + t * t * t
+        }
+        var lo: CGFloat = 0, hi: CGFloat = 1
+        for _ in 0..<24 {
+            let mid = (lo + hi) / 2
+            if bezier(mid, c1[0], c2[0]) < x { lo = mid } else { hi = mid }
+        }
+        return bezier((lo + hi) / 2, c1[1], c2[1])
     }
 }
 

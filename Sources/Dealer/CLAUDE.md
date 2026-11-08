@@ -498,8 +498,20 @@
   `unzoom(hiding:in:)`, a focus change) are the change that caused them, not `.zoom`. Self-test:
   `SelfTestZoomAnimation.swift` (`zoom anim:`), which counts terminal resizes with
   `SurfaceView.sizeChanges`.
-- Self-test: `LayoutAnimation.isAnimating(in:)` (animation keys, clipped views, ghosts) is what a
-  step waits on. Read a motion's start from the animation's `fromValue` (SelfTestLayoutAnimation
+- **Tab widths (#103, `TabWidthGlide`)** aren't a structural pass. `TabStripView.layout` glides
+  when it lays out the same tabs (by identity) at the same strip width and style as last time,
+  while shown, and the widths differ (a retitle, focus moving within a tab, a mark stack), gated by
+  `LayoutAnimation.allowed(.tabWidth, …)`. Anything else (tabs added, closed, reordered, the strip
+  resized or moved, a button still in a #94 motion) stops the glide and places the final frames, so
+  #94's pass moves them as before. Unlike #94 it sets **real intermediate frames** each display
+  frame (a common-modes timer; buttons are drawn views, not terminals), because a title must
+  truncate at the width on screen; the button redraws per size (`drawnWidth` is the self-test's
+  witness). So mid-glide `button.frame` is not `tabFrame(i)`, which stays the final layout (drop
+  targets, the insertion marker). A new target restarts the clock from the widths on screen;
+  nothing queues. Translucent connected tabs re-cut the backdrop's tab hole each tick. Self-test:
+  `SelfTestTabWidthAnimation.swift` (`tab width:`).
+- Self-test: `LayoutAnimation.isAnimating(in:)` (animation keys, clipped views, ghosts, gliding
+  strips) is what a step waits on. Read a motion's start from the animation's `fromValue` (SelfTestLayoutAnimation
   `start`), never by sampling the presentation layer.
 
 ## Attention and agent status (`Attention.swift`, `AgentStatus.swift`, `AgentLaunch.swift`)
@@ -663,7 +675,8 @@
   set from `reload()` like `attention`), and draw through `RunningSpinner.draw` only — one drawer,
   like `AttentionStyle`. A tab's natural width includes its stacks
   (`TabStripView.naturalWidth(_:working:dots:)`: the working stack, and the dots behind the front
-  one, which has the × slot), so the strip reflows when they change, as on a retitle; a tab at its
+  one, which has the × slot), so the strip reflows when they change, as on a retitle (gliding,
+  #103); a tab at its
   maximum or shrunk to fit gives the room from its title. A pill, which is sized to its content,
   grows by `RunningSpinner.slot`, as it already does for the attention dot.
 - `SpinnerTicker` is one timer in the common run-loop modes for every spinning element, running

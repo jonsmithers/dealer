@@ -235,7 +235,8 @@ When a split is created or closed, or a pane or deck is promoted, folded or move
 decks, dividers and tab strips glide to their new places (0.18 s) instead of jumping: a new pane
 slides in from the far edge of its split, and a closed one slides out. Zoom glides too: the zoomed
 pane grows to fill its deck (or the window) over its neighbours, which fade, and shrinks back as
-they fade in. Only the frames move; each
+they fade in. A tab whose title changes (focus moving to another pane in it, a program retitling
+it) or whose marks grow glides to its new width too, the tabs after it moving along. Only the frames move; each
 terminal is resized once, at the start, so the program in it redraws once. Drag-and-drop keeps its
 own landing glide instead. `[window] animate_layout = false` in [settings.toml](#settings) turns
 it off, and so does macOS **Reduce Motion**.
@@ -506,7 +507,7 @@ switcher = "sidebar"     # or "top" (pills in the titlebar)
 
 [window]
 tabs_in_titlebar = true  # put top-edge decks' tab strips in the titlebar row
-animate_layout = true    # panes and decks glide when added, closed, moved or zoomed (off under Reduce Motion)
+animate_layout = true    # panes, decks and tab widths glide when they change (off under Reduce Motion)
 
 [tabs]
 style = "connected"      # or "pill": the active tab joins its deck's content, or floats as a pill

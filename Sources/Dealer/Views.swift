@@ -406,8 +406,8 @@ final class TabStripView: FlippedView {
     // widest shrink first: every tab wider than a common level L is cut to L, chosen so the row
     // just fits, so short titles stay whole. Below tabMinWidth the row overflows (clipped), as
     // the old equal-width strip did. Titles are measured in the active (medium) font, so
-    // selecting a tab doesn't resize it. No animation: titles change often (shells set them per
-    // command), and a width that glides on every prompt would be distracting.
+    // selecting a tab doesn't resize it. A width change that isn't structural glides (#103,
+    // `TabWidthGlide`): see "Width glide" below.
 
     /// The width a tab wants for `title`, before any shrinking. A tab whose agents are working (#73)
     /// also wants room for its working stack, and one with several panes wanting attention room for
@@ -477,11 +477,68 @@ final class TabStripView: FlippedView {
         return super.hitTest(point)
     }
 
+    // MARK: Width glide (#103)
+    //
+    // A strip re-laid out with the same tabs, at the same width and style, while shown, glides its
+    // tabs to their new widths (a retitle, focus moving within a tab, a mark stack) instead of
+    // jumping. Anything else (tabs added, closed or reordered, the strip resized or moved, hidden)
+    // puts them at their final frames at once, and #94's pass moves the strip if it moves.
+
+    private let glide = TabWidthGlide()
+    /// What the last layout showed; a glide needs the same again.
+    private var laidOut: (tabs: [ObjectIdentifier], width: CGFloat, style: TabStyle)?
+    /// Whether the tab widths are gliding (self-test hook, and `LayoutAnimation.isAnimating`).
+    var isGliding: Bool { glide.isRunning }
+    /// Where the glide is headed (self-test hook): the final widths.
+    var glideTarget: [CGFloat] { glide.to }
+
     override func layout() {
         super.layout()
-        for (i, b) in buttons.enumerated() { b.frame = tabFrame(i) }
-        let end = buttons.isEmpty ? Self.inset : tabFrame(buttons.count - 1).maxX + Theme.Metrics.tabSpacing
-        addButton.frame = CGRect(x: end, y: tabY, width: Self.addWidth, height: Theme.Metrics.tabHeight)
+        let target = tabWidths
+        let tabs = deck.tabs.map(ObjectIdentifier.init)
+        let shown = !isHiddenOrHasHiddenAncestor && window != nil
+        let same = shown && buttons.count == target.count && laidOut.map {
+            $0.tabs == tabs && $0.width == bounds.width && $0.style == style
+        } == true
+        laidOut = shown ? (tabs, bounds.width, style) : nil
+        guard same, LayoutAnimation.allowed(.tabWidth, in: window),
+              !buttons.contains(where: Self.movedByPass) else {
+            glide.stop()
+            place(target)
+            return
+        }
+        let onScreen = buttons.map(\.frame.width)
+        if glide.isRunning ? glide.to != target : onScreen != target {
+            glide.retarget(from: onScreen, to: target) { [weak self] in self?.tickGlide() }
+        }
+        place(glide.widths)
+    }
+
+    /// A button #94's pass is still moving (a reorder): it finishes that motion, not a glide.
+    private static func movedByPass(_ b: NSView) -> Bool {
+        b.layer?.animationKeys()?.contains { $0.hasPrefix(LayoutAnimation.keyPrefix) } == true
+    }
+
+    private func tickGlide() {
+        place(glide.widths)
+        // A translucent window cuts a connected active tab out of the chrome with its card.
+        if Theme.transparency.isTranslucent, TabStyle.connectedMatchesTerminal {
+            (window?.contentView as? WindowContentView)?.layoutBackdrop()
+        }
+    }
+
+    /// Lays the buttons out left to right at `widths`, "+" after the last one.
+    private func place(_ widths: [CGFloat]) {
+        var x = Self.inset
+        for (i, b) in buttons.enumerated() {
+            let f = tabFrame(i)
+            let w = i < widths.count ? widths[i] : f.width
+            let r = CGRect(x: x, y: f.minY, width: w, height: f.height)
+            if b.frame.size != r.size { b.needsDisplay = true }  // the title truncates at this width
+            if b.frame != r { b.frame = r }
+            x = r.maxX + Theme.Metrics.tabSpacing
+        }
+        addButton.frame = CGRect(x: x, y: tabY, width: Self.addWidth, height: Theme.Metrics.tabHeight)
     }
 
     /// Index a dropped tab would take at x (strip coordinates).
@@ -645,7 +702,11 @@ final class TabButton: FlippedView {
         updateTitlebarDragZone(event)
     }
 
+    /// The width the button last drew at (self-test hook, #103: a gliding tab redraws as it moves).
+    private(set) var drawnWidth: CGFloat = 0
+
     override func draw(_ dirtyRect: NSRect) {
+        drawnWidth = bounds.width
         let r = bodyRect
         let connected = style == .connected
         // Tabs stay fully opaque on a translucent window (#67, the user's call: translucent tabs

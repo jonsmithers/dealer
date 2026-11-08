@@ -351,7 +351,11 @@ The GitHub repo is `jonsmithers/dealer`.
   chrome layout on structural changes (pane/deck frames, bars, dividers, strips; 0.18 s
   ease-out, `Theme.Motion.standard`), Toggle Zoom included (#97: the zoomed pane, or its deck for
   a window zoom, grows from its frame and shrinks back, drawn above its siblings; the siblings it
-  hides fade out as pictures under it, and the ones it reveals fade in at their final frames). **Terminal surfaces never animate:** each gets its final size
+  hides fade out as pictures under it, and the ones it reveals fade in at their final frames),
+  and since #103 tab widths (a retitle, focus moving within a tab, a mark stack: the button and the
+  tabs after it glide, in deck and titlebar strips, connected and pills; the new title shows at
+  once and truncates at the moving width; a new title mid-glide continues from where the tab is;
+  `LayoutChange.tabWidth`, top-bar pills excluded). **Terminal surfaces never animate:** each gets its final size
   once, at the start of the motion (the user's call: reflow at the start, not the end), and at
   most its *position* glides. Which changes animate is one list, `LayoutChange.animates`
   (LayoutAnimation.swift); drops don't (the settle is their motion). On by default,
