@@ -148,8 +148,9 @@
 
 - `TitlebarSwitcherButton` sits in the titlebar row right of the toggle, placed by
   `layoutTitlebarSwitcher()` from `layoutWorkspaceSidebar()`; `refreshChrome()` reloads it
-  (`refreshTitlebarSwitcher`) and asks for a layout when its width changes, since strips start
-  after it. Its attention is `otherWorkspacesAttention`, one dot, faded with the window as the
+  (`refreshTitlebarSwitcher`) without a layout: its width is the constant
+  `TitlebarSwitcherButton.width` (#102), so nothing that starts after it moves on a rename, a
+  switch or a dot. Don't size it to its content again. Its attention is `otherWorkspacesAttention`, one dot, faded with the window as the
   subject so a switch doesn't reset a fade.
 - `TitlebarSwitcherMenu` (one per window) is an overlay subview of the content view, not an NSMenu
   (the demo posts window events at it; an NSMenu's tracking loop and window would escape both). It

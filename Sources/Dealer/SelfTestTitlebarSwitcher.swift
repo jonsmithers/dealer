@@ -63,13 +63,35 @@ extension TerminalWindowController {
                 want("its title", button.title, "ts-alpha"),
                 button.frame.minX >= self.sidebarToggle.frame.maxX ? nil : "it should sit right of the toggle",
                 abs(button.frame.midY - self.sidebarToggle.frame.midY) < 0.5 ? nil : "it should share the toggle's row",
-                button.frame.width <= TitlebarSwitcherButton.maxWidth ? nil : "it should be capped at maxWidth",
                 // #27: the window server must hand titlebar presses on it to the app.
                 button.mouseDownCanMoveWindow ? "mouseDownCanMoveWindow must be false (#27)" : nil,
                 self.contentView.hitTest(self.contentView.superview!.convert(center(button), from: nil)) === button ? nil : "a click at its centre should hit it",
                 stripsClear(of: button))
         }) {
             self.toggleWorkspaceSidebar(nil)
+        }
+        // #102: one fixed width (the user's 200pt), whatever the name, so strips after it never move.
+        var widths: [String: CGFloat] = [:], stripXs: [String: CGFloat] = [:], chevrons: [String: CGFloat] = [:]
+        t.step("titlebar switcher: it's 200pt for a short or a long name and with a dot; a switch doesn't move the strips (#102)", nil, {
+            let long = "ts-alpha, a workspace with a name far too long for the titlebar"
+            return all(widths.isEmpty ? "nothing measured" : nil,
+                       widths.filter { $0.value != 200 }.isEmpty ? nil : "its width should be 200 every time, got \(widths)",
+                       Set(stripXs.values).count == 1 ? nil : "the titlebar strip moved: \(stripXs)",
+                       Set(chevrons.values).count == 1 ? nil : "the chevron should stay at the right edge: \(chevrons)",
+                       stripsClear(of: button),
+                       // A long name truncates inside the button rather than widening it.
+                       button.title == long ? nil : "the long name should be the title")
+        }) {
+            let strip = { self.titlebarStripDecks.first.map { $0.view.strip.frame.minX } ?? -1 }
+            func measure(_ k: String) { self.layoutNow(); widths[k] = button.frame.width; stripXs[k] = strip(); chevrons[k] = button.chevronRect.maxX }
+            measure("short")
+            beta.map(self.activate); measure("switched")
+            if let p = gamma?.panes.first { self.setAttention(.waiting, on: p) }
+            self.refreshChrome(); measure("dot")
+            if let p = gamma?.panes.first { self.setAttention(.none, on: p) }
+            alpha.map(self.activate)
+            alpha.map { self.rename(workspace: $0, to: "ts-alpha, a workspace with a name far too long for the titlebar") }
+            self.refreshChrome(); measure("long")
         }
         t.step("titlebar switcher: a click on the button opens the dropdown with every workspace, the current one checked", nil, {
             let missing = self.workspaces.filter { menu.row(for: $0) == nil }.map(\.displayName)
@@ -83,6 +105,8 @@ extension TerminalWindowController {
                        menu.frame.minY >= button.frame.maxY ? nil : "the dropdown should open below the button",
                        self.window?.firstResponder === menu ? nil : "the dropdown should take the keys")
         }) {
+            alpha.map { self.rename(workspace: $0, to: "ts-alpha") }
+            self.layoutNow()
             self.clickForTest(button)
         }
         t.step("titlebar switcher: clicking a row switches to its workspace and closes the dropdown", nil, {

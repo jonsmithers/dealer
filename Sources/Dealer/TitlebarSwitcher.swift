@@ -30,14 +30,12 @@ extension TerminalWindowController {
         return !(workspaces.count == 1 && workspaces[0].name == nil && workspaces[0].group == nil)
     }
 
-    /// The button's frame when shown: right of the toggle, as wide as its content allows.
+    /// The button's frame when shown: right of the toggle, always `TitlebarSwitcherButton.width`
+    /// (#102), so strips after it don't move when the name or the dot changes. In a narrow window
+    /// it keeps that width; `titlebarStripMinWidth` decides whether strips still fit after it.
     var titlebarSwitcherFrame: CGRect {
         let t = sidebarToggleFrame
-        let b = titlebarSwitcher
-        b.reload(from: self)
-        let room = max(titlebarTrailingX - t.maxX - 4 - Self.titlebarStripMinWidth, TitlebarSwitcherButton.minWidth)
-        let w = min(b.idealWidth, TitlebarSwitcherButton.maxWidth, room)
-        return CGRect(x: t.maxX + 4, y: t.minY, width: w, height: t.height)
+        return CGRect(x: t.maxX + 4, y: t.minY, width: TitlebarSwitcherButton.width, height: t.height)
     }
 
     /// Places the button (called from `layoutWorkspaceSidebar`, after the toggle) and keeps an open
@@ -47,7 +45,10 @@ extension TerminalWindowController {
         if b.superview !== contentView { contentView.addSubview(b) }
         let shown = showsTitlebarSwitcher
         b.isHidden = !shown
-        if shown { b.frame = titlebarSwitcherFrame }
+        if shown {
+            b.reload(from: self)
+            b.frame = titlebarSwitcherFrame
+        }
         let menu = titlebarSwitcherMenu
         guard menu.isOpen else { return }
         if !shown { return menu.close(restoreFocus: false) }
@@ -62,13 +63,10 @@ extension TerminalWindowController {
         contentView.addSubview(menu, positioned: .above, relativeTo: nil)
     }
 
-    /// From `refreshChrome`: the name, color and other workspaces' attention can change without a
-    /// layout pass; a new width needs one (strips start after the button).
+    /// From `refreshChrome`: the name, color and other workspaces' attention change without a
+    /// layout pass, and never the button's width (#102), so nothing after it moves.
     func refreshTitlebarSwitcher() {
-        let b = titlebarSwitcher
-        let width = b.idealWidth
-        b.reload(from: self)
-        if !b.isHidden, b.idealWidth != width { contentView.needsLayout = true }
+        titlebarSwitcher.reload(from: self)
         if titlebarSwitcherMenu.isOpen { titlebarSwitcherMenu.reload() }
     }
 
@@ -78,11 +76,11 @@ extension TerminalWindowController {
     }
 }
 
-/// The titlebar button: color chip, the current workspace's name, a chevron, and a dot when another
-/// workspace needs attention.
+/// The titlebar button: color chip, the current workspace's name, a dot when another workspace
+/// needs attention, and a chevron at the right edge.
 final class TitlebarSwitcherButton: FlippedView {
-    static let maxWidth: CGFloat = 220
-    static let minWidth: CGFloat = 60
+    /// One fixed width (#102, the user's call): long names truncate, short ones leave room.
+    static let width: CGFloat = 200
     private static let padding: CGFloat = 8
     /// Where the name starts: after the chip's column (kept with or without a color, so the name
     /// doesn't jump when one is set).
@@ -137,21 +135,16 @@ final class TitlebarSwitcherButton: FlippedView {
 
     private var dotWidth: CGFloat { attentionFade.shown > .none ? Self.dotSize + 6 : 0 }
 
-    /// Fits the name, the chevron and the dot.
-    var idealWidth: CGFloat {
-        Self.titleX + ceil((title as NSString).size(withAttributes: titleAttrs).width) + 6
-            + Self.chevronWidth + dotWidth + Self.padding
-    }
-
     /// The color chip (self-test hook): 3pt at the left edge, like a sidebar row's.
     var chipRect: CGRect { CGRect(x: 4, y: 5, width: 3, height: bounds.height - 10) }
-    /// The other workspaces' attention dot, at the right end (self-test hook).
+    /// The other workspaces' attention dot, just left of the chevron (self-test hook).
     var attentionDotRect: CGRect {
         let d = Self.dotSize
-        return CGRect(x: bounds.width - Self.padding - d, y: ((bounds.height - d) / 2).rounded(), width: d, height: d)
+        return CGRect(x: chevronRect.minX - 6 - d, y: ((bounds.height - d) / 2).rounded(), width: d, height: d)
     }
+    /// The chevron, at the right edge whatever the name or dot (self-test hook).
     var chevronRect: CGRect {
-        CGRect(x: bounds.width - Self.padding - dotWidth - Self.chevronWidth, y: bounds.midY - 2, width: Self.chevronWidth, height: 4)
+        CGRect(x: bounds.width - Self.padding - Self.chevronWidth, y: bounds.midY - 2, width: Self.chevronWidth, height: 4)
     }
     /// A point inside the tint and clear of the text (self-test hook).
     var tintSamplePoint: CGPoint { CGPoint(x: Self.titleX - 3, y: bounds.height - 4) }
@@ -173,7 +166,7 @@ final class TitlebarSwitcherButton: FlippedView {
 
         let font = Theme.Fonts.tab
         let h = ceil(font.ascender - font.descender)
-        let right = chevronRect.minX - 6
+        let right = chevronRect.minX - 6 - dotWidth
         (title as NSString).draw(in: CGRect(x: Self.titleX, y: (bounds.height - h) / 2, width: max(right - Self.titleX, 0), height: h),
                                  withAttributes: titleAttrs)
 

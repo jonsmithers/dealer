@@ -322,7 +322,10 @@ The GitHub repo is `jonsmithers/dealer`.
   the current one checked, plus New Workspace; a pick goes through `activate(_:)`. The dropdown is
   an in-window overlay view, **not an NSMenu**, so the README demo can drive it with posted events
   and it shows in the recording (#98). Esc, a click outside, key loss, a second click on the button
-  or a workspace switch from elsewhere closes it. Strips start after the button.
+  or a workspace switch from elsewhere closes it. Strips start after the button, which is a
+  **fixed 200pt** (#102, the user's call; `TitlebarSwitcherButton.width`): long names truncate, the
+  chevron stays at the right edge with the dot just left of it, and a switch never moves the strips.
+  In a narrow window it stays 200pt and `titlebarStripMinWidth` decides whether strips still fit.
 - Tabs are "connected" by default (#84, `[tabs] style`, "pill" is the old look): the active tab
   joins its deck's content with no seam, also from the titlebar row, and draws the deck accent
   underline (or its tab color) along its bottom edge, over the overlap row, where it meets the
