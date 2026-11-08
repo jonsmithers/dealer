@@ -32,6 +32,14 @@
     window closes with its last workspace. Never leave an empty workspace behind otherwise.
   - `focus(pane)` switches to the pane's workspace. Inactive workspaces' deck views are parked
     hidden (`isHidden` + `setVisible(false)`) by `layoutWindow`, like zoom-hidden decks.
+- **Focus memory (#101):** each tab remembers its pane (`Tab.lastFocused`, read through
+  `focusTarget`), each deck its tab (`activeIndex`), each workspace its pane (`focusedPane`). Only
+  `didFocus` writes them, and every `SurfaceView.becomeFirstResponder` reaches it as a focus. So
+  terminals are not key views (`canBecomeKeyView` false): AppKit hands a hidden first responder to
+  its next key view, and a tab or workspace switch used to focus a terminal in another deck that
+  way, overwriting its tab's memory. Don't put terminals back in the key-view loop. A tab's memory
+  is saved as `TabSnapshot.focus` (optional, an index into its panes). Tests: `SelfTestTabFocus.swift`
+  (`DEALER_SELFTEST_ONLY=tab focus:`, self-contained).
 
 ## Layout and views
 

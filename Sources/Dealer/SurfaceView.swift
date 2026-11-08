@@ -168,6 +168,14 @@ final class SurfaceView: NSView, NSTextInputClient {
     // MARK: Sizing
 
     override var acceptsFirstResponder: Bool { true }
+    /// Terminals stay out of the key-view loop (#101). Hiding the first responder hands focus to
+    /// its next valid key view, and the loop AppKit builds when a window shows ran through every
+    /// terminal in it: a tab or workspace switch then focused a terminal in another deck, which
+    /// `becomeFirstResponder` reports as the user focusing it (that tab's memory, the workspace's
+    /// focused pane, its mark). Out of the loop, a hidden terminal leaves the window as first
+    /// responder, and the controller focuses the pane it means. Tab never moves between panes
+    /// anyway: the terminal takes it.
+    override var canBecomeKeyView: Bool { false }
     override var isFlipped: Bool { true }
 
     override func setFrameSize(_ newSize: NSSize) {

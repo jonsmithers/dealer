@@ -274,9 +274,12 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     func remove(tab: Tab) {
         guard let deck = deck(of: tab) else { return }
         if deck.tabs.count == 1 { noteClosing(deck: deck, change: .closeTab) }
+        // Closing the tab you're in leaves you in its deck, on the pane the tab it shows next
+        // remembers (#101); without a target, finishChange fell back to the window's first deck.
+        let wasFocused = focusedPane.map { tab.root.node(for: $0) != nil } ?? false
         detach(tab: tab, from: deck)
         tab.panes.forEach { $0.view.removeFromSuperview() }
-        finishChange(focus: nil, change: .closeTab)
+        finishChange(focus: wasFocused ? deck.activeTab?.focusTarget : focusedPane, change: .closeTab)
     }
 
     /// Removes a pane for good (its shell exited or the user closed it).

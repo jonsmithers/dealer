@@ -20,6 +20,9 @@ struct TabSnapshot: Codable {
     /// "#rrggbb" (#9); absent in older files.
     var color: String?
     var root: TreeSnapshot<PaneSnapshot>
+    /// The pane the tab remembers (`Tab.lastFocused`, #101), as an index into its panes in tree
+    /// order; absent in older files, which remember only each workspace's focused pane.
+    var focus: Int? = nil
 }
 
 struct DeckSnapshot: Codable {
@@ -112,7 +115,10 @@ extension TerminalWindowController {
         }
         func deckTree(_ n: Node<Deck>) -> TreeSnapshot<DeckSnapshot> {
             if let d = n.leaf {
-                let tabs = d.tabs.map { TabSnapshot(customTitle: $0.customTitle, color: $0.color?.hexString, root: paneTree($0.root)) }
+                let tabs = d.tabs.map { t in
+                    TabSnapshot(customTitle: t.customTitle, color: t.color?.hexString, root: paneTree(t.root),
+                                focus: t.lastFocused.flatMap { p in t.panes.firstIndex { $0 === p } })
+                }
                 return .leaf(DeckSnapshot(tabs: tabs, activeIndex: d.activeIndex, colorIndex: d.colorIndex))
             }
             return .split(axis: n.axis, ratio: n.ratio, a: deckTree(n.a!), b: deckTree(n.b!))
@@ -178,6 +184,7 @@ extension TerminalWindowController {
                     let tab = Tab(root: paneTree(ts.root))
                     tab.customTitle = ts.customTitle
                     tab.color = ts.color.flatMap { NSColor(hex: $0) }
+                    if let i = ts.focus, tab.panes.indices.contains(i) { tab.lastFocused = tab.panes[i] }
                     return tab
                 }
                 deck.activeIndex = min(max(ds.activeIndex, 0), max(deck.tabs.count - 1, 0))
@@ -187,7 +194,7 @@ extension TerminalWindowController {
             }
         }
         let root = deckTree(snap)
-        // Remember the last-focused pane per tab so switching tabs lands where you left off.
+        // The workspace's focused pane is its tab's memory too (and the only one older files keep).
         if let focus {
             for deck in root.leaves {
                 for tab in deck.tabs where tab.root.node(for: focus) != nil {
