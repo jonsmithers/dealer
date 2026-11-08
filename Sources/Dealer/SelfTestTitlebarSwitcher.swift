@@ -2,8 +2,9 @@ import AppKit
 
 // MARK: - Self-test section: the titlebar workspace switcher (#96, TitlebarSwitcher.swift)
 //
-// Self-contained (`DEALER_SELFTEST_ONLY=titlebar switcher:`). With the sidebar hidden, a button right
-// of the sidebar toggle names the current workspace; a click opens the dropdown, a row's click
+// Self-contained (`DEALER_SELFTEST_ONLY=titlebar switcher:`). With the sidebar hidden, a button at the
+// right end of the titlebar row (#104; right of the sidebar toggle with `[workspaces]
+// titlebar_switcher = "left"`) names the current workspace; a click opens the dropdown, a row's click
 // switches. Clicks go through `window.sendEvent`, the way the sidebar's rows are clicked; the
 // window server's titlebar routing can't be reproduced in-process, so `mouseDownCanMoveWindow` is
 // asserted (#27).
@@ -15,6 +16,8 @@ extension TerminalWindowController {
         var savedPreference: Bool??
         var alpha: Workspace?, beta: Workspace?, gamma: Workspace?
         var before: NSColor?
+        /// The settings file as this section found it, restored at cleanup (nil: there was none).
+        var savedSettings: String??
 
         func all(_ problems: String?...) -> String? {
             let p = problems.compactMap { $0 }
@@ -32,14 +35,56 @@ extension TerminalWindowController {
         }
         func center(_ v: NSView) -> CGPoint { v.convert(CGPoint(x: v.bounds.midX, y: v.bounds.midY), to: nil) }
         func active(_ ws: Workspace?, _ name: String) -> String? { activeWorkspace === ws ? nil : "\(name) should be the active workspace, is \(activeWorkspace.displayName)" }
-        /// Strips in the titlebar start after the button (#16's clear line), and nothing overlaps it.
+        /// `[workspaces] titlebar_switcher` (#104), written into the settings file and reloaded, as
+        /// an edit of the file would be; nil removes the key (the default, "right"). Written as
+        /// text rather than through `Settings.write`, so the section also runs where the key is unknown.
+        func setSide(_ side: String?) {
+            let url = Settings.fileURL
+            if savedSettings == nil { savedSettings = .some(try? String(contentsOf: url, encoding: .utf8)) }
+            var text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+            text = text.split(separator: "\n", omittingEmptySubsequences: false)
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("titlebar_switcher") }.joined(separator: "\n")
+            if let side { text = SettingsFile.rewrite(text, key: "workspaces.titlebar_switcher", literal: "\"\(side)\"") }
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? text.write(to: url, atomically: true, encoding: .utf8)
+            Settings.reload(force: true)
+        }
+        /// Where the button ends on the right: at the cup's reserve (#69), else the deck area's edge.
+        func rightEnd() -> CGFloat {
+            min(contentView.bounds.width - titlebarTrailingReserve, contentView.bounds.width - Self.deckGap)
+        }
+        /// The button at the right end of the titlebar row (#104): it ends at `rightEnd`, strips start
+        /// right after the toggle and end 8pt before it.
+        func onRight() -> String? {
+            all(shown() ? nil : "the titlebar switcher should show",
+                abs(button.frame.maxX - rightEnd()) < 0.5 ? nil : "it should end at the titlebar row's right end \(rightEnd()), ends at \(button.frame.maxX)",
+                want("its width", button.frame.width, TitlebarSwitcherButton.width),
+                abs(button.frame.midY - self.sidebarToggle.frame.midY) < 0.5 ? nil : "it should share the toggle's row",
+                stripsClear(of: button))
+        }
+        /// The button right of the toggle (`titlebar_switcher = "left"`, #96's place).
+        func onLeft() -> String? {
+            all(shown() ? nil : "the titlebar switcher should show",
+                want("its x", button.frame.minX, self.sidebarToggle.frame.maxX + 4),
+                want("its width", button.frame.width, TitlebarSwitcherButton.width),
+                abs(button.frame.midY - self.sidebarToggle.frame.midY) < 0.5 ? nil : "it should share the toggle's row",
+                stripsClear(of: button))
+        }
+        /// Titlebar strips clear of the button and nothing overlapping it: on the left they start
+        /// after it (#16's clear line), on the right they start after the toggle and end before it
+        /// (#104). Judged from where the button is, so a wrong side shows as a wrong clear line.
         func stripsClear(of v: NSView) -> String? {
             let strips = titlebarStripDecks.map(\.view.strip)
             if strips.isEmpty { return "a top deck's strip should be in the titlebar" }
-            for s in strips where s.frame.minX < v.frame.maxX || s.frame.intersects(v.frame) {
+            let toggle = self.sidebarToggle.frame
+            let right = v.frame.minX > toggle.maxX + 4.5
+            for s in strips where s.frame.intersects(v.frame) || (right ? s.frame.maxX > v.frame.minX - 8 + 0.5 : s.frame.minX < v.frame.maxX) {
                 return "a titlebar strip \(s.frame) overlaps \(v === button ? "the switcher" : "the toggle") \(v.frame)"
             }
-            return want("clear line", titlebarClearX, v.frame.maxX + 8)
+            guard right else { return want("clear line", titlebarClearX, v.frame.maxX + 8) }
+            let ends = strips.map(\.frame.maxX).max() ?? 0
+            return all(want("clear line", titlebarClearX, toggle.maxX + 8),
+                       want("the titlebar strips' end", ends, v.frame.minX - 8))
         }
         func dotColor() -> NSColor? {
             let r = button.attentionDotRect
@@ -58,40 +103,57 @@ extension TerminalWindowController {
             self.sidebarPreference = true
             self.layoutNow()
         }
-        t.step("titlebar switcher: hiding the sidebar shows it right of the toggle, named after the workspace; strips start after it", nil, {
-            all(shown() ? nil : "the titlebar switcher should show with the sidebar hidden",
-                want("its title", button.title, "ts-alpha"),
-                button.frame.minX >= self.sidebarToggle.frame.maxX ? nil : "it should sit right of the toggle",
-                abs(button.frame.midY - self.sidebarToggle.frame.midY) < 0.5 ? nil : "it should share the toggle's row",
-                // #27: the window server must hand titlebar presses on it to the app.
-                button.mouseDownCanMoveWindow ? "mouseDownCanMoveWindow must be false (#27)" : nil,
-                self.contentView.hitTest(self.contentView.superview!.convert(center(button), from: nil)) === button ? nil : "a click at its centre should hit it",
-                stripsClear(of: button))
+        t.step("titlebar switcher: hiding the sidebar shows it at the titlebar row's right end (#104), named after the workspace; strips start after the toggle and end before it", nil, {
+            // The empty titlebar between the strip and the button still drags the window.
+            let gapX = ((self.titlebarStripDecks.map(\.view.strip.frame.maxX).max() ?? 0) + button.frame.minX) / 2
+            let gapView = self.contentView.hitTest(self.contentView.superview!.convert(CGPoint(x: gapX, y: button.frame.midY), from: self.contentView))
+            return all(want("its title", button.title, "ts-alpha"),
+                       onRight(),
+                       // #27: the window server must hand titlebar presses on it to the app.
+                       button.mouseDownCanMoveWindow ? "mouseDownCanMoveWindow must be false (#27)" : nil,
+                       self.contentView.hitTest(self.contentView.superview!.convert(center(button), from: nil)) === button ? nil : "a click at its centre should hit it",
+                       gapView?.mouseDownCanMoveWindow == true ? nil : "the titlebar between the strip and the switcher should drag the window, hits \(gapView.map { "\(type(of: $0))" } ?? "nothing")")
         }) {
             self.toggleWorkspaceSidebar(nil)
         }
         // #102: one fixed width (the user's 200pt), whatever the name, so strips after it never move.
-        var widths: [String: CGFloat] = [:], stripXs: [String: CGFloat] = [:], chevrons: [String: CGFloat] = [:]
-        t.step("titlebar switcher: it's 200pt for a short or a long name and with a dot; a switch doesn't move the strips (#102)", nil, {
+        // #104: on both sides, so a switch moves neither end of a strip.
+        var widths: [String: CGFloat] = [:], stripXs: [String: [String: CGRect]] = [:], chevrons: [String: CGFloat] = [:]
+        var placement: [String: String] = [:]
+        t.step("titlebar switcher: it's 200pt for a short or a long name and with a dot; a switch doesn't move the strips, with it on the right or the left (#102, #104)", nil, {
             let long = "ts-alpha, a workspace with a name far too long for the titlebar"
+            let moved = stripXs.filter { Set($0.value.values.map { "\($0)" }).count != 1 }
             return all(widths.isEmpty ? "nothing measured" : nil,
                        widths.filter { $0.value != 200 }.isEmpty ? nil : "its width should be 200 every time, got \(widths)",
-                       Set(stripXs.values).count == 1 ? nil : "the titlebar strip moved: \(stripXs)",
-                       Set(chevrons.values).count == 1 ? nil : "the chevron should stay at the right edge: \(chevrons)",
-                       stripsClear(of: button),
+                       stripXs.count == 2 ? nil : "both sides should be measured, got \(stripXs.keys.sorted())",
+                       moved.isEmpty ? nil : "the titlebar strip moved: \(moved)",
+                       Set(chevrons.values).count == 2 ? nil : "the chevron should stay at the right edge on each side: \(chevrons)",
+                       placement.isEmpty ? nil : "\(placement)",
                        // A long name truncates inside the button rather than widening it.
                        button.title == long ? nil : "the long name should be the title")
         }) {
-            let strip = { self.titlebarStripDecks.first.map { $0.view.strip.frame.minX } ?? -1 }
-            func measure(_ k: String) { self.layoutNow(); widths[k] = button.frame.width; stripXs[k] = strip(); chevrons[k] = button.chevronRect.maxX }
-            measure("short")
-            beta.map(self.activate); measure("switched")
-            if let p = gamma?.panes.first { self.setAttention(.waiting, on: p) }
-            self.refreshChrome(); measure("dot")
-            if let p = gamma?.panes.first { self.setAttention(.none, on: p) }
-            alpha.map(self.activate)
-            alpha.map { self.rename(workspace: $0, to: "ts-alpha, a workspace with a name far too long for the titlebar") }
-            self.refreshChrome(); measure("long")
+            let strip = { self.titlebarStripDecks.first.map { $0.view.strip.frame } ?? .null }
+            for side in ["right", "left"] {
+                setSide(side == "right" ? nil : side)
+                alpha.map { self.rename(workspace: $0, to: "ts-alpha") }
+                alpha.map(self.activate)
+                func measure(_ k: String) {
+                    self.layoutNow()
+                    widths["\(side) \(k)"] = button.frame.width
+                    stripXs[side, default: [:]][k] = strip()
+                    chevrons["\(side) \(k)"] = button.convert(CGPoint(x: button.chevronRect.maxX, y: 0), to: self.contentView).x
+                    if let p = side == "right" ? onRight() : onLeft() { placement["\(side) \(k)"] = p }
+                }
+                measure("short")
+                beta.map(self.activate); measure("switched")
+                if let p = gamma?.panes.first { self.setAttention(.waiting, on: p) }
+                self.refreshChrome(); measure("dot")
+                if let p = gamma?.panes.first { self.setAttention(.none, on: p) }
+                alpha.map(self.activate)
+                alpha.map { self.rename(workspace: $0, to: "ts-alpha, a workspace with a name far too long for the titlebar") }
+                self.refreshChrome(); measure("long")
+            }
+            setSide(nil)
         }
         t.step("titlebar switcher: a click on the button opens the dropdown with every workspace, the current one checked", nil, {
             let missing = self.workspaces.filter { menu.row(for: $0) == nil }.map(\.displayName)
@@ -103,6 +165,9 @@ extension TerminalWindowController {
                        menu.newWorkspaceRow != nil ? nil : "a New Workspace row is expected",
                        self.contentView.subviews.last === menu ? nil : "the dropdown should be above everything in the window",
                        menu.frame.minY >= button.frame.maxY ? nil : "the dropdown should open below the button",
+                       // #104: right-aligned to the button on the right, so it stays in the window.
+                       abs(menu.frame.maxX - button.frame.maxX) < 1 ? nil : "the dropdown \(menu.frame) should be right-aligned to the button \(button.frame)",
+                       self.contentView.bounds.contains(menu.frame) ? nil : "the dropdown \(menu.frame) should stay inside the window \(self.contentView.bounds)",
                        self.window?.firstResponder === menu ? nil : "the dropdown should take the keys")
         }) {
             alpha.map { self.rename(workspace: $0, to: "ts-alpha") }
@@ -240,12 +305,53 @@ extension TerminalWindowController {
             self.refreshChrome(); self.layoutNow()
             self.clickForTest(button)
         }
+        t.step("titlebar switcher: titlebar_switcher = \"left\", read live, puts it right of the toggle with the strips after it; an open dropdown follows, left-aligned", nil, {
+            all(onLeft(),
+                menu.isOpen ? nil : "the open dropdown should stay open",
+                want("the dropdown's x", menu.frame.minX, button.frame.minX),
+                menu.frame.minY >= button.frame.maxY ? nil : "the dropdown should stay below the button",
+                self.contentView.bounds.contains(menu.frame) ? nil : "the dropdown \(menu.frame) should stay inside the window")
+        }) {
+            self.layoutNow()
+            if !menu.isOpen { self.clickForTest(button) }
+            setSide("left")
+        }
+        t.step("titlebar switcher: back to \"right\" live, it returns to the right end; the dropdown follows, right-aligned, and a click still opens it", nil, {
+            all(onRight(),
+                menu.isOpen ? nil : "a click on the button should open the dropdown",
+                abs(menu.frame.maxX - button.frame.maxX) < 1 ? nil : "the dropdown \(menu.frame) should be right-aligned to the button \(button.frame)",
+                self.contentView.bounds.contains(menu.frame) ? nil : "the dropdown \(menu.frame) should stay inside the window")
+        }) {
+            setSide("right")
+            if menu.isOpen { self.clickForTest(button) }  // close, then open through the real path
+            self.clickForTest(button)
+        }
+        var savedFrame: CGRect?
+        t.step("titlebar switcher: in a narrow window it stays 200pt at the right end; a strip either fits before it or stays in its deck; the dropdown stays inside", nil, {
+            let strips = self.titlebarStripDecks.map(\.view.strip)
+            return all(want("its width", button.frame.width, TitlebarSwitcherButton.width),
+                       abs(button.frame.maxX - rightEnd()) < 0.5 ? nil : "it should end at \(rightEnd()), ends at \(button.frame.maxX)",
+                       button.frame.minX >= self.sidebarToggle.frame.maxX ? nil : "it should never sit over the toggle",
+                       strips.allSatisfy { $0.frame.width >= Self.titlebarStripMinWidth && $0.frame.maxX <= button.frame.minX - 8 + 0.5 }
+                           ? nil : "a titlebar strip is too narrow or overlaps it: \(strips.map(\.frame))",
+                       menu.isOpen ? nil : "the dropdown should stay open",
+                       self.contentView.bounds.contains(menu.frame) ? nil : "the dropdown \(menu.frame) should stay inside the window \(self.contentView.bounds)")
+        }) {
+            guard let w = self.window else { return }
+            savedFrame = w.frame
+            var f = w.frame
+            f.size.width = w.minSize.width
+            w.setFrame(f, display: true)
+            self.layoutNow()
+        }
         t.step("titlebar switcher: opening the sidebar hides it and closes its dropdown; strips start after the toggle", nil, {
             all(shown() ? "it should hide with the sidebar open" : nil, menu.isOpen ? "the dropdown should close" : nil,
                 button.isOpen ? "the button should no longer draw open" : nil,
                 self.isSidebarVisible ? nil : "the sidebar should show",
                 want("clear line", self.titlebarClearX, self.sidebarToggle.frame.maxX + 8))
         }) {
+            if let f = savedFrame { self.window?.setFrame(f, display: true) }
+            if !menu.isOpen { self.clickForTest(button) }
             self.toggleWorkspaceSidebar(nil)
         }
         t.step("titlebar switcher: never in top-bar mode, even with the sidebar hidden", nil, {
@@ -263,6 +369,11 @@ extension TerminalWindowController {
             for ws in [alpha, beta, gamma].compactMap({ $0 }) + self.workspaces.filter({ $0.name == "ts-delta" }) { self.close(workspace: ws) }
             alpha = nil; beta = nil; gamma = nil
             if let saved = savedPreference { self.sidebarPreference = saved }
+            if let saved = savedSettings {
+                if let text = saved { try? text.write(to: Settings.fileURL, atomically: true, encoding: .utf8) }
+                else { try? FileManager.default.removeItem(at: Settings.fileURL) }
+                Settings.reload(force: true)
+            }
             self.layoutNow()
         }
     }

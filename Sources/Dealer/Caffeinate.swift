@@ -226,8 +226,9 @@ extension TerminalWindowController {
         Settings.caffeinate ? CaffeineIconView.width + Self.deckGap : 0
     }
 
-    /// The x where titlebar strips and pills must end.
-    var titlebarTrailingX: CGFloat { contentView.bounds.width - titlebarTrailingReserve }
+    /// The x where the cup's reserve begins. Titlebar strips and pills end at `titlebarTrailingX`
+    /// (TitlebarTabs.swift), which is this unless the titlebar switcher sits before it (#104).
+    var titlebarCupX: CGFloat { contentView.bounds.width - titlebarTrailingReserve }
 
     /// Places the cup and shows it while the assertion is held. Called from `layoutWindow` and on
     /// `Caffeinate.didChange`.

@@ -468,7 +468,7 @@ extension TerminalWindowController {
         // reload() runs inside the window's layout pass, where its needsLayout would be dropped.
         sb.layoutSubtreeIfNeeded()
         layoutWorkspaceBar()
-        layoutTitlebarSwitcher()  // #96, right of the toggle
+        layoutTitlebarSwitcher()  // #96, #104: at the right end or right of the toggle
         layoutSettingsBanner()
     }
 }

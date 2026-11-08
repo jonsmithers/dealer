@@ -69,6 +69,7 @@ enum Settings {
         "attention.done": .oneOf(["outline", "dot"]),
         "attention.unread": .oneOf(["dot", "outline"]),
         "workspaces.switcher": .oneOf(WorkspaceSwitcherStyle.allCases.map(\.rawValue)),
+        "workspaces.titlebar_switcher": .oneOf(TitlebarSwitcherSide.allCases.map(\.rawValue)),
         "colors.auto_assign": .bool,
         "window.tabs_in_titlebar": .bool,
         "window.animate_layout": .bool,
@@ -372,6 +373,13 @@ enum Settings {
             guard newValue != workspaceSwitcher || values["workspaces.switcher"] == nil else { return }
             write("workspaces.switcher", .string(newValue.rawValue))
         }
+    }
+
+    /// `[workspaces] titlebar_switcher` (#104): which end of the titlebar row the titlebar switcher
+    /// (#96) sits at while the sidebar is hidden: "right" (default, before the cup's reserve) or
+    /// "left" (right of the sidebar toggle). Read live.
+    static var titlebarSwitcher: TitlebarSwitcherSide {
+        string("workspaces.titlebar_switcher").flatMap(TitlebarSwitcherSide.init(rawValue:)) ?? .right
     }
 }
 

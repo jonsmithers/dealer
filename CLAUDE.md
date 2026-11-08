@@ -314,18 +314,23 @@ The GitHub repo is `jonsmithers/dealer`.
   to need two), and a tab color overrides it on that tab. `[colors] auto_assign`
   defaults to off.
 - **Titlebar switcher (#96, TitlebarSwitcher.swift; the lead's calls, reversible):** with the
-  sidebar hidden in sidebar mode, a button right of the sidebar toggle names the current workspace
-  (not in top-bar mode, not for a lone unnamed ungrouped workspace: the pill bar's quiet rule).
+  sidebar hidden in sidebar mode, a button names the current workspace (not in top-bar mode, not
+  for a lone unnamed ungrouped workspace: the pill bar's quiet rule). It sits at the **right end**
+  of the titlebar row by default, ending at the cup's reserve (#104, `[workspaces]
+  titlebar_switcher = "right" | "left"`, read live; "left" is #96's place right of the toggle).
   It's a switcher entry: the current workspace's chip and tint, and **one** dot for the strongest
   attention of the *other* workspaces (no outline, no stacks). A click opens a dropdown of every
   workspace (groups as headers, collapsed ones' members too; chip, name, one attention dot, ⌃N),
   the current one checked, plus New Workspace; a pick goes through `activate(_:)`. The dropdown is
   an in-window overlay view, **not an NSMenu**, so the README demo can drive it with posted events
   and it shows in the recording (#98). Esc, a click outside, key loss, a second click on the button
-  or a workspace switch from elsewhere closes it. Strips start after the button, which is a
+  or a workspace switch from elsewhere closes it; it opens under the button, right-aligned to it
+  on the right, left-aligned on the left. On the right, strips start after the toggle and end 8pt
+  before the button (`titlebarTrailingX`); on the left they start after it. The button is a
   **fixed 200pt** (#102, the user's call; `TitlebarSwitcherButton.width`): long names truncate, the
-  chevron stays at the right edge with the dot just left of it, and a switch never moves the strips.
-  In a narrow window it stays 200pt and `titlebarStripMinWidth` decides whether strips still fit.
+  chevron stays at the right edge with the dot just left of it, and a switch never moves the strips
+  on either side. In a narrow window it stays 200pt and `titlebarStripMinWidth` decides whether
+  strips still fit beside it.
 - Tabs are "connected" by default (#84, `[tabs] style`, "pill" is the old look): the active tab
   joins its deck's content with no seam, also from the titlebar row, and draws the deck accent
   underline (or its tab color) along its bottom edge, over the overlap row, where it meets the

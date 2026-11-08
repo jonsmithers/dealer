@@ -128,11 +128,13 @@
   Match leftover strips by the strip's own identity: `TabStripView.deck` is `unowned`, and a
   leftover strip's deck may already be freed, so reading it there can crash.
 - The clear line (`titlebarClearX`) is the zoom button, the sidebar toggle (or, with the sidebar
-  hidden, the titlebar switcher after it, #96), or in top-bar mode the pill segment
-  (`WorkspaceBarView.contentWidth`); the bar shrinks to its pills in this mode so it doesn't cover
-  strips. New titlebar chrome must push `titlebarClearX` right. Strips are placed before
-  `layoutWorkspaceSidebar` sets the toggle's and switcher's frames, so the clear line computes
-  them (`sidebarToggleFrame`, `titlebarSwitcherFrame`) rather than reading `frame`.
+  hidden and `titlebar_switcher = "left"`, the titlebar switcher after it, #96), or in top-bar mode
+  the pill segment (`WorkspaceBarView.contentWidth`); the bar shrinks to its pills in this mode so
+  it doesn't cover strips. The trailing edge (`titlebarTrailingX`, here) is the titlebar switcher
+  when it's on the right (the default, #104), else the cup's reserve (`titlebarCupX`, #69). New
+  titlebar chrome must push `titlebarClearX` right or pull `titlebarTrailingX` left. Strips are
+  placed before `layoutWorkspaceSidebar` sets the toggle's and switcher's frames, so both edges
+  compute them (`sidebarToggleFrame`, `titlebarSwitcherFrame`) rather than reading `frame`.
 - Titlebar clicks are decided by the window server *before* the app sees them: wherever the view
   under the pointer answers `mouseDownCanMoveWindow == true` (NSView's default for non-opaque views),
   a press drags the window and never reaches the view. Every interactive view that can sit in the
@@ -148,20 +150,26 @@
 - Empty strip space in the titlebar drags the window (`performDrag`) and runs the system
   double-click action (`AppleActionOnDoubleClick` from the global domain: a macOS setting, not a
   Dealer one). DragController checks titlebar strips before the top-edge promote band they sit in.
-- Tests: the strip's frame must equal its deck's x-range clipped at the clear line. For the
+- Tests: the strip's frame must equal its deck's x-range clipped at the clear line and the
+  trailing edge. For the
   empty-space hit test, pick a point after the strip's last control; with several tabs a strip can
   be full.
 
 ## Titlebar switcher (`TitlebarSwitcher.swift`, #96)
 
-- `TitlebarSwitcherButton` sits in the titlebar row right of the toggle, placed by
-  `layoutTitlebarSwitcher()` from `layoutWorkspaceSidebar()`; `refreshChrome()` reloads it
+- `TitlebarSwitcherButton` sits in the titlebar row, placed by `layoutTitlebarSwitcher()` from
+  `layoutWorkspaceSidebar()` at `titlebarSwitcherFrame`: by default at the row's right end, ending
+  at the cup's reserve or the deck area's edge and never left of the toggle; with `[workspaces]
+  titlebar_switcher = "left"` (#104, `Settings.titlebarSwitcher`, read live) right of the toggle.
+  `titlebarSwitcherOnRight` decides which edge strips stop at; `refreshChrome()` reloads it
   (`refreshTitlebarSwitcher`) without a layout: its width is the constant
   `TitlebarSwitcherButton.width` (#102), so nothing that starts after it moves on a rename, a
   switch or a dot. Don't size it to its content again. Its attention is `otherWorkspacesAttention`, one dot, faded with the window as the
   subject so a switch doesn't reset a fade.
 - `TitlebarSwitcherMenu` (one per window) is an overlay subview of the content view, not an NSMenu
   (the demo posts window events at it; an NSMenu's tracking loop and window would escape both). It
+  opens under the button (`place()`: right-aligned to it on the right, left-aligned on the left,
+  clamped into the window; a settings switch re-places an open one). It
   takes first responder while open (↑/↓/return/esc), dismisses on outside clicks through a local
   event monitor (only events through `NSApp.sendEvent` reach it; the self-test's `window.sendEvent`
   clicks don't), and stays on top through `raiseTitlebarSwitcherMenu()` after `raiseOverlays()`.
@@ -700,8 +708,9 @@
   a window closing, `Settings.didChange`), not on a timer, so a new way for `isWorking` to change
   must end in `refreshChrome()` like the others.
 - The cup (`CaffeineIconView`) follows `Caffeinate.didChange`. Its width is reserved at the right
-  end of the titlebar row (`titlebarTrailingX`) whenever the setting is on, held or not, so strips
-  and pills don't reflow as agents start and stop; new titlebar chrome must end before it.
+  end of the titlebar row (`titlebarCupX`) whenever the setting is on, held or not, so strips
+  and pills don't reflow as agents start and stop; new titlebar chrome must end before it (the
+  titlebar switcher on the right ends there, #104, and strips end at `titlebarTrailingX`).
   Its tooltip is one rect it owns (`addToolTip`, text from `Caffeinate.toolTip()` when shown),
   never `toolTip =` in layout: re-setting it re-adds the rect and restarts the hover delay.
 - A closed window never lays out again (`isClosed`, set in `windowWillClose`): a notification

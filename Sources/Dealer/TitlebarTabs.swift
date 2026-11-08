@@ -12,15 +12,15 @@ import AppKit
 // Clear zones: a strip starts after the traffic lights and the sidebar toggle, or in top-bar
 // workspace mode after the pill segment (the pills keep a fixed left segment). The sidebar column
 // isn't a concern because decks never extend over it. At the right end, `[power] caffeinate` (#69)
-// reserves room for the coffee cup (`titlebarTrailingX`). A strip clipped below `minWidth` stays in
-// its deck instead.
+// reserves room for the coffee cup, and the titlebar switcher (#104) sits before it by default
+// (`titlebarTrailingX`). A strip clipped below `minWidth` stays in its deck instead.
 
 extension TerminalWindowController {
     /// Narrowest titlebar strip worth showing (about two tabs plus "+"); narrower stays in the deck.
     static let titlebarStripMinWidth: CGFloat = 140
 
     /// The x where titlebar strips may begin: after the traffic lights, the sidebar toggle and the
-    /// titlebar switcher (#96), or (in top-bar mode) the workspace pills.
+    /// titlebar switcher when it's on the left (#96, #104), or (in top-bar mode) the workspace pills.
     var titlebarClearX: CGFloat {
         var x: CGFloat = 0
         if let zoom = window?.standardWindowButton(.zoomButton), zoom.superview != nil {
@@ -32,9 +32,18 @@ extension TerminalWindowController {
         } else {
             // The toggle, then the titlebar switcher while the sidebar is hidden (#96). Both frames are
             // computed, not read: strips are placed before `layoutWorkspaceSidebar` sets them.
-            x = max(x, showsTitlebarSwitcher ? titlebarSwitcherFrame.maxX : sidebarToggleFrame.maxX)
+            let afterSwitcher = showsTitlebarSwitcher && !titlebarSwitcherOnRight
+            x = max(x, afterSwitcher ? titlebarSwitcherFrame.maxX : sidebarToggleFrame.maxX)
         }
         return x + 8
+    }
+
+    /// The x where titlebar strips and pills must end: before the titlebar switcher when it's on
+    /// the right (#104), else at the cup's reserve (#69). Computed like the clear line, since strips
+    /// are placed before the switcher's frame is set. New titlebar chrome at the right end must pull
+    /// this left.
+    var titlebarTrailingX: CGFloat {
+        titlebarSwitcherOnRight ? titlebarSwitcherFrame.minX - 8 : titlebarCupX
     }
 
     /// Moves each shown deck's strip into the titlebar row or back into its deck. Called from

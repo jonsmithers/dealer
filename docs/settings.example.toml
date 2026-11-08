@@ -53,6 +53,11 @@
 # (numbered pills in the titlebar row).
 # switcher = "sidebar"
 
+# With the sidebar hidden, a button in the titlebar row names the current workspace and opens
+# a list of them all. Where it sits: "right" (the titlebar row's right end) or "left" (right
+# of the sidebar toggle).
+# titlebar_switcher = "right"
+
 [window]
 # Put the tab strips of decks along the window's top edge into the titlebar row, like
 # Safari's compact tabs. Empty titlebar space still drags the window.

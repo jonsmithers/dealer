@@ -2,8 +2,9 @@ import AppKit
 
 // MARK: - Titlebar workspace switcher (#96)
 //
-// While the workspace sidebar is hidden (sidebar switcher mode only), a button in the titlebar row,
-// right of the sidebar toggle, names the current workspace. Clicking it opens a dropdown listing
+// While the workspace sidebar is hidden (sidebar switcher mode only), a button in the titlebar row
+// names the current workspace: at the row's right end, before the cup's reserve, or with `[workspaces]
+// titlebar_switcher = "left"` right of the sidebar toggle (#104). Clicking it opens a dropdown listing
 // every workspace (groups as sections, collapsed ones included) plus "New Workspace"; picking a row
 // switches through `activate(_:)`, the sidebar's own path.
 //
@@ -15,6 +16,11 @@ import AppKit
 // an NSMenu runs its own tracking loop that posted window events can't drive (the README demo,
 // #98, clicks it with `window.postEvent`) and lives in a window of its own. Not modal: esc, a click
 // outside, the window resigning key, or a pick closes it.
+
+/// `[workspaces] titlebar_switcher` (#104): which end of the titlebar row the button sits at.
+enum TitlebarSwitcherSide: String, CaseIterable {
+    case right, left
+}
 
 extension TerminalWindowController {
     /// The sidebar toggle's place in the titlebar row (WorkspaceSidebar.swift). Known before the
@@ -30,13 +36,26 @@ extension TerminalWindowController {
         return !(workspaces.count == 1 && workspaces[0].name == nil && workspaces[0].group == nil)
     }
 
-    /// The button's frame when shown: right of the toggle, always `TitlebarSwitcherButton.width`
-    /// (#102), so strips after it don't move when the name or the dot changes. In a narrow window
-    /// it keeps that width; `titlebarStripMinWidth` decides whether strips still fit after it.
+    /// The button's frame when shown, always `TitlebarSwitcherButton.width` (#102), so the strips
+    /// beside it don't move when the name or the dot changes: at the right end of the titlebar row,
+    /// ending at the cup's reserve or the deck area's right edge (#104), or right of the toggle
+    /// (`titlebar_switcher = "left"`). In a narrow window it keeps that width (never left of the
+    /// toggle); `titlebarStripMinWidth` decides whether strips still fit beside it.
     var titlebarSwitcherFrame: CGRect {
         let t = sidebarToggleFrame
-        return CGRect(x: t.maxX + 4, y: t.minY, width: TitlebarSwitcherButton.width, height: t.height)
+        let w = TitlebarSwitcherButton.width
+        switch Settings.titlebarSwitcher {
+        case .left:
+            return CGRect(x: t.maxX + 4, y: t.minY, width: w, height: t.height)
+        case .right:
+            let end = min(titlebarCupX, contentView.bounds.width - Self.deckGap)
+            return CGRect(x: max(end - w, t.maxX + 4), y: t.minY, width: w, height: t.height)
+        }
     }
+
+    /// Whether the shown button sits at the right end of the titlebar row (#104), where titlebar
+    /// strips end before it instead of starting after it.
+    var titlebarSwitcherOnRight: Bool { showsTitlebarSwitcher && Settings.titlebarSwitcher == .right }
 
     /// Places the button (called from `layoutWorkspaceSidebar`, after the toggle) and keeps an open
     /// dropdown on top of everything and under its button.
@@ -385,12 +404,14 @@ final class TitlebarSwitcherMenu: FlippedView, ThemeApplying {
         if moved || rows.map(\.idealWidth).max() != width || frame.isEmpty { place() }
     }
 
-    /// Sizes the dropdown to its rows and puts it under the button.
+    /// Sizes the dropdown to its rows and puts it under the button: left-aligned to it on the left,
+    /// right-aligned on the right (#104), so it stays in the window either way.
     func place() {
         guard let c = owner else { return }
         let b = c.titlebarSwitcher.frame
         let ideal = rows.map(\.idealWidth).max() ?? 0
-        let room = c.contentView.bounds.width - b.minX - 8
+        let onRight = Settings.titlebarSwitcher == .right
+        let room = onRight ? b.maxX - 8 : c.contentView.bounds.width - b.minX - 8
         let w = min(max(ideal, Self.minWidth, b.width), Self.maxWidth, max(room, 120))
         var y = Self.inset
         for r in rows {
@@ -398,7 +419,8 @@ final class TitlebarSwitcherMenu: FlippedView, ThemeApplying {
             y += r.height
         }
         let maxH = c.contentView.bounds.height - b.maxY - 12
-        frame = CGRect(x: b.minX, y: b.maxY + 4, width: w, height: min(y + Self.inset, max(maxH, 60))).integral
+        let x = onRight ? max(b.maxX - w, 8) : b.minX
+        frame = CGRect(x: x, y: b.maxY + 4, width: w, height: min(y + Self.inset, max(maxH, 60))).integral
     }
 
     // MARK: Keys
