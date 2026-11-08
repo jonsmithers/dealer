@@ -137,9 +137,11 @@ BOUNDS=$OUT/.bounds
 let pid = Int(CommandLine.arguments[1])!
 for w in CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as! [[String: Any]]
 where (w[kCGWindowOwnerPID as String] as? Int) == pid && (w[kCGWindowLayer as String] as? Int ?? -1) >= 0 {
-  // The demo window floats (layer > 0); skip small helper windows.
+  // The demo window floats (layer > 0); skip small helper windows, and the menu bar, which is
+  // the app's own full-width window once it's frontmost (the focus step below made the tour
+  // record the menu bar instead of the demo).
   let b = w[kCGWindowBounds as String] as! [String: Double]
-  guard b["Width"]! > 300 else { continue }
+  guard b["Width"]! > 300, b["Height"]! > 300 else { continue }
   let d = CGMainDisplayID(), scale = CGDisplayCopyDisplayMode(d)!.pixelWidth / Int(CGDisplayBounds(d).width)
   print(Int(b["X"]!), Int(b["Y"]!), Int(b["Width"]!), Int(b["Height"]!), scale); break }' > $OUT/.bounds.swift && swiftc -O $OUT/.bounds.swift -o $BOUNDS; }
 
