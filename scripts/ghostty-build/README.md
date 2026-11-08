@@ -116,7 +116,7 @@ Once it's gone, building `vendor/` needs full Xcode plus its Metal Toolchain
    Then make the `metal`/`xcodebuild` preflight unconditional, and set `EXTRA=` where the block was.
    Keep `clone_tree` above it: the runtime patch (#89) still builds in a temporary clone.
 3. Remove the pointers to this README from `CLAUDE.md` and `README.md` (Building), and from
-   `docs/orchestrator-handoff.md`.
+   the orchestrator's hand-off notes (`.git/coord/HANDOFF.md`, untracked).
 
 ## When it becomes unnecessary
 
