@@ -136,8 +136,8 @@ live in the skill.
 - **Open, waiting for the user's hand checks (in `TODO.md`):** #99, #102. #87 (tab contrast) is
   **parked** on the user's call. #98 stays open until the re-recorded demos are published.
 - **Unassigned:** #101 (switching tabs forgets which pane was active; the user's issue).
-- **In flight at hand-off:** demo re-record on f2116e4 (dashed rings + 200 pt switcher) into
-  `shots-98e`, then `--publish` to `media`; the user pushes and uploads to #79.
+- **Demos are stale** (solid pane rings, old switcher width). The user said skip the re-record for now;
+  re-record when they ask (`shots-98e` holds a partial, aborted take).
 - **WATCH:** `switcher:` 121–123 and `colors:` 240 failed once on #102's first merge.sh run and
   passed on retry; cause unknown. If they recur, file an issue like #100.
 - `myterm-wt/tabs-88` is still the user's. `vendor-old-*` in `.git/coord` can go once nobody needs
