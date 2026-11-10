@@ -133,7 +133,7 @@ The GitHub repo is `jonsmithers/dealer`.
   doesn't redirect and which loads after it; check that it has no color settings.
 - **README demo recordings (#26, #28, #98).** Regenerate after any visual change:
   `swift build && scripts/record-demo.sh <out-dir>` records every demo (or name some: `tour
-  drag`). The `tour` (#98, the user's call) shows the niceties in one realistic flow without
+  drag`; with no arguments it lists the demos, the `case`s of `Demo.swift`'s script switch). The `tour` (#98, the user's call) shows the niceties in one realistic flow without
   naming them: captions say what the user does ("Put an agent on the flaky test"), never the
   feature ("Layout motion", "stacked marks"). Keep new beats that way. Prerequisites: an unlocked screen, Screen Recording permission for the
   app running the script, ffmpeg, and hands off the machine while it runs (the demo window floats

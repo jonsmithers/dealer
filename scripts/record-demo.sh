@@ -4,6 +4,7 @@
 # review. No GIF: nobody used it. WebM (VP9) was measured instead and dropped too: at the MP4's
 # quality it was only ~10% smaller and took ~20x as long to encode.
 #
+#   scripts/record-demo.sh                                         # list the demos, show an example
 #   scripts/record-demo.sh <out-dir> [demo…]                       # record (default: all demos)
 #   scripts/record-demo.sh <out-dir> --encode-only [demo…]         # re-encode <demo>-raw.mp4 takes
 #   scripts/record-demo.sh <out-dir> --publish <media-worktree>    # copy reviewed files to `media`
@@ -20,7 +21,26 @@
 # (old GIFs, demos that are no longer produced), commits there, and prints the push command.
 # Review <out-dir>/review/*.png first.
 set -e; setopt pipefail
-ROOT=${0:A:h:h}; OUT=${1:?usage: record-demo.sh <out-dir> [demo…] | <out-dir> --encode-only [demo…] | <out-dir> --publish <media-worktree>}; shift
+ROOT=${0:A:h:h}
+# The demos are the cases of Demo.swift's script switch, so a new one needs no edit here.
+ALL=(${(f)"$(sed -n 's/^        case "\([A-Za-z0-9_-]*\)":.*/\1/p' $ROOT/Sources/Dealer/Demo.swift)"})
+(( $#ALL )) || { print "no demos found in $ROOT/Sources/Dealer/Demo.swift"; exit 1; }
+# No arguments: the usage, the demos, and a command that records them all. The example's out-dir
+# isn't /tmp/demo, which the script wipes for the demo shells.
+if (( ! $# )); then
+  print "usage: $0 <out-dir> [demo…] | <out-dir> --encode-only [demo…] | <out-dir> --publish <media-worktree>"
+  print "demos: $ALL"
+  print "record all of them (swift build first; hands off the machine while it runs):"
+  print "  $0 /tmp/dealer-demos"
+  exit 0
+fi
+OUT=$1; shift
+# Named demos must exist (a typo would run the app with no script to play).
+check_demos() {
+  local d; for d; do
+    (( ${ALL[(Ie)$d]} )) || { print "unknown demo: $d (demos: $ALL)"; exit 1; }
+  done
+}
 # Program status (OSC 7501, #89): working per demo, done when the contact sheets are ready to
 # review, failed otherwise. A no-op outside a terminal; DEALER_PROGRAM_STATUS=0 turns it off.
 source $ROOT/scripts/lib/program-status.sh
@@ -29,7 +49,6 @@ PID=
 trap 'st=$?; [[ -n $PID ]] && kill $PID 2>/dev/null; program_status_exit $st' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-ALL=(tour drag)
 VIDEO_BUDGET=$((5 * 1024 * 1024))  # per README video
 mkdir -p $OUT
 OUT=${OUT:A}
@@ -74,7 +93,7 @@ encode() {
 
 if [[ $1 == --encode-only ]]; then
   shift
-  DEMOS=($@)
+  DEMOS=($@); check_demos $DEMOS
   if (( ! $#DEMOS )); then  # by default, the demos that have a take
     for d in $ALL; do [[ -f $OUT/$d-raw.mp4 ]] || continue; DEMOS+=($d); done
   fi
@@ -89,7 +108,7 @@ if [[ $1 == --encode-only ]]; then
   exit 0
 fi
 
-DEMOS=($@); (( $#DEMOS )) || DEMOS=($ALL)
+DEMOS=($@); check_demos $DEMOS; (( $#DEMOS )) || DEMOS=($ALL)
 BIN=$ROOT/.build/debug/Dealer
 [[ -x $BIN ]] || { print "build first: swift build"; exit 1; }
 DEMO_DIR=/tmp/demo
