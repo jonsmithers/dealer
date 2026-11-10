@@ -141,6 +141,15 @@ extension TerminalWindowController {
             LayoutAnimation.enabled = false
             self.split(t.pane("laA"), side: .right)
             t.named(self.focusedPane, "laC")
+            // Start from settled tab widths: a retitle (laC's shell starting, then a command's
+            // title) reaches a strip only at its next layout, and if that's the drop's, its width
+            // glide (#103) shows up here though the drop didn't cause it. Seen in background
+            // sessions, where nothing else lays the strip out in between.
+            _ = t.pane("laA").surface.waitForShell()
+            _ = t.pane("laC").surface.waitForShell()
+            _ = SelfTest.waitUntil(timeout: 5) { t.pane("laA").title == t.pane("laC").title }
+            for d in self.allDecks { d.view.strip.needsLayout = true }
+            self.layoutNow()
             on()
             let bar = t.pane("laA").view.bar
             let from = bar.convert(CGPoint(x: bar.bounds.midX, y: bar.bounds.midY), to: nil)
