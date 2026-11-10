@@ -23,14 +23,14 @@ Dealer supports the **[Program Status Protocol](https://www.superlogical.com/rex
 (OSC 7501)**: any program or agent that reports `working`, `blocked`, `done` or `error` gets the
 same tab spinner and attention marks as Claude Code. See [Program status](#program-status-osc-7501).
 
-https://github.com/user-attachments/assets/1f08773b-3d1c-4ff8-85da-06a91ba00208
+https://github.com/user-attachments/assets/f7a6922c-6270-473a-9666-41fdd1dc62a3
 
 ## Features overview
 
 <details open>
 <summary><b>1. Panes and Decks layout</b>: drop tabs into side-by-side and stacked splits, drag a pane to the window edge for a new deck (it keeps its content while you switch tabs next to it), pull a pane out as a tab in another deck, drop a tab between two tabs of another deck</summary>
 
-https://github.com/user-attachments/assets/8c5858a5-52cf-4d6e-8f03-6c1f4b0683b9
+https://github.com/user-attachments/assets/2a281f66-600c-4014-bc36-2ce7bf4e4d3c
 </details>
 
 <details>
