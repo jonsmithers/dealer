@@ -162,7 +162,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ])
 
         submenu("Layout", [
-            item("Promote to Deck", #selector(TerminalWindowController.promoteToDeck(_:)), "p", [.command, .shift]),
+            // ⇧⌘P: uppercase "P" carries the shift, as for ⇧⌘N. Declared "p" + ⇧, AppKit matched it
+            // against plain ⌘P too, ahead of Go to Workspace… (#105).
+            item("Promote to Deck", #selector(TerminalWindowController.promoteToDeck(_:)), "P"),
             // ⇧⌘T: the focused pane (or selected group) leaves its split for a tab of its own, next to
             // its old one. Uppercase "T" carries the shift, so plain ⌘T stays New Tab.
             item("Move to New Tab", #selector(TerminalWindowController.moveToNewTab(_:)), "T"),
@@ -206,6 +208,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item("Rename Workspace…", #selector(TerminalWindowController.renameWorkspace(_:)), "R", .control),
             item("Close Workspace", #selector(TerminalWindowController.closeWorkspace(_:)), "w", [.command, .control]),
             .separator(),
+            // ⌘P (#105, the user's call): Quick Open's key elsewhere. Opens the titlebar switcher's
+            // dropdown with its search field; named like Shell › Go to Pane… (⇧⌘A).
+            item("Go to Workspace…", #selector(TerminalWindowController.openWorkspaceSwitcher(_:)), "p"),
             item("Next Workspace", #selector(TerminalWindowController.nextWorkspace(_:)), "]", [.command, .control]),
             item("Previous Workspace", #selector(TerminalWindowController.previousWorkspace(_:)), "[", [.command, .control]),
             item("Move Workspace Left", #selector(TerminalWindowController.moveWorkspaceLeft(_:))),

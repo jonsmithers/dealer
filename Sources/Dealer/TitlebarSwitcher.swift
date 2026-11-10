@@ -16,6 +16,11 @@ import AppKit
 // an NSMenu runs its own tracking loop that posted window events can't drive (the README demo,
 // #98, clicks it with `window.postEvent`) and lives in a window of its own. Not modal: esc, a click
 // outside, the window resigning key, or a pick closes it.
+//
+// Workspace › Go to Workspace… (⌘P, #105) opens the same dropdown: under the button when it shows,
+// else at the top center of the window, where ⌘⇧A's panel sits. A search field at its top has the
+// keys whenever it's open; typing filters the rows with Go to Pane's matching (`PanePickerMatch`),
+// and ↑/↓ or ⌃P/⌃N (the system key bindings' `moveUp:`/`moveDown:`) move the highlight.
 
 /// `[workspaces] titlebar_switcher` (#104): which end of the titlebar row the button sits at.
 enum TitlebarSwitcherSide: String, CaseIterable {
@@ -58,7 +63,7 @@ extension TerminalWindowController {
     var titlebarSwitcherOnRight: Bool { showsTitlebarSwitcher && Settings.titlebarSwitcher == .right }
 
     /// Places the button (called from `layoutWorkspaceSidebar`, after the toggle) and keeps an open
-    /// dropdown on top of everything and under its button.
+    /// dropdown on top of everything and under its button (or centered, when ⌘P opened it without one).
     func layoutTitlebarSwitcher() {
         let b = titlebarSwitcher
         if b.superview !== contentView { contentView.addSubview(b) }
@@ -70,8 +75,18 @@ extension TerminalWindowController {
         }
         let menu = titlebarSwitcherMenu
         guard menu.isOpen else { return }
-        if !shown { return menu.close(restoreFocus: false) }
+        // A dropdown hanging from the button goes with it (the sidebar opened, top-bar mode).
+        if !shown && menu.isAnchoredToButton { return menu.close(restoreFocus: false) }
         menu.place()
+    }
+
+    /// Workspace › Go to Workspace… (⌘P, #105): opens the switcher's dropdown with its search field
+    /// focused, under the button when it shows, else at the top center of the window. ⌘P while it's
+    /// open closes it, like a second click on the button. Not named after an AppKit selector.
+    @objc func openWorkspaceSwitcher(_ sender: Any?) {
+        let menu = titlebarSwitcherMenu
+        if menu.isOpen { return menu.close(restoreFocus: true) }
+        menu.open(in: self)
     }
 
     /// Keeps an open dropdown above everything in the window, the overlays included. Called from
@@ -226,11 +241,14 @@ final class TitlebarSwitcherButton: FlippedView {
     }
 }
 
-/// The dropdown under the titlebar button.
-final class TitlebarSwitcherMenu: FlippedView, ThemeApplying {
+/// The dropdown under the titlebar button (or at the top center of the window, #105): a search
+/// field, then the rows.
+final class TitlebarSwitcherMenu: FlippedView, ThemeApplying, NSTextFieldDelegate {
     private(set) var rows: [TitlebarSwitcherRow] = []
-    /// The row under the pointer or picked with ↑/↓.
+    /// The row under the pointer or picked with ↑/↓ (⌃P/⌃N) or by typing.
     private(set) weak var highlighted: TitlebarSwitcherRow?
+    /// The search field (#105): it has the keys while the dropdown is open.
+    let field = NSTextField()
     private weak var owner: TerminalWindowController?
     /// The workspace that was current when it opened: a switch from anywhere else (⌃1–9, the CLI)
     /// closes it, since focus goes to the new workspace's terminal.
@@ -239,10 +257,16 @@ final class TitlebarSwitcherMenu: FlippedView, ThemeApplying {
     private weak var previousResponder: NSResponder?
     private var monitor: Any?
     private var resignObserver: NSObjectProtocol?
+    /// Whether it hangs from the button (shown when it opened), rather than the window's top center.
+    private(set) var isAnchoredToButton = false
+    /// The widest the rows have wanted since it opened, so filtering never narrows it mid-search.
+    private var openWidth: CGFloat = 0
 
     static let inset: CGFloat = 5
     static let minWidth: CGFloat = 220
     static let maxWidth: CGFloat = 340
+    /// The search field's band at the top, above a hairline.
+    static let fieldHeight: CGFloat = 32
 
     var isOpen: Bool { superview != nil }
 
@@ -257,6 +281,15 @@ final class TitlebarSwitcherMenu: FlippedView, ThemeApplying {
             s.shadowColor = NSColor.black.withAlphaComponent(0.3)
             return s
         }()
+        field.placeholderString = "Go to workspace"
+        field.isBordered = false
+        field.drawsBackground = true
+        field.focusRingType = .none
+        field.font = Theme.Fonts.tab
+        field.delegate = self
+        field.cell?.isScrollable = true
+        field.cell?.wraps = false
+        addSubview(field)
         applyTheme()
     }
 
@@ -265,11 +298,15 @@ final class TitlebarSwitcherMenu: FlippedView, ThemeApplying {
     func applyTheme() {
         layer?.backgroundColor = Theme.chrome.cgColor
         layer?.borderColor = Theme.hairline.cgColor
+        field.backgroundColor = Theme.chrome
+        field.textColor = Theme.text
+        field.placeholderAttributedString = NSAttributedString(
+            string: "Go to workspace", attributes: [.font: Theme.Fonts.tab, .foregroundColor: Theme.textFaint])
         rows.forEach { $0.needsDisplay = true }
+        needsDisplay = true
     }
 
     override var mouseDownCanMoveWindow: Bool { false }
-    override var acceptsFirstResponder: Bool { true }
 
     /// The row for workspace `ws` while open (self-test and demo hook).
     func row(for ws: Workspace) -> TitlebarSwitcherRow? { rows.first { $0.workspace === ws } }
@@ -283,25 +320,37 @@ final class TitlebarSwitcherMenu: FlippedView, ThemeApplying {
         return rows.first { $0.isPickable && $0.frame.contains(p) }
     }
 
+    /// Whether the search field has the keys (the field editor is first responder).
+    var fieldHasFocus: Bool {
+        guard let editor = field.currentEditor() else { return false }
+        return window?.firstResponder === editor
+    }
+
     // MARK: Open, close, pick
 
     func open(in c: TerminalWindowController) {
-        guard let window = c.window, !c.titlebarSwitcher.isHidden else { return }
+        guard let window = c.window else { return }
         owner = c
         openedOn = c.activeWorkspace
         previousResponder = window.firstResponder
+        isAnchoredToButton = c.showsTitlebarSwitcher
+        openWidth = 0
+        field.stringValue = ""
         applyTheme()
         c.contentView.addSubview(self, positioned: .above, relativeTo: nil)
-        c.titlebarSwitcher.isOpen = true
-        highlighted = nil  // the check mark shows the current one; ↑/↓ start from it
+        if isAnchoredToButton { c.titlebarSwitcher.isOpen = true }
+        highlighted = nil
         reload()
-        window.makeFirstResponder(self)
+        // An empty query starts on the workspace shown before this one, so ⌘P then return toggles
+        // back (as ⇧⌘A then return goes back to the previous pane); else on the current one.
+        highlight(c.lastActiveWorkspace.flatMap(row(for:)) ?? row(for: c.activeWorkspace))
+        window.makeFirstResponder(field)
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] e in
             guard let self, self.isOpen else { return e }
             let inMenu = e.window === self.window && self.bounds.contains(self.convert(e.locationInWindow, from: nil))
             // The button toggles the dropdown itself.
             let onButton = e.window === self.window && self.owner.map { b in
-                b.titlebarSwitcher.bounds.contains(b.titlebarSwitcher.convert(e.locationInWindow, from: nil))
+                !b.titlebarSwitcher.isHidden && b.titlebarSwitcher.bounds.contains(b.titlebarSwitcher.convert(e.locationInWindow, from: nil))
             } == true
             if !inMenu && !onButton { self.close(restoreFocus: false) }
             return e
@@ -319,17 +368,20 @@ final class TitlebarSwitcherMenu: FlippedView, ThemeApplying {
         if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
         resignObserver = nil
         let w = window
-        let wasFirstResponder = w?.firstResponder === self
+        let hadKeys = w.map { w in w.firstResponder === self || (w.firstResponder as? NSView)?.isDescendant(of: self) == true } ?? false
+        if hadKeys { w?.makeFirstResponder(nil) }  // ends the field's editing before it leaves the window
         removeFromSuperview()
         owner?.titlebarSwitcher.isOpen = false
         rows.forEach { $0.removeFromSuperview() }
         rows = []
+        field.stringValue = ""
         if let w {
-            if restoreFocus, let r = previousResponder { w.makeFirstResponder(r) }
-            else if wasFirstResponder, let p = owner?.focusedPane { w.makeFirstResponder(p.surface) }
+            if restoreFocus, let r = previousResponder, (r as? NSView)?.window === w || r === w { w.makeFirstResponder(r) }
+            else if hadKeys, let p = owner?.focusedPane { w.makeFirstResponder(p.surface) }
         }
         previousResponder = nil
         owner = nil
+        isAnchoredToButton = false
     }
 
     /// Switches to the row's workspace (or makes a new one) through the sidebar's path.
@@ -352,18 +404,70 @@ final class TitlebarSwitcherMenu: FlippedView, ThemeApplying {
         row?.needsDisplay = true
     }
 
-    /// Rebuilds the rows from the window's workspaces, keeping the highlighted one.
+    // MARK: Search (#105)
+
+    /// What's typed in the search field (self-test hook: setting it filters, as typing does).
+    var query: String {
+        get { field.stringValue }
+        set { field.stringValue = newValue; queryChanged() }
+    }
+
+    /// The window's workspaces the query keeps, in sidebar order, each with its rank
+    /// (`PanePickerMatch.score` on the shown name, then the group's name and the shown name; 0 for all
+    /// when the query is empty).
+    private func matches(in c: TerminalWindowController) -> [(Workspace, Int)] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return c.workspaces.map { ($0, 0) } }
+        return c.workspaces.compactMap { ws in
+            let around = [ws.group?.name, ws.displayName].compactMap { $0 }.joined(separator: " ")
+            return PanePickerMatch.score(q, primary: ws.displayName, secondary: around).map { (ws, $0) }
+        }
+    }
+
+    func controlTextDidChange(_ obj: Notification) { queryChanged() }
+
+    /// After each keystroke the highlight moves to the first match: the best-ranked workspace,
+    /// earliest in the list (a substring of its name before a scattered match, before its group's).
+    private func queryChanged() {
+        guard let c = owner else { return }
+        reload()
+        let best = matches(in: c).min { $0.1 < $1.1 }?.0  // `min` keeps the first of equals
+        highlighted = nil
+        if query.trimmingCharacters(in: .whitespaces).isEmpty {
+            highlight(c.lastActiveWorkspace.flatMap(row(for:)) ?? row(for: c.activeWorkspace))
+        } else {
+            highlight(best.flatMap(row(for:)))
+        }
+        rows.forEach { $0.needsDisplay = true }
+    }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+        switch selector {
+        // ↑/↓, and ⌃P/⌃N through the system key bindings.
+        case #selector(NSResponder.moveDown(_:)): move(1); return true
+        case #selector(NSResponder.moveUp(_:)): move(-1); return true
+        case #selector(NSResponder.insertNewline(_:)):
+            if let h = highlighted { pick(h) }
+            return true
+        case #selector(NSResponder.cancelOperation(_:)): close(restoreFocus: true); return true
+        default: return false
+        }
+    }
+
+    /// Rebuilds the rows from the window's workspaces the query keeps, keeping the highlighted one.
     func reload() {
         guard let c = owner else { return }
         if c.activeWorkspace !== openedOn { return close(restoreFocus: false) }
         var kinds: [(TitlebarSwitcherRow.Kind, Workspace?, WorkspaceGroup?)] = []
         var lastGroup: WorkspaceGroup?
-        for (i, ws) in c.workspaces.enumerated() {
+        // A group's header shows only when one of its members does.
+        for (ws, _) in matches(in: c) {
             if let g = ws.group, g !== lastGroup { kinds.append((.header(g.name), nil, g)) }
             lastGroup = ws.group
+            let i = c.workspaces.firstIndex { $0 === ws } ?? 9
             kinds.append((.workspace(number: i < 9 ? i + 1 : nil, indented: ws.group != nil), ws, nil))
         }
-        kinds.append((.separator, nil, nil))
+        if !kinds.isEmpty { kinds.append((.separator, nil, nil)) }
         kinds.append((.newWorkspace, nil, nil))
         // Update rows in place, keyed by what they stand for. This runs on every chrome refresh (a
         // pane reporting progress refreshes it once or twice a second), and a row replaced between
@@ -405,35 +509,41 @@ final class TitlebarSwitcherMenu: FlippedView, ThemeApplying {
     }
 
     /// Sizes the dropdown to its rows and puts it under the button: left-aligned to it on the left,
-    /// right-aligned on the right (#104), so it stays in the window either way.
+    /// right-aligned on the right (#104), so it stays in the window either way. Opened by ⌘P without
+    /// the button (#105), it sits at the top center of the deck area, where ⌘⇧A's panel does.
     func place() {
         guard let c = owner else { return }
-        let b = c.titlebarSwitcher.frame
-        let ideal = rows.map(\.idealWidth).max() ?? 0
-        let onRight = Settings.titlebarSwitcher == .right
-        let room = onRight ? b.maxX - 8 : c.contentView.bounds.width - b.minX - 8
-        let w = min(max(ideal, Self.minWidth, b.width), Self.maxWidth, max(room, 120))
-        var y = Self.inset
+        openWidth = max(openWidth, rows.map(\.idealWidth).max() ?? 0)
+        let bounds = c.contentView.bounds
+        let w: CGFloat, x: CGFloat, top: CGFloat
+        if isAnchoredToButton {
+            let b = c.titlebarSwitcher.frame
+            let onRight = Settings.titlebarSwitcher == .right
+            let room = onRight ? b.maxX - 8 : bounds.width - b.minX - 8
+            w = min(max(openWidth, Self.minWidth, b.width), Self.maxWidth, max(room, 120))
+            x = onRight ? max(b.maxX - w, 8) : b.minX
+            top = b.maxY + 4
+        } else {
+            let area = c.deckArea
+            w = min(max(openWidth, Self.minWidth), Self.maxWidth, max(bounds.width - 16, 120))
+            x = min(max(area.midX - w / 2, 8), max(bounds.width - 8 - w, 8))
+            top = area.minY + 12
+        }
+        field.frame = CGRect(x: Self.inset + 8, y: Self.inset + 3, width: w - Self.inset * 2 - 16, height: 20)
+        var y = Self.fieldHeight + Self.inset
         for r in rows {
             r.frame = CGRect(x: Self.inset, y: y, width: w - Self.inset * 2, height: r.height)
             y += r.height
         }
-        let maxH = c.contentView.bounds.height - b.maxY - 12
-        let x = onRight ? max(b.maxX - w, 8) : b.minX
-        frame = CGRect(x: x, y: b.maxY + 4, width: w, height: min(y + Self.inset, max(maxH, 60))).integral
+        let maxH = bounds.height - top - 12
+        frame = CGRect(x: x, y: top, width: w, height: min(y + Self.inset, max(maxH, 60))).integral
+        needsDisplay = true
     }
 
-    // MARK: Keys
-
-    override func keyDown(with event: NSEvent) {
-        switch event.keyCode {
-        case 125: move(1)        // ↓
-        case 126: move(-1)       // ↑
-        case 36, 76:             // return, enter
-            if let h = highlighted { pick(h) }
-        case 53: close(restoreFocus: true)  // esc
-        default: super.keyDown(with: event)
-        }
+    override func draw(_ dirtyRect: NSRect) {
+        // The hairline under the search field.
+        Theme.hairline.setFill()
+        NSRect(x: 0, y: Self.fieldHeight, width: bounds.width, height: 1).fill()
     }
 
     override func cancelOperation(_ sender: Any?) { close(restoreFocus: true) }

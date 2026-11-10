@@ -168,7 +168,7 @@ extension TerminalWindowController {
                        // #104: right-aligned to the button on the right, so it stays in the window.
                        abs(menu.frame.maxX - button.frame.maxX) < 1 ? nil : "the dropdown \(menu.frame) should be right-aligned to the button \(button.frame)",
                        self.contentView.bounds.contains(menu.frame) ? nil : "the dropdown \(menu.frame) should stay inside the window \(self.contentView.bounds)",
-                       self.window?.firstResponder === menu ? nil : "the dropdown should take the keys")
+                       menu.fieldHasFocus ? nil : "the dropdown's search field should take the keys (#105)")
         }) {
             alpha.map { self.rename(workspace: $0, to: "ts-alpha") }
             self.layoutNow()
@@ -204,9 +204,8 @@ extension TerminalWindowController {
                                                 charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) { w.sendEvent(e) }
                 }
             }
-            // Opens on ts-alpha's row (the current one), so the next one down is ts-beta, then ts-gamma.
+            // Opens on ts-beta's row, the previously active workspace (#105), so the next one down is ts-gamma.
             self.clickForTest(button)
-            key(125, "\u{F701}")
             key(125, "\u{F701}")
             key(36, "\r")
             self.clickForTest(button)

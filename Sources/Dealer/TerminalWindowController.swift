@@ -10,7 +10,12 @@ import AppKit
 final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     /// In switcher order. Never empty while the window is open.
     private(set) var workspaces: [Workspace]
-    private(set) var activeWorkspace: Workspace
+    private(set) var activeWorkspace: Workspace {
+        didSet { if activeWorkspace !== oldValue { lastActiveWorkspace = oldValue } }
+    }
+    /// The workspace shown before the active one in this window (#105): Go to Workspace (⌘P) starts
+    /// on it, so ⌘P then return toggles back. Weak: a closed workspace drops out of the record.
+    private(set) weak var lastActiveWorkspace: Workspace?
 
     /// The active workspace's deck tree.
     var root: Node<Deck>? { activeWorkspace.root }

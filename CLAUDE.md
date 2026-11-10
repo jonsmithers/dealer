@@ -329,7 +329,19 @@ The GitHub repo is `jonsmithers/dealer`.
   an in-window overlay view, **not an NSMenu**, so the README demo can drive it with posted events
   and it shows in the recording (#98). Esc, a click outside, key loss, a second click on the button
   or a workspace switch from elsewhere closes it; it opens under the button, right-aligned to it
-  on the right, left-aligned on the left. On the right, strips start after the toggle and end 8pt
+  on the right, left-aligned on the left.
+  **Go to Workspace… (⌘P, #105;** ⌘P is the user's call, the rest the lead's, reversible): Workspace
+  › Go to Workspace… opens the same dropdown, under the button when it shows, else (sidebar shown,
+  top-bar mode, a lone unnamed workspace) at the top center of the deck area, where ⌘⇧A's panel
+  sits; ⌘P while it's open closes it. A search field at its top has the keys whenever it's open
+  (click or ⌘P): it filters with Go to Pane's `PanePickerMatch.score` on the shown name, then group
+  + name, rows staying in sidebar order, a group header only with a matching member, New Workspace
+  always last; the highlight goes to the best-ranked match (substring first, earliest in the
+  list). ↑/↓ and ⌃P/⌃N (the field editor's `moveUp:`/`moveDown:` from the system key bindings,
+  as in Go to Pane) move it, return picks, esc closes and gives the keys back. An empty query
+  starts on the window's previously active workspace (`lastActiveWorkspace`), so ⌘P ↩ toggles
+  back. Promote is declared "P" + ⌘ (not "p" + ⌘⇧, which AppKit also matched against plain ⌘P).
+  No "create a workspace named after the query" yet, and no search on top-bar pills. On the right, strips start after the toggle and end 8pt
   before the button (`titlebarTrailingX`); on the left they start after it. The button is a
   **fixed 200pt** (#102, the user's call; `TitlebarSwitcherButton.width`): long names truncate, the
   chevron stays at the right edge with the dot just left of it, and a switch never moves the strips

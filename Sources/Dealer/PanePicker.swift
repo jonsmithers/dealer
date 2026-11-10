@@ -40,6 +40,17 @@ enum PanePickerMatch {
         return true
     }
 
+    /// How `query` matches an entry named `primary`, with `secondary` the text around it (Go to
+    /// Pane: the tab and workspace; Go to Workspace, #105: the group): 0 a contiguous match in
+    /// `primary`, 1 a scattered one, 2 contiguous in `secondary`, 3 scattered there, nil none.
+    /// Lower ranks first. `query` must be non-empty after trimming.
+    static func score(_ query: String, primary: String, secondary: String) -> Int? {
+        let lower = query.lowercased()
+        if isSubsequence(query, of: primary) { return primary.lowercased().contains(lower) ? 0 : 1 }
+        if isSubsequence(query, of: secondary) { return secondary.lowercased().contains(lower) ? 2 : 3 }
+        return nil
+    }
+
     /// Every pane of every window, ranked for `query`. Empty query: most recently focused first,
     /// `current` last. Otherwise title matches first, then tab or workspace matches; within each,
     /// a contiguous match before a scattered one, then most recently focused.
@@ -58,14 +69,7 @@ enum PanePickerMatch {
         let q = query.trimmingCharacters(in: .whitespaces)
         func recency(_ e: PanePickerEntry) -> Int { e.pane === current ? -1 : e.pane.focusSequence }
         guard !q.isEmpty else { return entries.sorted { recency($0) > recency($1) } }
-        let lower = q.lowercased()
-        func score(_ e: PanePickerEntry) -> Int? {
-            let title = e.pane.title
-            if isSubsequence(q, of: title) { return title.lowercased().contains(lower) ? 0 : 1 }
-            let around = e.tab + " " + e.workspace
-            if isSubsequence(q, of: around) { return around.lowercased().contains(lower) ? 2 : 3 }
-            return nil
-        }
+        func score(_ e: PanePickerEntry) -> Int? { Self.score(q, primary: e.pane.title, secondary: e.tab + " " + e.workspace) }
         return entries.compactMap { e in score(e).map { (e, $0) } }
             .sorted { $0.1 != $1.1 ? $0.1 < $1.1 : recency($0.0) > recency($1.0) }
             .map(\.0)

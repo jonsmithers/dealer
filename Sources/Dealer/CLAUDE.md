@@ -178,7 +178,21 @@
   row replaced mid-click lost the click (found by the #98 demo). Never rebuild them per refresh.
   Rows hold their workspace weakly and are dropped on close; `windowWillClose` closes it so its
   monitor goes. Every button, row and the dropdown answer `mouseDownCanMoveWindow == false` (#27).
-- Tests: `SelfTestTitlebarSwitcher.swift` (`DEALER_SELFTEST_ONLY=titlebar switcher:`, self-contained).
+- Go to Workspace… (⌘P, #105) is `openWorkspaceSwitcher(_:)`. The dropdown records at `open` whether
+  it hangs from the button (`isAnchoredToButton`, i.e. `showsTitlebarSwitcher`) or sits at the deck
+  area's top center; only an anchored one closes when the button hides. Its `field`'s editor is
+  first responder while open (`fieldHasFocus`), so the keys arrive through the delegate's
+  `control(_:textView:doCommandBy:)`, never the dropdown's `keyDown`; `close` hands focus back
+  before the field leaves the window. Filtering happens in `reload` (`matches(in:)`), so every
+  refresh keeps the query; its width only grows while open (`openWidth`), so typing never narrows
+  it. `lastActiveWorkspace` (TerminalWindowController, weak, set by `activeWorkspace`'s `didSet`)
+  is the empty query's starting row.
+- Tests: `SelfTestTitlebarSwitcher.swift` (`DEALER_SELFTEST_ONLY=titlebar switcher:`, self-contained);
+  `SelfTestSwitcherSearch.swift` (`switcher search:`, self-contained) drives ⌘P, typing, ⌃N/⌃P, return
+  and esc as key events. AppKit's own key-equivalent matching is checked by pointing every keyed
+  item at a probe and calling `NSMenu.performKeyEquivalent`. A synthetic key event without ⌘ or ⌃
+  must not be offered to the main menu: AppKit's auto-added Emoji & Symbols item ("e" + fn) takes a
+  plain "e" there.
 
 ## Tab style (`TabShape.swift`, #84)
 
