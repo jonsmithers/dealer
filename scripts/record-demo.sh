@@ -10,7 +10,7 @@
 #   scripts/record-demo.sh <out-dir> --publish <media-worktree>    # copy reviewed files to `media`
 #
 # Recording needs an unlocked screen and Screen Recording permission for the app running this
-# script (Terminal, Ghostty, …). It runs `.build/debug/Dealer`, so `swift build` first. The demo
+# script (Terminal, Ghostty, …). It builds and runs `.build/debug/Dealer`. The demo
 # window floats over everything while it records; don't use the machine meanwhile.
 #
 # --encode-only redoes the MP4s and contact sheets from the raw captures already in <out-dir>
@@ -30,7 +30,7 @@ ALL=(${(f)"$(sed -n 's/^        case "\([A-Za-z0-9_-]*\)":.*/\1/p' $ROOT/Sources
 if (( ! $# )); then
   print "usage: $0 <out-dir> [demo…] | <out-dir> --encode-only [demo…] | <out-dir> --publish <media-worktree>"
   print "demos: $ALL"
-  print "record all of them (swift build first; hands off the machine while it runs):"
+  print "record all of them (hands off the machine while it runs):"
   print "  $0 /tmp/dealer-demos"
   exit 0
 fi
@@ -110,7 +110,9 @@ fi
 
 DEMOS=($@); check_demos $DEMOS; (( $#DEMOS )) || DEMOS=($ALL)
 BIN=$ROOT/.build/debug/Dealer
-[[ -x $BIN ]] || { print "build first: swift build"; exit 1; }
+# Build here, so a take never shows a stale binary (incremental: seconds when nothing changed).
+program_status working "Demos: building" "swift build"
+(cd $ROOT && swift build 2>&1 | tail -1) || { print "swift build failed"; exit 1; }
 DEMO_DIR=/tmp/demo
 program_status working "Demos: setting up" "${(j:, :)DEMOS}"
 
@@ -191,18 +193,22 @@ chmod +x .bin/claude
 cd $ROOT
 
 # Bounds (points, top-left origin) of our own Dealer window, by PID, plus the display scale.
+# Bounds (points, top-left origin) of the demo's window, by the number it logs (`DEMO WINDOW`),
+# plus the display scale; nothing if it isn't on screen. By number, not by owner and size: an
+# off-screen 500x500 window of the app once came first, and the tour recorded the user's own
+# screen under it. Recompiled whenever this source changes, so a stale helper in a reused out-dir
+# can't outlive a fix.
 BOUNDS=$OUT/.bounds
-[[ -x $BOUNDS ]] || { print -r -- 'import CoreGraphics
-let pid = Int(CommandLine.arguments[1])!
-for w in CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as! [[String: Any]]
-where (w[kCGWindowOwnerPID as String] as? Int) == pid && (w[kCGWindowLayer as String] as? Int ?? -1) >= 0 {
-  // The demo window floats (layer > 0); skip small helper windows, and the menu bar, which is
-  // the app's own full-width window once it's frontmost (the focus step below made the tour
-  // record the menu bar instead of the demo).
+BOUNDS_SRC='import CoreGraphics
+let number = Int(CommandLine.arguments[1])!
+for w in CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as! [[String: Any]]
+where (w[kCGWindowNumber as String] as? Int) == number {
   let b = w[kCGWindowBounds as String] as! [String: Double]
-  guard b["Width"]! > 300, b["Height"]! > 300 else { continue }
   let d = CGMainDisplayID(), scale = CGDisplayCopyDisplayMode(d)!.pixelWidth / Int(CGDisplayBounds(d).width)
-  print(Int(b["X"]!), Int(b["Y"]!), Int(b["Width"]!), Int(b["Height"]!), scale); break }' > $OUT/.bounds.swift && swiftc -O $OUT/.bounds.swift -o $BOUNDS; }
+  print(Int(b["X"]!), Int(b["Y"]!), Int(b["Width"]!), Int(b["Height"]!), scale) }'
+if [[ ! -x $BOUNDS || $(<$OUT/.bounds.swift 2>/dev/null) != $BOUNDS_SRC ]]; then
+  print -r -- $BOUNDS_SRC > $OUT/.bounds.swift && swiftc -O $OUT/.bounds.swift -o $BOUNDS
+fi
 
 # Record the screen region under the window with ffmpeg/avfoundation: unlike `screencapture -v -l`,
 # it leaves out the real pointer (the demo draws its own), and macOS doesn't swap the traffic
@@ -216,11 +222,19 @@ for demo in $DEMOS; do
   program_status working "Demos: recording $demo" "demo $(( ${DEMOS[(i)$demo]} )) of $#DEMOS; hands off the machine" $(( 100 * (${DEMOS[(i)$demo]} - 1) / $#DEMOS ))
   DEALER_SELFTEST=1 DEALER_DEMO=$demo DEALER_DEMO_DIR=$DEMO_DIR $BIN > $OUT/$demo.log 2>&1 &
   PID=$!  # killed by the EXIT trap if the script stops early
-  sleep 1.5
-  # Focus the window so macOS renders its active appearance (traffic lights, vibrancy).
+  # Wait for the demo to name its window (no guessed delay), then focus it so macOS renders its
+  # active appearance (traffic lights, vibrancy).
+  for _ in {1..100}; do grep -q "^DEMO WINDOW" $OUT/$demo.log 2>/dev/null && break; kill -0 $PID 2>/dev/null || break; sleep 0.1; done
+  WIN=($(sed -n 's/^DEMO WINDOW \([0-9]*\) \([0-9]*x[0-9]*\)$/\1 \2/p' $OUT/$demo.log))
+  (( $#WIN == 2 && WIN[1] != 0 )) || { print "$demo: the demo never logged its window (see $OUT/$demo.log)"; exit 1; }
   osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $PID) to true" 2>/dev/null || true
-  B=($($BOUNDS $PID)); SCALE=${B[5]}
-  (( $#B == 5 )) || { print "no Dealer window found"; exit 1; }
+  # Privacy: record only a region exactly the window's size. Its bounds can read a little larger
+  # while it settles (a 2pt-wider take showed a sliver of the screen behind it), so wait for them.
+  for _ in {1..50}; do
+    B=($($BOUNDS $WIN[1])); (( $#B == 5 )) && [[ ${B[3]}x${B[4]} == $WIN[2] ]] && break; sleep 0.1
+  done
+  [[ $#B == 5 && ${B[3]}x${B[4]} == $WIN[2] ]] || { print "$demo: window ${WIN[1]} on screen as '${B[1,4]}', not ${WIN[2]}; not recording"; exit 1; }
+  SCALE=${B[5]}
   CROP="$((B[3]*SCALE)):$((B[4]*SCALE)):$((B[1]*SCALE)):$((B[2]*SCALE))"
   ffmpeg -v error -y -f avfoundation -pixel_format bgr0 -capture_cursor 0 -framerate 30 -t 150 -i "$SCREEN:none" \
     -vf "crop=$CROP" -c:v libx264 -crf 16 -pix_fmt yuv420p $OUT/$demo-raw.mp4 2>/dev/null &

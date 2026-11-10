@@ -132,7 +132,7 @@ The GitHub repo is `jonsmithers/dealer`.
   Ghostty also reads `~/Library/Application Support/com.mitchellh.ghostty/config`, which XDG
   doesn't redirect and which loads after it; check that it has no color settings.
 - **README demo recordings (#26, #28, #98).** Regenerate after any visual change:
-  `swift build && scripts/record-demo.sh <out-dir>` records every demo (or name some: `tour
+  `scripts/record-demo.sh <out-dir>` (it runs `swift build` itself) records every demo (or name some: `tour
   drag`; with no arguments it lists the demos, the `case`s of `Demo.swift`'s script switch). The `tour` (#98, the user's call) shows the niceties in one realistic flow without
   naming them: captions say what the user does ("Put an agent on the flaky test"), never the
   feature ("Layout motion", "stacked marks"). Keep new beats that way. Prerequisites: an unlocked screen, Screen Recording permission for the
@@ -151,8 +151,8 @@ The GitHub repo is `jonsmithers/dealer`.
   (a `<video>` tag or a link to the media branch is stripped or shown as a link). So after
   publishing, the user uploads each `<demo>.mp4` to a comment on **issue #79, always** (closed;
   every demo upload goes there, the user's call), with `gh issue comment 79 -R jonsmithers/dealer
-  --body "Demo videos" --attach <demo>.mp4 …` (agents can't attach), and the README's URL for
-  that demo is replaced. Never upload to the feature's own issue.
+  --body "Demo videos" --attach <demo>.mp4 …` (`--publish` prints it; gh ≥ 2.103 attaches, so an
+  agent can run it once the user OKs posting), and the README's URL for that demo is replaced. Never upload to the feature's own issue.
   - How it works: `DEALER_SELFTEST=1 DEALER_DEMO=<name>` runs a script in `Demo.swift`.
     `DemoMouse` posts real mouse events (`window.postEvent`) along eased paths at 60 Hz, so
     DragController's tracking loop, buttons and rows handle them as they would a person's, and
@@ -162,6 +162,10 @@ The GitHub repo is `jonsmithers/dealer`.
   - Targets are found by identity (the pane titled X, its tab button or bar, the sidebar row for
     workspace Y, a fraction of a view's bounds, the deck area's edge), never pixel coordinates, so
     restyles don't break the scripts. Add new beats the same way.
+  - The recorder crops to the demo's own window, found by the number it logs (`DEMO WINDOW <n>
+    <w>x<h>`), and records only once that window's on-screen bounds have exactly that size; a black
+    backdrop window (`Demo.backdrop`) sits behind it so the rounded corners show no screen. (Picking
+    the window by owner and size once recorded the user's screen through an off-screen window.)
   - The recorder (ffmpeg/avfoundation on the window's screen region, without the real pointer) stops
     when the demo prints `DEMO DONE`, *before* the app exits: a frame after the window closes would
     show the user's screen. `screencapture -v -l` isn't used because it records the real pointer

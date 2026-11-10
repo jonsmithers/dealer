@@ -17,6 +17,9 @@ enum Demo {
     static var name: String? { SelfTest.enabled ? SelfTest.env("DEMO") : nil }
     /// The running demo's pointer driver.
     static var mouse: DemoMouse?
+    /// A plain window behind the demo's: the capture is the window's bounding rectangle, so its
+    /// rounded corners would otherwise show bits of the user's screen.
+    static var backdrop: NSWindow?
     static var directory: String { SelfTest.env("DEMO_DIR") ?? "/tmp/demo" }
     /// Demos are recorded with top-edge tab strips in the titlebar row (`[window] tabs_in_titlebar`,
     /// #16), written to the demo's temp settings file. Flip this one switch to record in-deck strips.
@@ -412,7 +415,23 @@ extension TerminalWindowController {
         // Recorded as a screen region (no real cursor, no capture badge), so nothing may cover it.
         window?.level = .floating
         window?.orderFrontRegardless()
+        if let window {
+            let backdrop = NSWindow(contentRect: window.frame.insetBy(dx: -24, dy: -24), styleMask: .borderless,
+                                    backing: .buffered, defer: false)
+            backdrop.isReleasedWhenClosed = false
+            backdrop.backgroundColor = .black
+            backdrop.ignoresMouseEvents = true
+            backdrop.level = .floating
+            backdrop.order(.below, relativeTo: window.windowNumber)
+            Demo.backdrop = backdrop
+        }
         layoutNow()
+        // record-demo.sh crops the capture to this window, found by number (guessing by owner
+        // and size once picked an off-screen window and recorded the user's screen instead), and
+        // records only once its on-screen bounds have exactly this size (a take read them while
+        // they were 2pt wider and showed a sliver of the screen behind).
+        let frame = window?.frame ?? .zero
+        print("DEMO WINDOW \(window?.windowNumber ?? 0) \(Int(frame.width))x\(Int(frame.height))"); fflush(stdout)
 
         let caption = DemoCaptionView()
         contentView.addSubview(caption)
