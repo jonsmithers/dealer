@@ -199,15 +199,15 @@ read it apart from ⌃R (with the kitty keyboard protocol) never see it.
 part of a pane's title, or of its tab's or workspace's name (the letters in order, not
 necessarily together); title matches come first. Each row shows the title, `workspace · tab`, the
 directory, the window when there's more than one, and the pane's attention dot or working spinner.
-↑/↓ and return pick a pane, which focuses it and brings its window, workspace and tab forward; esc
-or a click outside dismisses. With nothing typed it lists the panes you used most recently first,
+↑/↓ (or ⌃P/⌃N) and return pick a pane, which focuses it and brings its window, workspace and tab
+forward; esc (or ⌃[) or a click outside dismisses. With nothing typed it lists the panes you used most recently first,
 so ⌘⇧A ↩ goes back to the previous pane.
 
 **Go to Workspace** (⌘P, Workspace › Go to Workspace…) opens the window's workspace list with a
 search field: under the workspace name in the titlebar while the sidebar is hidden, else at the
 top of the window. Type part of a workspace's name or its group's (matched the same way); the
 list keeps the sidebar's order and the highlight goes to the best match. ↑/↓ or ⌃P/⌃N move it,
-↩ switches, esc or ⌘P again closes. With nothing typed it starts on the workspace you were in
+↩ switches, esc (or ⌃[) or ⌘P again closes. With nothing typed it starts on the workspace you were in
 before, so ⌘P ↩ goes back to it. Clicking the titlebar name opens the same list.
 
 Double-click a tab (or press ⌘⇧R) to rename it; middle-click or hover × to close it. A pane's bar (shown once a tab has two panes) has the same hover ×, which closes the pane like ⌘W.

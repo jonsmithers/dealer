@@ -548,6 +548,16 @@ final class TitlebarSwitcherMenu: FlippedView, ThemeApplying, NSTextFieldDelegat
 
     override func cancelOperation(_ sender: Any?) { close(restoreFocus: true) }
 
+    /// ⌃[ closes it like esc (#105), while the search field has the keys: the system key bindings
+    /// have nothing for it (`NSEvent.isControlBracketEscape`, PanePicker.swift).
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if isOpen, event.isControlBracketEscape, fieldHasFocus {
+            close(restoreFocus: true)
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+
     private func move(_ d: Int) {
         let pickable = rows.filter(\.isPickable)
         guard !pickable.isEmpty else { return }

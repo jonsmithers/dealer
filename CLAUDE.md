@@ -338,7 +338,10 @@ The GitHub repo is `jonsmithers/dealer`.
   + name, rows staying in sidebar order, a group header only with a matching member, New Workspace
   always last; the highlight goes to the best-ranked match (substring first, earliest in the
   list). ↑/↓ and ⌃P/⌃N (the field editor's `moveUp:`/`moveDown:` from the system key bindings,
-  as in Go to Pane) move it, return picks, esc closes and gives the keys back. An empty query
+  as in Go to Pane) move it, return picks, esc or ⌃[ closes and gives the keys back (⌃[ in Go to
+  Pane too: the key bindings have nothing for "^[", so both panels catch it in
+  `performKeyEquivalent` while their field has the keys, `NSEvent.isControlBracketEscape`; in a
+  pane it still goes to the terminal). An empty query
   starts on the window's previously active workspace (`lastActiveWorkspace`), so ⌘P ↩ toggles
   back. Promote is declared "P" + ⌘ (not "p" + ⌘⇧, which AppKit also matched against plain ⌘P).
   No "create a workspace named after the query" yet, and no search on top-bar pills. On the right, strips start after the toggle and end 8pt

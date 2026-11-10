@@ -15,6 +15,19 @@ extension TerminalWindowController {
     }
 }
 
+extension NSEvent {
+    /// ⌃[, the terminal's other esc (vim's): the search fields of Go to Pane and Go to Workspace
+    /// close on it as on esc (#105). The system key bindings map ESC to `cancelOperation:` but have
+    /// nothing for "^[", so a real press (keyCode 33, characters ESC, "[" ignoring modifiers) would
+    /// reach the field editor and do nothing; the panels catch it as a key equivalent instead, which
+    /// the window offers them before the field editor's keyDown. Matched on the ESC it types, so any
+    /// layout's ⌃[ counts.
+    var isControlBracketEscape: Bool {
+        type == .keyDown && characters == "\u{1B}"
+            && modifierFlags.intersection([.command, .control, .option, .shift]) == .control
+    }
+}
+
 /// One candidate: a pane and where it lives.
 struct PanePickerEntry {
     let pane: Pane
@@ -114,6 +127,15 @@ final class PanePicker: NSView, NSTextFieldDelegate {
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    /// ⌃[ closes it like esc (#105), while its field has the keys.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if isOpen, event.isControlBracketEscape, let editor = field.currentEditor(), window?.firstResponder === editor {
+            close(restoreFocus: true)
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
 
     // MARK: Open, close, pick
 

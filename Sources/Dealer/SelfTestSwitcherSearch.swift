@@ -88,6 +88,13 @@ extension TerminalWindowController {
         func up() { sendKey("\u{F700}", [.function, .numericPad], keyCode: kVK_UpArrow) }
         func ret() { sendKey("\r", keyCode: kVK_Return) }
         func esc(in c: TerminalWindowController? = nil) { sendKey("\u{1B}", keyCode: kVK_Escape, in: c) }
+        /// ⌃[ as the keyboard sends it: keyCode 33, ⌃, characters ESC, "[" ignoring modifiers.
+        func ctrlBracketEvent(_ w: NSWindow) -> NSEvent? {
+            NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .control, timestamp: ProcessInfo.processInfo.systemUptime,
+                             windowNumber: w.windowNumber, context: nil, characters: "\u{1B}", charactersIgnoringModifiers: "[",
+                             isARepeat: false, keyCode: UInt16(kVK_ANSI_LeftBracket))
+        }
+        func ctrlBracket() { sendKey("\u{1B}", ignoring: "[", .control, keyCode: kVK_ANSI_LeftBracket) }
 
         /// A menu key press from whatever has the keys in `c`'s window (a pane, or the search field),
         /// like `pressMenuKeyForTest` but without moving focus: the window (SurfaceView asks the main
@@ -375,6 +382,68 @@ extension TerminalWindowController {
                           want("the selection after ⌃N ⌃N", afterN, 2), want("the selection after ⌃P", afterP, 1),
                           picker.isOpen ? "esc should close Go to Pane" : nil)
             picker.close(restoreFocus: false)
+        }
+
+        // ⌃[ is esc for vim users (#105 follow-up). The system key bindings map ESC ("\u{1B}") to
+        // cancelOperation: but have nothing for "^[", so the overlays catch it as a key equivalent.
+        t.step("switcher search: ⌃[ closes the dropdown like esc, opened by ⌘P or by a click, and gives the keys back to the pane", nil, { problem }) {
+            self.sidebarPreference = false
+            self.layoutNow()
+            let before = self.activeWorkspace
+            var p: [String?] = [cmdPFromPane()]
+            typeText("beta")
+            ctrlBracket()
+            p += [menu.isOpen ? "⌃[ after ⌘P should close the dropdown (the field holds \(menu.query.debugDescription))" : nil,
+                  focusedOnPane(), active(before)]
+            menu.close(restoreFocus: false)
+            self.clickForTest(button)
+            p.append(menu.isOpen && menu.fieldHasFocus ? nil : "a click should open the dropdown with the field focused")
+            ctrlBracket()
+            p += [menu.isOpen ? "⌃[ after a click should close the dropdown" : nil, button.isOpen ? "the button should no longer draw open" : nil,
+                  focusedOnPane(), active(before)]
+            menu.close(restoreFocus: false)
+            problem = all(p.compactMap { $0 }.isEmpty ? nil : p.compactMap { $0 }.joined(separator: "; "))
+        }
+        t.step("switcher search: ⌃[ closes Go to Pane like esc", nil, { problem }) {
+            let picker = PanePicker.shared
+            guard let pane = self.focusedPane else { problem = "no focused pane"; return }
+            let opened = self.pressMenuKeyForTest("a", [.command, .shift], keyCode: kVK_ANSI_A, surface: pane.surface)
+            let focused = picker.field.currentEditor() != nil
+            typeText("zq")
+            ctrlBracket()
+            problem = all(opened ? nil : "⇧⌘A should open Go to Pane (\(Self.menuKeyFailure))",
+                          focused ? nil : "Go to Pane's field should have had the keys",
+                          picker.isOpen ? "⌃[ should close Go to Pane (the field holds \(picker.query.debugDescription))" : nil,
+                          self.window?.firstResponder === pane.surface ? nil : "focus should be back on the pane")
+            picker.close(restoreFocus: false)
+        }
+        // In a pane ⌃[ belongs to the program (vim). No real shell reads it here, so this checks that
+        // nothing on the way takes it: no menu item (AppKit's own matching, through the probe), not
+        // the closed dropdown or Go to Pane, and SurfaceView hands it to the terminal's keyDown.
+        t.step("switcher search: in a pane, no menu item or switcher code takes ⌃[, so the terminal gets it", nil, { problem }) {
+            final class Probe: NSObject {
+                var got: [String] = []
+                @objc func probe(_ sender: NSMenuItem) { got.append(sender.title) }
+            }
+            guard let w = self.window, let e = ctrlBracketEvent(w), let pane = self.focusedPane else { problem = "no window, event or pane"; return }
+            let probe = Probe()
+            let items = Self.keyedMenuItems()
+            let saved = items.map { ($0, $0.action, $0.target) }
+            items.forEach { $0.action = #selector(Probe.probe(_:)); $0.target = probe }
+            let menuTook = SurfaceView.performMenuKeyEquivalent(e)
+            saved.forEach { $0.0.action = $0.1; $0.0.target = $0.2 }
+            w.makeFirstResponder(pane.surface)
+            let overlays = menu.performKeyEquivalent(with: e) || PanePicker.shared.performKeyEquivalent(with: e)
+            // With a live surface SurfaceView takes ⌃ combos for the terminal (its keyDown); on a
+            // locked screen there is no surface, and it declines them all.
+            let live = pane.surface.surface != nil
+            let surfaceTook = live ? pane.surface.performKeyEquivalent(with: e) : true
+            problem = all(menuTook || !probe.got.isEmpty ? "the main menu takes ⌃[: \(probe.got)" : nil,
+                          overlays ? "the closed dropdown or Go to Pane takes ⌃[" : nil,
+                          surfaceTook ? nil : "SurfaceView should hand ⌃[ to the terminal",
+                          menu.isOpen || PanePicker.shared.isOpen ? "nothing should have opened" : nil,
+                          w.firstResponder === pane.surface ? nil : "the pane should keep the keys")
+            if !live { print("    (skipped the terminal half: no ghostty surface, screen locked?)") }
         }
 
         t.step("switcher search: cleanup", nil, {

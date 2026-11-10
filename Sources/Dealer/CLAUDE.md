@@ -182,7 +182,9 @@
   it hangs from the button (`isAnchoredToButton`, i.e. `showsTitlebarSwitcher`) or sits at the deck
   area's top center; only an anchored one closes when the button hides. Its `field`'s editor is
   first responder while open (`fieldHasFocus`), so the keys arrive through the delegate's
-  `control(_:textView:doCommandBy:)`, never the dropdown's `keyDown`; `close` hands focus back
+  `control(_:textView:doCommandBy:)`, never the dropdown's `keyDown`, except ⌃[, which the key
+  bindings don't map: the dropdown and Go to Pane take it in `performKeyEquivalent` (the window
+  offers it there before the field editor's keyDown); `close` hands focus back
   before the field leaves the window. Filtering happens in `reload` (`matches(in:)`), so every
   refresh keeps the query; its width only grows while open (`openWidth`), so typing never narrows
   it. `lastActiveWorkspace` (TerminalWindowController, weak, set by `activeWorkspace`'s `didSet`)
