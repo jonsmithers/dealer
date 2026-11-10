@@ -372,6 +372,7 @@ extension TerminalWindowController {
         occlusionSelfTestSteps(kit)
         notificationLogSelfTestSteps(kit)
         presenceSelfTestSteps(kit)
+        markForLaterSelfTestSteps(kit)
         notifyRemoveSelfTestSteps(kit)
         auditBugsSelfTestSteps(kit)
         tabFocusSelfTestSteps(kit)

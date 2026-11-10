@@ -562,7 +562,12 @@
   chrome and posts the macOS notification; don't assign `pane.attention` elsewhere.
 - Automatic sources (bell, OSC 9/99/777, long `COMMAND_FINISHED`) pass `raiseOnly: true` so they
   never downgrade `waiting`; explicit `dealer notify` sets the state exactly (including `none`).
-  A non-`none` state is dropped when the user is already looking at the pane (`isLookingAt`).
+  A non-`none` state is dropped when the user is already looking at the pane (`isLookingAt`),
+  except with `hold:` (Mark for Later ⌥⌘U, `dealer notify --hold`; `SelfTestMarkForLater.swift`,
+  `mark for later:`, self-contained). On the focused pane that sets `Pane.attentionHeld`: re-focus,
+  `windowDidBecomeKey` and unlock (`clearUnlessHeld`) keep the mark and ⌘⇧U skips it while you're
+  on it; `didFocus` on any other pane of the window lets go, so coming back clears it. A clear drops
+  the hold. The Claude hooks' `notify` calls never hold: a turn ending in front of you stays unmarked.
 - Tab/deck/workspace attention is computed (max over children), never stored; badges pick it up
   from `refreshChrome()`. The ring is a sublayer named `dealer.attentionRing`, and the self-test
   finds it by that name.

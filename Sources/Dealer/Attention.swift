@@ -93,17 +93,21 @@ extension TerminalWindowController {
     /// "waiting" to "unread"); explicit `dealer notify` calls set the state exactly.
     /// `event` names the source in the notification log (#56): `bell`, `notify`, `claude:stop`, ….
     /// `subtitle` replaces the notification's default second line, the pane's title.
-    func setAttention(_ a: Attention, on pane: Pane, raiseOnly: Bool = false, title: String? = nil, subtitle: String? = nil,
-                      body: String? = nil, event: String = "attention") {
+    /// `hold` (Mark for Later, `dealer notify --hold`) sets it even while the user is looking, and on
+    /// the focused pane keeps it until focus has left the pane (`Pane.attentionHeld`).
+    func setAttention(_ a: Attention, on pane: Pane, raiseOnly: Bool = false, hold: Bool = false, title: String? = nil,
+                      subtitle: String? = nil, body: String? = nil, event: String = "attention") {
         func skipped(_ why: String) {
             NotificationLog.decision(pane: pane, event: event, outcome: "attention:skipped",
                                      reason: "wanted \(a.name): \(why); no notification", title: title, body: body)
         }
         guard locate(pane) != nil else { return skipped("the pane isn't in this window") }
-        if a != .none && isLookingAt(pane) {
+        if a != .none && !hold && isLookingAt(pane) {
             return skipped("you're looking at it (focused pane, \(NotificationLog.context(self)))")
         }
         let new = raiseOnly ? max(pane.attention, a) : a
+        // Before the guard below: holding a mark the pane already has still holds it.
+        if hold && new != .none && pane === focusedPane { pane.attentionHeld = true }
         guard new != pane.attention else {
             return skipped(new == a ? "already \(a.name)"
                            : "already \(pane.attention.name), which outranks it (this source only raises)")
@@ -128,11 +132,12 @@ extension TerminalWindowController {
     }
 
     /// The next pane needing attention after the focused one, across all windows.
-    /// Higher states win; ties go in reading order, wrapping around.
+    /// Higher states win; ties go in reading order, wrapping around. The focused pane's own held
+    /// mark (Mark for Later) doesn't count: it's for later, and jumping to it would clear it.
     static func nextUnread(after current: Pane?) -> (TerminalWindowController, Pane)? {
         let all = Pane.all
         let start = all.firstIndex { $0.1 === current }.map { $0 + 1 } ?? 0
-        let rotated = Array(all[start...] + all[..<start])
+        let rotated = Array(all[start...] + all[..<start]).filter { !($0.1 === current && $0.1.attentionHeld) }
         guard let top = rotated.map(\.1.attention).max(), top > .none else { return nil }
         return rotated.first { $0.1.attention == top && $0.1 !== current }
             ?? rotated.first { $0.1.attention == top }
@@ -181,7 +186,22 @@ extension TerminalWindowController {
         // Always true in a real run; a self-test run without an override counts its window as
         // never key (Presence.selfTestFacts, #100), so AppKit activating it can't clear a mark.
         guard Presence.isKey(window) else { return }
-        if let p = focusedPane { clearAttention(p, cause: "window-became-key") }
+        if let p = focusedPane { clearUnlessHeld(p, cause: "window-became-key") }
+    }
+
+    /// Mark for Later (⌥⌘U): marks the focused pane *done* while you look at it, held until focus
+    /// has left it and comes back (`Pane.attentionHeld`), so ⌘⇧U leads back to it.
+    @objc func markForLater(_ sender: Any?) {
+        guard let pane = focusedPane else { return NSSound.beep() }
+        setAttention(.done, on: pane, raiseOnly: true, hold: true, title: "Marked for later", event: "mark-for-later")
+    }
+
+    /// Clears the focused pane's mark on the user's return (window key, screen unlocked), except a
+    /// held one, which waits until focus leaves the pane.
+    func clearUnlessHeld(_ pane: Pane, cause: String) {
+        guard pane.attentionHeld else { return clearAttention(pane, cause: cause) }
+        NotificationLog.decision(pane: pane, event: cause, outcome: "attention:kept",
+                                 reason: "\(pane.attention.name) kept: held (marked for later) until focus leaves the pane")
     }
 }
 

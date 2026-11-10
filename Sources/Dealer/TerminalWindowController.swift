@@ -752,7 +752,15 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         // (Presence.swift, #71). A focus moved while they're away (a pane closing, `dealer focus`, a
         // re-focus after a background change) keeps the mark; windowDidBecomeKey or the screen
         // unlocking clears it, with the fade, when they come back.
-        if (changed && (userPresent() || Presence.focusCountsAsSeen)) || isLookingAt(pane) {
+        // A held mark (Mark for Later) lasts while the pane keeps the focus; focus anywhere else in
+        // the window lets go of it, so coming back clears it.
+        for p in allPanes where p.attentionHeld && p !== pane { p.attentionHeld = false }
+        if pane.attentionHeld {
+            if pane.attention != .none {
+                NotificationLog.decision(pane: pane, event: "focus", outcome: "attention:kept",
+                                         reason: "\(pane.attention.name) kept: held (marked for later) until focus leaves the pane")
+            }
+        } else if (changed && (userPresent() || Presence.focusCountsAsSeen)) || isLookingAt(pane) {
             if pane.attention != .none {
                 NotificationLog.decision(pane: pane, event: NotificationLog.clearCause ?? "focus", outcome: "attention:cleared",
                                          reason: "\(pane.attention.name) → none (\(changed ? "focus moved to the pane" : "re-focused while you were looking"); \(NotificationLog.context(self)))")
@@ -1249,6 +1257,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     @objc func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
         case #selector(foldDeck(_:)): return decks.count > 1
+        case #selector(markForLater(_:)): return focusedPane != nil
         case #selector(promoteToDeck(_:)):
             guard let node = selection ?? focusedPane.flatMap({ locate($0)?.node }), let loc = node.leaves.first.flatMap({ locate($0) }) else { return false }
             return node !== loc.tab.root || loc.deck.tabs.count > 1

@@ -388,7 +388,8 @@ The GitHub repo is `jonsmithers/dealer`.
   most its *position* glides. Which changes animate is one list, `LayoutChange.animates`
   (LayoutAnimation.swift); drops don't (the settle is their motion). On by default,
   `[window] animate_layout`; Reduce Motion skips it.
-- Coding-agent keys: ⌘⇧U Jump to Next Unread, ⌥⌘A New Agent Pane, ⌥⇧⌘A New Agent Pane in
+- Coding-agent keys: ⌘⇧U Jump to Next Unread, ⌥⌘U Mark for Later (sets *done*, not *unread*, so it
+  gets done's outline; "Mark as Done" would read as dismissing it; the user's call), ⌥⌘A New Agent Pane, ⌥⇧⌘A New Agent Pane in
   Worktree, ⌘⇧A Go to Pane (#66, `PanePicker.swift`: picks focus through `reveal`, like ⌘⇧U; its
   key is an uppercase "A" so plain ⌘A stays Select All). The agent command comes from `DEALER_AGENT_COMMAND`, then `[agent] command` in
   settings.toml, then the legacy `agentCommand` user default, then `claude`. It is *typed* into the new pane's shell (not the

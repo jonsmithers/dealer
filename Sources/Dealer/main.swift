@@ -232,6 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item("Next Tab", #selector(TerminalWindowController.nextTab(_:)), "]", [.command, .shift]),
             item("Previous Tab", #selector(TerminalWindowController.previousTab(_:)), "[", [.command, .shift]),
             item("Jump to Next Unread", #selector(TerminalWindowController.jumpToNextUnread(_:)), "u", [.command, .shift]),
+            item("Mark for Later", #selector(TerminalWindowController.markForLater(_:)), "u", [.command, .option]),
             .separator(),
         ]
         for n in 1...9 {

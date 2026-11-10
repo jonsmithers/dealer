@@ -40,7 +40,9 @@ enum CLI {
       resize [-t T] [--axis width|height] (--to 0.3|30% | --by +5|-3|+10%)
       rename [-t T] [--tab | --workspace] [TITLE]  empty title follows the terminal again
       color [-t T] [--tab | --workspace] COLOR|none  swatch name or number, or #rrggbb
-      notify [-t T] [--state unread|done|waiting|failed|none] [--title T] [--body B]
+      notify [-t T] [--state unread|done|waiting|failed|none] [--hold] [--title T] [--body B]
+                                                 --hold: mark it even while you look at it, until
+                                                 you leave the pane and come back
       status [-t T] idle|working|done|blocked|error|clear [--id ID] [--kind permission|question|auth]
              [--progress N] [--app NAME] [--title T] [--msg M]
                                                  set a program status record, as OSC 7501 would
@@ -147,7 +149,7 @@ enum CLI {
             "resize": target.union(["--axis", "--to", "--by", "--increment"]),
             "rename": target.union(["--tab", "--workspace", "--pane"]),
             "color": target.union(["--tab", "--workspace", "--pane"]),
-            "notify": target.union(["--state", "--title", "--body", "--internal-log-source"]),
+            "notify": target.union(["--state", "--hold", "--title", "--body", "--internal-log-source"]),
             "status": target.union(["--id", "--kind", "--progress", "--app", "--title", "--msg"]),
             "close": target,
             "run": target.union(focus).union(["--here", "--split", "--tab", "--size", "--bias", "--keep", "--quiet",
@@ -242,6 +244,7 @@ enum CLI {
             case "--workspace": a["level"] = "workspace"
             case "--pane": a["level"] = "pane"
             case "--state": a["state"] = try val()
+            case "--hold": a["hold"] = true
             case "--body": a["body"] = try val()
             case "--id": a["id"] = try val()
             case "--kind": a["kind"] = try val()

@@ -183,6 +183,7 @@ final class Pane {
     /// Every clear passes here, so this is where the pane's banner is withdrawn (#78).
     var attention: Attention = .none {
         didSet {
+            if attention == .none { attentionHeld = false }
             if attention == .none, oldValue != .none {
                 AttentionNotifier.shared.withdraw(self, event: NotificationLog.clearCause ?? "attention-cleared")
                 // Seen: OSC 7501's done and error records are dismissed with the mark (#89).
@@ -191,6 +192,10 @@ final class Pane {
             }
         }
     }
+    /// A mark set on the focused pane on purpose (Mark for Later, `dealer notify --hold`): looking at
+    /// the pane doesn't clear it (re-focus, the window becoming key, the screen unlocking) until focus
+    /// has left the pane; arriving back then clears it as usual. Dropped with the mark.
+    var attentionHeld = false
     /// The program is reporting progress (OSC 9;4), e.g. an agent working. See AgentStatus.swift.
     var isReportingProgress = false
     /// The percentage of a determinate report (OSC 9;4;1;N), nil for indeterminate ones (#81).

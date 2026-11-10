@@ -57,7 +57,7 @@ enum Presence {
     /// key (`windowDidBecomeKey`), with the same fade. The window usually stayed key while locked.
     static func screenUnlocked() {
         for wc in AppDelegate.shared.windowControllers where wc.userPresent() {
-            if let p = wc.focusedPane { wc.clearAttention(p, cause: "screen-unlocked") }
+            if let p = wc.focusedPane { wc.clearUnlessHeld(p, cause: "screen-unlocked") }
         }
     }
 }

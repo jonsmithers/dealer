@@ -302,7 +302,9 @@ on dark ghostty themes and a deeper one on light themes, and so is the red. Focu
 clears all of it. A tab or workspace's outline shows its most urgent pane: failed, then waiting,
 then done, then unread. Its dots stack, one per pane that wants you (up to three, overlapping, the
 most urgent in front), so you can count them at a glance; a top-bar pill shows only the most urgent. **⌘⇧U** (Window > Jump to Next Unread) goes to the most urgent pane in any window,
-in the same order. When Dealer isn't the active app, or the screen is locked, a mark also posts a
+in the same order. **⌥⌘U** (Window > Mark for Later) marks the pane you're in *done* to come back to:
+the mark stays while you're on the pane (⌘⇧U skips it there), and clears the next time you come
+back to it from another pane or workspace. When Dealer isn't the active app, or the screen is locked, a mark also posts a
 macOS notification (bundled app only), and clicking it focuses the pane. While Dealer is in front,
 the marks alone carry it, in every window. When the mark clears, or the pane closes, its
 notification is removed from Notification Center.
@@ -316,7 +318,7 @@ immediately. With macOS **Reduce Motion** on, there's no fade (the hold stays).
 |---|---|---|---|
 | **failed** | a `dealer run` job exits non-zero; a Claude turn ends in an API error (`[agent] errors_as_failed`, default on); a shell command exits non-zero (`[attention] failed_commands`, default on); `dealer notify --state failed` | red outline | not configurable |
 | **waiting** | a Claude permission prompt, question or plan approval; an MCP server asking for input; `dealer notify --state waiting` | blue outline | not configurable |
-| **done** | Claude finishes a turn; a `dealer run` job succeeds (marks the job pane, which lingers before it closes; never your own pane); `dealer notify --state done` | blue outline | `done = "outline"` (default) or `"dot"` |
+| **done** | Claude finishes a turn; a `dealer run` job succeeds (marks the job pane, which lingers before it closes; never your own pane); ⌥⌘U Mark for Later; `dealer notify --state done` | blue outline | `done = "outline"` (default) or `"dot"` |
 | **unread** | the bell; a desktop notification (OSC 9, 99 or 777) from any program; a shell command that succeeded after running 10 s or more; `dealer notify` with no `--state` | grey dot | `unread = "dot"` (default) or `"outline"` |
 
 Most urgent first: failed > waiting > done > unread, whatever the looks.

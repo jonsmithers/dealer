@@ -784,7 +784,8 @@ enum ControlHandler {
         let state = args["state"] as? String ?? "unread"
         let title = args["title"] as? String
         let body = args["body"] as? String
-        try ControlNotify.post(pane: pane, in: loc.wc, state: state, title: title, body: body, event: notifyEvent(args))
+        try ControlNotify.post(pane: pane, in: loc.wc, state: state, hold: args["hold"] as? Bool ?? false, title: title, body: body,
+                               event: notifyEvent(args))
         return ["pane": pane.id]
     }
 
