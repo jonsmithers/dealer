@@ -58,6 +58,13 @@ extension TerminalWindowController {
         /// pane bar's right end, the 1pt gap between the two panes.
         func chromePixels(alpha a: CGFloat) -> String? {
             guard let dv = deckView() else { return "test tab is gone" }
+            // The glass view is the window server's: an offscreen render draws a regular glass
+            // opaque (a clear one blank), under the chrome fill. Leave it out of the samples, which
+            // are about what the chrome itself draws.
+            let glassView = contentView.backdrop.glassView
+            let glassWasHidden = glassView?.isHidden ?? false
+            glassView?.isHidden = true
+            defer { glassView?.isHidden = glassWasHidden }
             func at(_ c: NSColor) -> NSColor { c.withAlphaComponent(c.alphaComponent * a) }
             var p: [String?] = []
             // Tabs are the exception: fully opaque at any opacity (#67 follow-up), with a solid
