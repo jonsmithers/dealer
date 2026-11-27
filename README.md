@@ -14,7 +14,7 @@ long-running jobs.
 - **Attention**: see each agent's state live (working, waiting, done) and jump to the pane
   that needs you.
 
-https://github.com/user-attachments/assets/f7a6922c-6270-473a-9666-41fdd1dc62a3
+https://github.com/user-attachments/assets/9f388d81-f965-4161-8b03-e86602f7e70c
 
 ## Features overview
 
