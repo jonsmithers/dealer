@@ -38,6 +38,8 @@ final class WorkspaceSidebarView: FlippedView, ThemeApplying, SwitcherDragHost {
 
     /// The row for workspace `i`, for tests (clicked through `window.sendEvent`) and drop targets.
     func row(at i: Int) -> NSView? { rows.indices.contains(i) ? rows[i] : nil }
+    /// The row for `ws` (a close confirmation hangs beside it, ConfirmPopover.swift).
+    func row(for ws: Workspace) -> WorkspaceRow? { rows.first { $0.workspace === ws } }
 
     /// The header of group `g` (#80), for tests.
     func header(for g: WorkspaceGroup) -> GroupHeaderView? { headers.first { $0.group === g } }

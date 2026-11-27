@@ -102,7 +102,8 @@ extension TerminalWindowController {
     /// Closes a workspace and every terminal in it, asking first if something is still running.
     func close(workspace ws: Workspace) {
         if ws.panes.contains(where: { $0.surface.needsConfirmQuit }) {
-            confirm("Close this workspace?", info: "A process is still running in one of its panes.") { [weak self, weak ws] in
+            confirm("Close this workspace?", info: Self.stillRunning(ws.panes, fallback: "A process is still running in one of its panes."),
+                    accept: "Close Workspace", anchor: confirmAnchor(workspace: ws)) { [weak self, weak ws] in
                 guard let self, let ws else { return }
                 self.remove(workspace: ws)
             }

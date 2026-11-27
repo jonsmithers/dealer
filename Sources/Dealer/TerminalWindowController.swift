@@ -39,6 +39,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     /// dropdown (#96, TitlebarSwitcher.swift).
     let titlebarSwitcher = TitlebarSwitcherButton()
     let titlebarSwitcherMenu = TitlebarSwitcherMenu()
+    /// The close question showing now, hanging from what it would close (ConfirmPopover.swift).
+    var confirmPopover: ConfirmPopover?
     /// The coffee cup at the right of the titlebar row while the display is kept awake (#69).
     let caffeineIcon = CaffeineIconView()
     /// The user's explicit sidebar choice for this window; `nil` means automatic (shown with 2+
@@ -241,11 +243,22 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         return pane
     }
 
-    /// Asks in a sheet on this window; `otherwise` runs on Cancel. The self-test auto-accepts
-    /// (`Confirmation.skip`).
+    /// Asks in a popover hanging from `anchor` (what's being closed), else in a sheet on this
+    /// window; `otherwise` runs on Cancel (or a click outside the popover). A new question
+    /// cancels one still showing. The self-test auto-accepts (`Confirmation.skip`).
     func confirm(_ message: String, info: String, accept: String = "Close", cancel: String = "Cancel",
-                 then action: @escaping () -> Void, otherwise: (() -> Void)? = nil) {
+                 anchor: ConfirmAnchor? = nil, then action: @escaping () -> Void, otherwise: (() -> Void)? = nil) {
         guard let window, !Confirmation.skip(message, info) else { return action() }
+        if let anchor, anchor.view.window === window {
+            confirmPopover?.popover.close()
+            let p = ConfirmPopover(message: message, info: info, accept: accept, cancel: cancel,
+                                   action: action, otherwise: otherwise)
+            confirmPopover = p
+            p.show(at: anchor) { [weak self] closed in
+                if self?.confirmPopover === closed { self?.confirmPopover = nil }
+            }
+            return
+        }
         let alert = NSAlert()
         alert.messageText = message
         alert.informativeText = info
@@ -258,7 +271,10 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     func close(pane: Pane) {
         if pane.surface.needsConfirmQuit {
-            confirm("Close this pane?", info: "A process is still running in it.") { [weak self] in self?.remove(pane) }
+            confirm("Close this pane?", info: Self.stillRunning([pane], fallback: "A process is still running in it."),
+                    accept: "Close Pane", anchor: confirmAnchor(pane: pane)) { [weak self, weak pane] in
+                if let pane { self?.remove(pane) }
+            }
         } else {
             remove(pane)
         }
@@ -267,8 +283,9 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     /// Closes a tab, asking first when one of its panes is busy (menus, ⌘W).
     func close(tab: Tab) {
         if tab.panes.contains(where: { $0.surface.needsConfirmQuit }) {
-            confirm("Close this tab?", info: "A process is still running in one of its panes.") { [weak self] in
-                self?.remove(tab: tab)
+            confirm("Close this tab?", info: Self.stillRunning(tab.panes, fallback: "A process is still running in one of its panes."),
+                    accept: "Close Tab", anchor: confirmAnchor(tab: tab)) { [weak self, weak tab] in
+                if let tab { self?.remove(tab: tab) }
             }
         } else {
             remove(tab: tab)
@@ -836,6 +853,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         // it's freed; laying out then would put back the deck views `releaseViews` took out, and
         // their strips would read freed decks later (#69 hit this).
         guard !isClosed else { return }
+        defer { confirmPopover?.cancelIfAnchorGone() }
         let pass = animatesNextLayout ? LayoutAnimation.Pass(snapshot: .init(contentView)) : nil
         if let pass, let zoomRaised {
             pass.raised = zoomRaised
@@ -1283,6 +1301,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         isClosed = true
+        confirmPopover?.abandon()  // what it asked about goes with the window
         titlebarSwitcherMenu.close(restoreFocus: false)  // drops its event monitor (#96)
         releaseViews()
         onClose?(self)

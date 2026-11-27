@@ -49,15 +49,21 @@ enum SelfTest {
             return alert.isEmpty ? "\(type(of: w))" : "\"\(alert.joined(separator: " / "))\""
         }
         if let m = NSApp.modalWindow { return "app-modal window \(text(m))" }
+        if let p = openConfirmPopovers().first { return "close popover \"\(p.message)\"" }
         if let w = NSApp.windows.first(where: { $0.attachedSheet != nil }), let sheet = w.attachedSheet {
             return "sheet \(text(sheet)) on window \"\(w.title)\""
         }
         return nil
     }
 
+    static func openConfirmPopovers() -> [ConfirmPopover] {
+        NSApp.windows.compactMap { ($0.delegate as? TerminalWindowController)?.confirmPopover }.filter { $0.popover.isShown }
+    }
+
     /// Cancels whatever `openModal()` found, so one bad step doesn't fail the rest.
     static func dismissModals() {
         if NSApp.modalWindow != nil { NSApp.abortModal() }
+        openConfirmPopovers().forEach { $0.abandon() }
         for w in NSApp.windows { if let sheet = w.attachedSheet { w.endSheet(sheet, returnCode: .cancel) } }
     }
 
@@ -367,6 +373,7 @@ extension TerminalWindowController {
         ghosttyVersionSelfTestSteps(kit)
         ghosttyResourcesSelfTestSteps(kit)
         modalsSelfTestSteps(kit)
+        confirmPopoverSelfTestSteps(kit)
         memorySelfTestSteps(kit)
         hiddenBufferSelfTestSteps(kit)
         occlusionSelfTestSteps(kit)

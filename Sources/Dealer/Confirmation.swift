@@ -4,7 +4,9 @@ import AppKit
 /// in self-test mode) never show them: a sheet or modal alert left on screen swallows every later
 /// click and drag in the run, and stays up on the user's screen. They're accepted and logged.
 enum Confirmation {
-    static var autoAccept: Bool { SelfTest.enabled }
+    static var autoAccept: Bool { SelfTest.enabled && !asksForTest }
+    /// Self-test only: ask for real, so a step can check the close popover (SelfTestConfirmPopover).
+    static var asksForTest = false
     /// Confirmations accepted automatically in this process, oldest first (the self-test reads it).
     private(set) static var autoAccepted: [String] = []
 

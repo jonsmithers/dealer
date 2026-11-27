@@ -46,6 +46,8 @@ final class WorkspaceBarView: FlippedView, WorkspaceDropTargets, ThemeApplying, 
 
     /// The pill for workspace `i`, for tests and drag targets.
     func button(at i: Int) -> NSView? { buttons.indices.contains(i) ? buttons[i] : nil }
+    /// The pill for `ws` (a close confirmation hangs from it, ConfirmPopover.swift).
+    func button(for ws: Workspace) -> WorkspaceButton? { buttons.first { $0.workspace === ws } }
 
     /// The label pill of group `g` (#80), for tests.
     func label(for g: WorkspaceGroup) -> GroupHeaderView? { labels.first { $0.group === g } }

@@ -210,8 +210,10 @@ The GitHub repo is `jonsmithers/dealer`.
 - **The self-test never shows modals (#38).** Close and quit confirmations go through
   `Confirmation.skip` (one switch, on in self-test and demo mode), which accepts and logs
   `(auto-accepted confirmation: …)`. After every step the runner fails the step that left a sheet or
-  app-modal window open, naming it, then cancels it. New confirmations must use
+  app-modal window open (or a close popover), naming it, then cancels it. New confirmations must use
   `TerminalWindowController.confirm` or `Confirmation.skip`, never a bare `NSAlert`.
+  `SelfTestConfirmPopover.swift` (`close popover:`) shows the popover for real through
+  `Confirmation.asksForTest`.
 - **Display asleep:** with the screen locked *and* the display asleep (no active displays,
   `displaysleep` is 10 min here), click/drag/menu-key steps fail: sometimes only ⌘B (88), sometimes a
   block of ~21 (sidebar, switcher, titlebar tabs, edge split) followed by a crash. This explains
@@ -278,6 +280,13 @@ The GitHub repo is `jonsmithers/dealer`.
   A paste caught by `clipboard-paste-protection` (as libghostty applies it, with
   `clipboard-paste-bracketed-safe`) asks the same way, Paste / Cancel with a short preview, like
   Ghostty.app (#72). A question still waiting when its window closes is denied.
+- **Close questions hang from what they close** (ConfirmPopover.swift): closing a busy pane,
+  tab or workspace asks in an `NSPopover` pointing at its pane bar (at the × while hovered) or the
+  top edge of a barless pane, its tab button (at the ×), or its sidebar row, pill or titlebar
+  switcher, saying what still runs ("Claude Code is still working", "“vim” is still running").
+  Cancel / red "Close Tab" (return accepts, esc or a click outside cancels); the question cancels
+  itself when its anchor goes away or hides. With no visible anchor (a collapsed group's member)
+  and for the window close, `confirm` still uses a sheet; clipboard questions too.
 - Ghostty keybind actions (`new_split`, `goto_tab`, …) are mapped onto our own commands in
   `GhosttyRuntime.handle`, so user configs still work.
 - Keyboard/IME handling is a trimmed port of Ghostty's own

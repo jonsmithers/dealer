@@ -654,7 +654,7 @@ final class TabButton: FlippedView {
     var isRunning: Bool { spinner.isRunning }
     let spinner = RunningSpinnerState()
     private var hovering = false { didSet { needsDisplay = true } }
-    private var hoveringClose = false { didSet { if hoveringClose != oldValue { needsDisplay = true } } }
+    private(set) var hoveringClose = false { didSet { if hoveringClose != oldValue { needsDisplay = true } } }
     /// Self-test hook (#87): posted events can't hover (tracking areas follow the real pointer).
     func setHoveringForTest(_ on: Bool) { hovering = on }
     /// The × sits in the trailing slot (`Theme.Metrics.tabTrailingSlot`), 3pt from the edge.
