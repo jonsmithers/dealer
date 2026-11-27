@@ -410,6 +410,12 @@ The GitHub repo is `jonsmithers/dealer`.
 - Control-socket commands are synchronous: the reply is sent only after main has applied the
   change. New commands go in `ControlHandler`, call the same controller methods the menus use, get
   a step in `SelfTestCLI.swift`, and are documented in `docs/cli.md`.
+- `dealer events` (`ControlEvents.swift`) is the one streaming command: `ControlServer.serve` hands the
+  connection to `ControlEvents.serve`, which keeps its thread. Subscribe and snapshot happen in one
+  main-thread block (no race); main only enqueues lines, each subscriber's own thread writes, and an
+  overflowing one is cut off. A 0.1 s timer (only while subscribed) diffs the tree against what was last
+  sent. A new field in `describe` that can change is picked up through `describeModel`, or add it in
+  `ControlEvents.scan`. Tests: `SelfTestEvents.swift` (`DEALER_SELFTEST_ONLY=events:`).
 - `dealer run` (#21, `ControlJobs.swift`) types the command into a normal interactive shell with
   the tail `; "$DEALER_CLI" job-done $?`, and keeps the outcome policy in Dealer, not in user
   shell functions: on success mark the job pane done, retitle it `DONE`, linger `[jobs] linger`

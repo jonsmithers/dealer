@@ -82,6 +82,7 @@ final class ControlServer {
 
     func stop() {
         guard let path else { return }
+        ControlEvents.shared.shutdown()
         unlink(path)
         self.path = nil
     }
@@ -119,6 +120,11 @@ final class ControlServer {
                 let line = buffer[buffer.startIndex..<nl]
                 buffer.removeSubrange(buffer.startIndex...nl)
                 if line.isEmpty { continue }
+                // `events` turns the connection into a stream and keeps this thread until it ends.
+                if let req = (try? JSONSerialization.jsonObject(with: Data(line))) as? [String: Any], req["cmd"] as? String == "events" {
+                    ControlEvents.serve(fd: fd, args: req["args"] as? [String: Any] ?? [:])
+                    return
+                }
                 let response = respond(to: Data(line))
                 guard ControlClient.writeAll(fd, response + Data([0x0A])) else { return }
             }

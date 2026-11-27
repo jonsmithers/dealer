@@ -6,7 +6,7 @@ import Foundation
 enum CLI {
     static let commands: Set<String> = [
         "identify", "list", "ls", "find", "create", "new", "send-text", "send", "read", "focus", "resize",
-        "rename", "color", "notify", "status", "close", "run", "job-done", "agent-session", "diagnose", "help", "--help", "-h",
+        "rename", "color", "notify", "status", "close", "run", "job-done", "agent-session", "diagnose", "events", "help", "--help", "-h",
     ]
 
     /// True when this process should act as the CLI rather than launch the app.
@@ -61,6 +61,10 @@ enum CLI {
                                                  the coding-agent session a pane runs, resumed when
                                                  Dealer restores it (set by the Claude Code plugin);
                                                  no arguments prints it
+      events [--no-snapshot]                     stream changes as JSON lines until Dealer quits (exit 3):
+                                                 a snapshot (the list tree) first, then pane-created,
+                                                 pane-changed, pane-closed, pane-moved, workspace-*,
+                                                 focus-changed and attention events
       diagnose [--leaks]                         write a memory diagnostics report (safe to attach to
                                                  an issue) and print its path; --leaks also runs
                                                  `leaks` (slow, pauses Dealer)
@@ -87,6 +91,7 @@ enum CLI {
             let path = output.socket ?? env["DEALER_SOCKET"] ?? ControlServer.defaultPath
             var req: [String: Any] = ["cmd": cmd, "args": reqArgs]
             if let id = env["DEALER_PANE_ID"].flatMap(Int.init) { req["caller"] = id }
+            if cmd == "events" { return stream(req, to: path) }
             var resp: [String: Any]
             do {
                 resp = try ControlClient.send(req, to: path)
@@ -132,6 +137,43 @@ enum CLI {
         }
     }
 
+    /// `events`: prints each line the server sends until it closes the connection. Exits 3 then (or
+    /// when it can't connect), so a caller knows to reconnect and re-list; a client that goes away
+    /// first is just killed by SIGPIPE on its next write.
+    static func stream(_ req: [String: Any], to path: String) -> Int32 {
+        func fail(_ msg: String, _ code: Int32) -> Int32 {
+            FileHandle.standardError.write(Data("dealer: \(msg)\n".utf8))
+            return code
+        }
+        guard let fd = try? ControlClient.connect(path) else { return fail("cannot reach Dealer at \(path)", 3) }
+        defer { close(fd) }
+        guard let body = try? JSONSerialization.data(withJSONObject: req),
+              ControlClient.writeAll(fd, body + Data([0x0A])) else { return fail("write failed", 3) }
+        var buffer = Data()
+        var chunk = [UInt8](repeating: 0, count: 65536)
+        var first = true
+        while true {
+            let n = read(fd, &chunk, chunk.count)
+            if n < 0 && errno == EINTR { continue }
+            if n <= 0 { return fail("Dealer closed the event stream", 3) }
+            buffer.append(contentsOf: chunk[0..<n])
+            var out = Data()
+            while let nl = buffer.firstIndex(of: 0x0A) {
+                let line = Data(buffer[buffer.startIndex..<nl])
+                buffer.removeSubrange(buffer.startIndex...nl)
+                if first {  // the usual reply line: an error, or the stream's go-ahead
+                    first = false
+                    let obj = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any]
+                    if obj?["ok"] as? Bool != true { return fail(obj?["error"] as? String ?? "failed", 1) }
+                    continue
+                }
+                out.append(line)
+                out.append(0x0A)
+            }
+            if !out.isEmpty, !ControlClient.writeAll(1, out) { return 1 }
+        }
+    }
+
     /// The options each command takes, aliases included; anything else is a usage error rather
     /// than silently ignored. `--json`, `--socket` and `--` go with every command.
     static let options: [String: Set<String>] = {
@@ -157,6 +199,7 @@ enum CLI {
             "job-done": [],
             "agent-session": target.union(["--transcript", "--end"]),
             "diagnose": ["--leaks"],
+            "events": ["--no-snapshot"],
         ]
     }()
 
@@ -255,6 +298,7 @@ enum CLI {
             // calls in the notification log (#56). Not part of the CLI users should learn.
             case "--internal-log-source": a["source"] = try val()
             case "--leaks": a["leaks"] = true
+            case "--no-snapshot": a["snapshot"] = false
             case "--transcript": a["transcript"] = try val()
             case "--end": a["end"] = true
             case "--scrollback": a["scrollback"] = true
@@ -325,7 +369,7 @@ enum CLI {
         case "status":
             guard positional.count == 1 else { throw Usage(message: "status takes one state: idle, working, done, blocked, error or clear") }
             a["state"] = positional[0]
-        case "identify", "list", "find", "resize", "diagnose":
+        case "identify", "list", "find", "resize", "diagnose", "events":
             if !positional.isEmpty { throw Usage(message: "unexpected argument '\(positional[0])'") }
         default:
             throw Usage(message: "unknown command '\(cmd)' (see dealer help)")

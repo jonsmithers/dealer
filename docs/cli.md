@@ -56,6 +56,7 @@ workspaces, type into them, focus, resize, rename, color, list, and notify.
 | `status STATE [--id ID] [--kind permission\|question\|auth] [--progress N] [--app NAME] [--title T] [--msg M]` | Sets a program status record on the pane, exactly as a program's `OSC 7501` report would (#89; [the spec](https://www.superlogical.com/rex/docs/build/program-status)). STATE is `idle`, `working`, `done`, `blocked`, `error` or `clear` (removes the record `--id` and its children, or every record). Each call replaces its record whole. `--id` is a slash path (`build/test` is a child of `build`; none means the pane's root record), `--kind` is read for `blocked`, `--progress` (0–100) for `working` and `blocked`. `--title`/`--msg` are plain text. `working` spins the pane's tab, `blocked` marks it *waiting*, `done` and `error` mark it *done* and *failed*; `idle` and `clear` lower what records set. `working`/`blocked` records go at the next prompt or when the reporting process exits. A report the spec would discard (too long, bad id) is an error. |
 | `close` | Closes a pane or tab without asking. |
 | `run [--here] [--split \| --tab] [--size 12\|30%] [--keep] [--quiet] [--focus] [--title T] [--cwd DIR] [--] CMD...` | Runs CMD as a background job next to the caller (see below) and prints the job's pane ID. Routes to the workspace that best fits `$PWD`. One argument is a shell string; several are an argv, each word shell-quoted. |
+| `events [--no-snapshot]` | Streams changes as one JSON object per line until Dealer quits or you disconnect (see [Events](#events)). Exits 3 when Dealer ends the stream, so a client knows to reconnect. |
 | `diagnose [--leaks]` | Writes a memory diagnostics report to `~/Library/Logs/Dealer/` and prints its path (Help › Capture Memory Diagnostics… does the same). It holds counts and sizes only, no titles, cwds or terminal contents. `--leaks` also runs `leaks`, which is slow, pauses Dealer, and can quote leaked memory. It also says on stderr whether the notification log is on, where it is and how big. See [diagnostics.md](diagnostics.md). |
 | `job-done STATUS` | Internal: the tail `run` types into the job's shell. Reports STATUS and exits with it. |
 | `agent-session [AGENT ID [--transcript PATH] \| --end AGENT ID]` | The coding-agent session a pane is running, which Dealer resumes when it restores the session at launch (#93, `[agent] restore_sessions`). The bundled Claude Code plugin calls it: `SessionStart` records `claude ID` with its transcript (replacing any earlier one: startup, `/resume`, `/clear` and compaction all report), `SessionEnd` calls `--end claude ID`, which forgets it only while it is still that ID. AGENT is `claude`; ID is the session's id (letters, digits, `-`, `_`, `.`). With no arguments it prints the pane's session (`claude ID`), or nothing. `list --json` shows it as each pane's `agent_session` (`{agent, id, transcript}` or `null`). |
@@ -147,6 +148,53 @@ workspace and tab and raises the window in the same call.
 `dealer run` routes by cwd on its own (see Background jobs above). To place something other than
 a job the same way, use `dealer list --json`: every pane has a `cwd`.
 
+## Events
+
+`dealer events` follows Dealer instead of polling `list --json`. It prints newline-delimited JSON on
+stdout until you disconnect, or until Dealer quits or restarts: then it exits 3 (as for an
+unreachable socket), the signal to reconnect and start from a new snapshot. Every line has an
+`event` and a `seq` that counts up by one per event for the life of Dealer.
+
+By default the first line is a `snapshot`: exactly `list --json`'s result plus `event` and `seq`.
+Events with a higher `seq` come after it and nothing happened in between, because Dealer registers
+the subscriber and takes the snapshot in one step on its main thread. `--no-snapshot` skips it.
+Over the raw socket, send `{"cmd":"events","args":{"snapshot":false}}`; the reply
+`{"ok":true,"result":{"stream":"events"}}` is followed by the stream (`dealer events` consumes it).
+
+| event | fields |
+| --- | --- |
+| `snapshot` | `windows`, `focused`: as `list --json` |
+| `pane-created` | `pane`, `location`, `describe` |
+| `pane-changed` | `pane`, `location`, `changed` (field names), `describe` |
+| `pane-moved` | `pane`, `from`, `to`: `location` objects, when its tab, deck, workspace or window changed |
+| `pane-closed` | `pane`, `location` (where it was) |
+| `workspace-created`, `workspace-renamed` | `workspace`, `window`, `name`, `custom_name` |
+| `workspace-closed` | `workspace`, `window` |
+| `workspace-activated` | `window`, `workspace` |
+| `focus-changed` | `pane` (or `null`), `previous` |
+| `attention` | `pane`, `state` (unread, done, waiting, failed), `source` (`bell`, `notify`, `claude:stop`, ...), `title`, `body` |
+
+`location` is `{pane, tab, deck, workspace, window}`. `describe` is the pane's object from
+`list --json`, in full, taken when the event is sent, so there is no need to list again.
+`pane-changed` fires when any of these change: `title`, `custom_title`, `focused`,
+`workspace_focus`, `visible`, `agent_state`, `agent_session`, `progress`, `program_status` (sub-agent
+records with an `id` included), `foreground` and `processes`, `cwd`, `columns`, `rows`.
+
+Dealer compares its state every 0.1 s while anyone is subscribed (the process table every
+second), so a burst of changes inside one interval, such as spinner title frames, is one event
+carrying the last state, and never loses the final one. A pane that appears and changes within an
+interval is just `pane-created`. `attention` events are sent when the mark is raised (not when
+skipped because you're looking at the pane), and don't wait for a scan. Dealer never blocks on a
+slow reader: it buffers up to 8 MB per subscriber, then closes that connection (reconnect and
+re-list). A subscriber that disconnects is dropped at the next scan.
+
+```
+{"event":"snapshot","seq":0,"focused":3,"windows":[...]}
+{"event":"pane-created","seq":1,"pane":7,"location":{"pane":7,"tab":5,"deck":4,"workspace":2,"window":1},"describe":{...}}
+{"event":"pane-changed","seq":2,"pane":7,"changed":["title"],"location":{...},"describe":{...}}
+{"event":"attention","seq":3,"pane":7,"state":"done","source":"notify","title":"Finished","body":"ok"}
+```
+
 ## Protocol
 
 The socket is `~/Library/Application Support/Dealer/dealer.sock`, mode 0600, and only
@@ -169,5 +217,6 @@ for send-text, `to`/`by`/`axis` for resize, and so on). See `Sources/Dealer/Cont
 - `cwd` is the shell-reported directory (OSC 7, which needs shell integration). Without it,
   `cwd` falls back to the foreground process's cwd.
 - There is no `create window` yet.
+- `events` finds changes by scanning, not by hooks: a change shorter than 0.1 s that reverts is not reported, and `pane-moved` needs a scan between the old and new place (a pane closed and a new one opened in the same interval is a close and a create).
 - `status` records set from the CLI are tied to the process that's in the pane's foreground at the
   time, like a program's own: if that's the shell, `working`/`blocked` last until the next prompt.

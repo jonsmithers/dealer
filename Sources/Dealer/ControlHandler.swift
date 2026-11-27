@@ -234,8 +234,10 @@ enum ControlHandler {
         return ["windows": windows, "focused": focused?.id ?? NSNull()]
     }
 
-    static func describe(_ p: Pane, ws: Workspace, byTTY: [dev_t: [ProcessTree.Proc]], focused: Pane?) -> [String: Any] {
-        var d: [String: Any] = [
+    /// The part of `describe` that comes from Dealer's model rather than the terminal surface and
+    /// the process table: cheap, so the event stream (ControlEvents.swift) can watch it every tick.
+    static func describeModel(_ p: Pane, ws: Workspace, focused: Pane?) -> [String: Any] {
+        let d: [String: Any] = [
             "id": p.id,
             "title": p.title,
             "custom_title": p.customTitle ?? NSNull(),
@@ -263,6 +265,11 @@ enum ControlHandler {
                 ]
             },
         ]
+        return d
+    }
+
+    static func describe(_ p: Pane, ws: Workspace, byTTY: [dev_t: [ProcessTree.Proc]], focused: Pane?) -> [String: Any] {
+        var d = describeModel(p, ws: ws, focused: focused)
         guard let s = p.surface.surface else { return d }
         let size = ghostty_surface_size(s)
         d["columns"] = Int(size.columns)

@@ -357,6 +357,7 @@ extension TerminalWindowController {
         clipboardSelfTestSteps(kit)
         searchSelfTestSteps(kit)
         cliSelfTestSteps(kit)
+        eventsSelfTestSteps(kit)
         jobsSelfTestSteps(kit)
         cwdSelfTestSteps(kit)
         claudeHooksSelfTestSteps(kit)

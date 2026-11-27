@@ -118,6 +118,7 @@ extension TerminalWindowController {
                                  reason: "\(old.name) → \(new.name)", title: title, body: body)
         refreshChrome()
         if new > .none {
+            ControlEvents.attention(pane, state: new, source: event, title: title, body: body)
             AttentionNotifier.shared.post(for: pane, in: self, state: new, title: title, subtitle: subtitle, body: body, event: event)
         }
     }
