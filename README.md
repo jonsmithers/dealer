@@ -72,6 +72,10 @@ The bundled plugin records each pane's Claude Code session, and session restore 
 
 Demo videos (the tour and the layout demo) are recorded with `scripts/record-demo.sh`.
 
+> [!CAUTION]
+> **Abandoned.** The author has abandoned Dealer for the [Rex](https://www.superlogical.com/)
+> terminal. Expect no further updates.
+
 > [!WARNING]
 > **Unstable.** Updates may change any aspect of dealer without notice or migration.
 
