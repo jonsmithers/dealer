@@ -143,16 +143,15 @@ The GitHub repo is `jonsmithers/dealer`.
   screen access needed). No GIF (nobody used it), and no WebM: VP9 at the MP4's quality was only
   ~10% smaller and ~20x slower to encode (measured on the #104 take). **Read every sheet before
   publishing** (privacy: only `/tmp/demo` paths, an `api $`/`web $`/`docs $` prompt, nothing but
-  the Dealer window). Then publish explicitly with `scripts/record-demo.sh <out-dir> --publish
-  <worktree of the media branch>`, which copies the MP4s, removes anything else in `demos/` (old
-  GIFs included), commits there and prints the `git push origin media` to run. Nothing is pushed
-  implicitly. MP4s live only on the orphan `media` branch, never on master. The README embeds the MP4s as videos (#79), which
-  GitHub only plays from `github.com/user-attachments/assets/<id>` URLs on a line of their own
-  (a `<video>` tag or a link to the media branch is stripped or shown as a link). So after
-  publishing, the user uploads each `<demo>.mp4` to a comment on **issue #79, always** (closed;
-  every demo upload goes there, the user's call), with `gh issue comment 79 -R jonsmithers/dealer
-  --body "Demo videos" --attach <demo>.mp4 …` (`--publish` prints it; gh ≥ 2.103 attaches, so an
-  agent can run it once the user OKs posting), and the README's URL for that demo is replaced. Never upload to the feature's own issue.
+  the Dealer window). The repo keeps no copy of the videos (the user's call: the orphan `media`
+  branch that held them was deleted; don't bring one back). The README embeds the MP4s as videos
+  (#79), which GitHub only plays from `github.com/user-attachments/assets/<id>` URLs on a line of
+  their own (a `<video>` tag or a link to a file in the repo is stripped or shown as a link). So
+  after review, each `<demo>.mp4` is uploaded to a comment on **issue #79, always** (closed; every
+  demo upload goes there, the user's call), with `gh issue comment 79 -R jonsmithers/dealer --body
+  "Demo videos" --attach <demo>.mp4 …` (the script prints it after recording or encoding; gh ≥
+  2.103 attaches, so an agent can run it once the user OKs posting), and the README's URL for that
+  demo is replaced. Upload only the demos that changed. Never upload to the feature's own issue.
   - How it works: `DEALER_SELFTEST=1 DEALER_DEMO=<name>` runs a script in `Demo.swift`.
     `DemoMouse` posts real mouse events (`window.postEvent`) along eased paths at 60 Hz, so
     DragController's tracking loop, buttons and rows handle them as they would a person's, and

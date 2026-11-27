@@ -7,7 +7,6 @@
 #   scripts/record-demo.sh                                         # list the demos, show an example
 #   scripts/record-demo.sh <out-dir> [demo…]                       # record (default: all demos)
 #   scripts/record-demo.sh <out-dir> --encode-only [demo…]         # re-encode <demo>-raw.mp4 takes
-#   scripts/record-demo.sh <out-dir> --publish <media-worktree>    # copy reviewed files to `media`
 #
 # Recording needs an unlocked screen and Screen Recording permission for the app running this
 # script (Terminal, Ghostty, …). It builds and runs `.build/debug/Dealer`. The demo
@@ -16,10 +15,9 @@
 # --encode-only redoes the MP4s and contact sheets from the raw captures already in <out-dir>
 # (default: every demo that has one), without recording; it needs no screen access.
 #
-# Publishing is never implicit: --publish only copies the MP4s from <out-dir> into
-# <media-worktree>/demos (a worktree of the orphan `media` branch), removes everything else there
-# (old GIFs, demos that are no longer produced), commits there, and prints the push command.
-# Review <out-dir>/review/*.png first.
+# Publishing is never implicit: the MP4s stay in <out-dir>, and both modes end by printing the
+# command that uploads them to issue #79, where the README's user-attachments URLs come from.
+# Review <out-dir>/review/*.png first. The repo keeps no copy of the videos.
 set -e; setopt pipefail
 ROOT=${0:A:h:h}
 # The demos are the cases of Demo.swift's script switch, so a new one needs no edit here.
@@ -28,7 +26,7 @@ ALL=(${(f)"$(sed -n 's/^        case "\([A-Za-z0-9_-]*\)":.*/\1/p' $ROOT/Sources
 # No arguments: the usage, the demos, and a command that records them all. The example's out-dir
 # isn't /tmp/demo, which the script wipes for the demo shells.
 if (( ! $# )); then
-  print "usage: $0 <out-dir> [demo…] | <out-dir> --encode-only [demo…] | <out-dir> --publish <media-worktree>"
+  print "usage: $0 <out-dir> [demo…] | <out-dir> --encode-only [demo…]"
   print "demos: $ALL"
   print "record all of them (hands off the machine while it runs):"
   print "  $0 /tmp/dealer-demos"
@@ -53,28 +51,12 @@ VIDEO_BUDGET=$((5 * 1024 * 1024))  # per README video
 mkdir -p $OUT
 OUT=${OUT:A}
 
-if [[ $1 == --publish ]]; then
-  WT=${2:?--publish needs the media worktree path}
-  [[ $(git -C $WT rev-parse --abbrev-ref HEAD) == media ]] || { print "$WT is not on the media branch"; exit 1; }
-  mkdir -p $WT/demos
-  for d in $ALL; do
-    [[ -f $OUT/$d.mp4 ]] || { print "missing $OUT/$d.mp4; record (or --encode-only) all demos first"; exit 1; }
-  done
-  # Only the current demos' MP4s stay: old GIFs and dropped demos go.
-  for f in $WT/demos/*(N); do
-    name=${f:t}; [[ $name == *.mp4 && ${ALL[(Ie)${name:r}]} -gt 0 ]] || { git -C $WT rm -rqf --ignore-unmatch "demos/$name"; rm -rf $f; }
-  done
-  for d in $ALL; do cp $OUT/$d.mp4 $WT/demos/; done
-  git -C $WT add -A demos
-  git -C $WT commit -qm "Regenerate demo recordings (scripts/record-demo.sh)" || { print "nothing changed"; exit 0; }
-  program_status done "Demos committed on media" "push with: git -C $WT push origin media"
-  git --no-pager -C $WT log --oneline -1
-  print "Committed on media. After reviewing $OUT/review, publish with:\n  git -C $WT push origin media"
-  # README videos: always uploaded to issue #79 (CLAUDE.md, "README demo recordings").
-  print "Then upload the MP4s (always to issue #79) and put each user-attachments URL in README.md:"
-  print "  gh issue comment 79 -R jonsmithers/dealer --body 'Demo videos'${(j::)${(@f)$(for d in $ALL; do print -r -- " --attach ${(q)OUT}/$d.mp4"; done)}}"
-  exit 0
-fi
+# upload_hint DEMO…: the README embeds videos only from github.com/user-attachments URLs, so the
+# MP4s go to a comment on issue #79 (always that issue; CLAUDE.md, "README demo recordings").
+upload_hint() {
+  print "After reviewing $OUT/review, upload (posts a public comment) and put each URL in README.md:"
+  print "  gh issue comment 79 -R jonsmithers/dealer --body 'Demo videos'${(j::)${(@f)$(for d in $@; do print -r -- " --attach ${(q)OUT}/$d.mp4"; done)}}"
+}
 
 # encode DEMO: <out-dir>/DEMO-raw.mp4 → DEMO.mp4 (budget-checked) and review/DEMO-NN.png.
 encode() {
@@ -105,6 +87,7 @@ if [[ $1 == --encode-only ]]; then
     encode $demo
   done
   program_status done "Demos encoded" "Review the contact sheets in $OUT/review before publishing"
+  upload_hint $DEMOS
   exit 0
 fi
 
@@ -254,3 +237,4 @@ for demo in $DEMOS; do
   encode $demo
 done
 program_status done "Demos recorded" "Review the contact sheets in $OUT/review before publishing"
+upload_hint $DEMOS

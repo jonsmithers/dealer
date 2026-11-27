@@ -4,24 +4,15 @@
 
 <h1 align="center">Dealer</h1>
 
-A small macOS terminal built on **libghostty** and Swift/AppKit, implementing the *Panes and Decks*
-layout model:
+A macOS terminal built on **libghostty** and Swift/AppKit, made for keeping an eye on agents and
+long-running jobs.
 
-```
-Window
-└─ Workspaces  switched in sidebar or ⌃1–9
-   └─ Decks      split horizontal or vertical, each with its own tab strip
-      └─ Tabs      one active per deck, switched with ⌘1–9
-         └─ Panes   split horizontal or vertical inside a single tab
-```
-
-A **workspace** owns a set of decks. A **deck** owns tabs. A tab owns **panes**. **Split** creates a
-new pane in the current tab. **Promote** turns a pane into a deck. **Fold** turns it back. Closing
-the last tab closes its deck, the last deck its workspace, and the last workspace the window.
-
-Dealer supports the **[Program Status Protocol](https://www.superlogical.com/rex/docs/build/program-status)
-(OSC 7501)**: any program or agent that reports `working`, `blocked`, `done` or `error` gets the
-same tab spinner and attention marks as Claude Code. See [Program status](#program-status-osc-7501).
+- **[Program Status Protocol](https://www.superlogical.com/rex/docs/build/program-status)
+  (OSC 7501)**: see status reporting at a glance (progress, success, failed). More at
+  [Program status](#program-status-osc-7501).
+- **Fancy layout** capabilities by way of the **Panes and Decks** layout model.
+- **Attention**: see each agent's state live (working, waiting, done) and jump to the pane
+  that needs you.
 
 https://github.com/user-attachments/assets/f7a6922c-6270-473a-9666-41fdd1dc62a3
 
@@ -31,6 +22,20 @@ https://github.com/user-attachments/assets/f7a6922c-6270-473a-9666-41fdd1dc62a3
 <summary><b>1. Panes and Decks layout</b>: drop tabs into side-by-side and stacked splits, drag a pane to the window edge for a new deck (it keeps its content while you switch tabs next to it), pull a pane out as a tab in another deck, drop a tab between two tabs of another deck</summary>
 
 https://github.com/user-attachments/assets/2a281f66-600c-4014-bc36-2ce7bf4e4d3c
+
+Dealer arranges terminals in the *Panes and Decks* layout model. A **workspace** owns a set of
+decks. A **deck** owns tabs. A tab owns **panes**. **Split** creates a new pane in the current tab.
+**Promote** turns a pane into a deck. **Fold** turns it back. Closing the last tab closes its deck,
+the last deck its workspace, and the last workspace the window.
+
+```
+Window
+└─ Workspaces  switched in sidebar or ⌃1–9
+   └─ Decks      split horizontal or vertical, each with its own tab strip
+      └─ Tabs      one active per deck, switched with ⌘1–9
+         └─ Panes   split horizontal or vertical inside a single tab
+```
+
 </details>
 
 <details>

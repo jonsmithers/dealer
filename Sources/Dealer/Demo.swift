@@ -787,12 +787,19 @@ extension TerminalWindowController {
             say("Close the release shell")
             closeByBar("shell")
             settle()
-            // Off the bar the pointer now rests on (its × and hand would linger): into the agent's
-            // terminal, which the hover driver leaves with mouseExited.
-            mouse.move(to: at(paneView("login"), 0.6, 0.62))
-            mouse.wait(1.0)
+            mouse.wait(0.6)
+            // The payoff (#34): clicking into the failed agent clears it, and its red ring, its
+            // tab's outline and the sidebar row's dot fade out together. The click also takes the
+            // pointer off the bar it rests on (its × and hand would linger).
+            say("Look at the one that failed")
+            mouse.click(at(paneView("pagination"), 0.6, 0.62))
+            mouse.until(timeout: 3) { pane("pagination")()?.attention == Attention.none }
+            mouse.wait(0.1)
+            mouse.until(timeout: 3) { !(pane("pagination")()?.view.attentionFade.isFading ?? false) }
+            // Hold on the calm window: nothing left asking for you.
+            mouse.wait(1.6)
             say("")
-            mouse.wait(0.8)
+            mouse.wait(1.0)
         case "drag":
             // "Panes and Decks layout" (#79, the user's order): the README's first demo, so the core
             // ideas come first. Start: one deck, four tabs.
