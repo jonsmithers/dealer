@@ -37,6 +37,7 @@ final class ConfirmPopover: NSObject, NSPopoverDelegate {
     private var onClose: ((ConfirmPopover) -> Void)?
     private(set) weak var anchorView: NSView?
     private var anchorShows: () -> Bool = { true }
+    private var keyMonitor: Any?
 
     init(message: String, info: String, accept: String, cancel: String,
          action: @escaping () -> Void, otherwise: (() -> Void)?) {
@@ -56,11 +57,10 @@ final class ConfirmPopover: NSObject, NSPopoverDelegate {
 
         acceptButton.target = self
         acceptButton.action = #selector(accepted)
-        // Red text, not a default button's fill; return reaches it through `ConfirmPopoverView`.
+        // Red text, not a default button's fill; return reaches it through `answer(_:)`.
         acceptButton.hasDestructiveAction = true
         cancelButton.target = self
         cancelButton.action = #selector(cancelled)
-        cancelButton.keyEquivalent = "\u{1b}"
         for b in [cancelButton, acceptButton] { b.controlSize = .large }
         let centered = NSMutableParagraphStyle()
         centered.alignment = .center
@@ -72,8 +72,7 @@ final class ConfirmPopover: NSObject, NSPopoverDelegate {
         buttons.distribution = .fillEqually
         buttons.spacing = 8
 
-        let stack = ConfirmPopoverView(views: [title, detail, buttons])
-        stack.onReturn = { [weak self] in self?.accepted() }
+        let stack = NSStackView(views: [title, detail, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 6
@@ -97,8 +96,28 @@ final class ConfirmPopover: NSObject, NSPopoverDelegate {
         anchorView = anchor.view
         anchorShows = anchor.shows
         popover.show(relativeTo: anchor.rect, of: anchor.view, preferredEdge: anchor.edge)
-        // Take the keys from the terminal, so return and esc answer the question.
         popover.contentViewController?.view.window?.makeKey()
+        // The popover doesn't always become key (the terminal kept the keys and return went to
+        // the shell), so return and esc are caught for its window and the one it hangs from.
+        let parent = anchor.view.window
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak parent] e in
+            guard let self, self.popover.isShown,
+                  e.window != nil && (e.window === parent || e.window === self.popover.contentViewController?.view.window)
+            else { return e }
+            return self.answer(e) ? nil : e
+        }
+    }
+
+    /// Return or enter accepts, esc or ⌃[ cancels, like the alert's buttons did.
+    func answer(_ event: NSEvent) -> Bool {
+        let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.numericPad, .function, .capsLock])
+        if mods.isEmpty, event.keyCode == 36 || event.keyCode == 76 { accepted(); return true }
+        if mods.isEmpty && event.keyCode == 53 || event.isControlBracketEscape { cancelled(); return true }
+        return false
+    }
+
+    deinit {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
     }
 
     @objc private func accepted() { finish(accepted: true) }
@@ -128,25 +147,14 @@ final class ConfirmPopover: NSObject, NSPopoverDelegate {
 
     /// A click outside or a lost anchor: Cancel.
     func popoverDidClose(_ notification: Notification) {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        keyMonitor = nil
         let run = otherwise
         action = nil
         otherwise = nil
         onClose?(self)
         onClose = nil
         run?()
-    }
-}
-
-/// The popover's content: return (or enter) accepts, like the alert's default button did.
-final class ConfirmPopoverView: NSStackView {
-    var onReturn: (() -> Void)?
-
-    override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.numericPad, .function])
-        guard event.type == .keyDown, mods.isEmpty, event.charactersIgnoringModifiers == "\r" || event.keyCode == 76,
-              let onReturn else { return super.performKeyEquivalent(with: event) }
-        onReturn()
-        return true
     }
 }
 

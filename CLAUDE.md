@@ -284,7 +284,9 @@ The GitHub repo is `jonsmithers/dealer`.
   tab or workspace asks in an `NSPopover` pointing at its pane bar (at the × while hovered) or the
   top edge of a barless pane, its tab button (at the ×), or its sidebar row, pill or titlebar
   switcher, saying what still runs ("Claude Code is still working", "“vim” is still running").
-  Cancel / red "Close Tab" (return accepts, esc or a click outside cancels); the question cancels
+  Cancel / red "Close Tab" (return accepts, esc, ⌃[ or a click outside cancels; the keys come
+  through a local key monitor for the popover and its window, since the popover doesn't always
+  become key and return reached the shell); the question cancels
   itself when its anchor goes away or hides. With no visible anchor (a collapsed group's member)
   and for the window close, `confirm` still uses a sheet; clipboard questions too.
 - Ghostty keybind actions (`new_split`, `goto_tab`, …) are mapped onto our own commands in

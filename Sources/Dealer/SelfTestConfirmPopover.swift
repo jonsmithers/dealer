@@ -66,17 +66,42 @@ extension TerminalWindowController {
             ask(tab.flatMap { self.confirmAnchor(tab: $0) })
         }
 
+        /// A key press as AppKit delivers it, addressed to the terminal's window: the popover
+        /// doesn't always take the keys, and return still has to answer it.
+        func press(_ chars: String, keyCode: UInt16, _ mods: NSEvent.ModifierFlags = []) -> Bool {
+            guard let w = self.window,
+                  let key = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: mods, timestamp: 0,
+                                             windowNumber: w.windowNumber, context: nil, characters: chars,
+                                             charactersIgnoringModifiers: chars, isARepeat: false, keyCode: keyCode) else { return false }
+            NSApp.sendEvent(key)
+            return true
+        }
+
         t.step("close popover: return accepts, running the close", nil, {
             if let p = shownProblem(from: nil) { return p }
-            guard let w = self.confirmPopover?.popover.contentViewController?.view.window,
-                  let key = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
-                                             windowNumber: w.windowNumber, context: nil, characters: "\r",
-                                             charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36) else { return "no popover window" }
-            if !w.performKeyEquivalent(with: key) { return "return should be taken by the popover" }
+            if !press("\r", keyCode: 36) { return "no window" }
             let gone = SelfTest.waitUntil(timeout: 2) { self.confirmPopover == nil }
-            return ran && !cancelled && gone ? nil : "accept should run the action and close (ran \(ran), closed \(gone))"
+            return ran && !cancelled && gone ? nil : "return should run the action and close (ran \(ran), closed \(gone))"
         }) {
             ask(tab.flatMap { self.confirmAnchor(tab: $0) })
+        }
+
+        t.step("close popover: esc and ⌃[ cancel", nil, {
+            var problems: [String] = []
+            for (name, chars, code, mods) in [("esc", "\u{1b}", UInt16(53), NSEvent.ModifierFlags()),
+                                              ("⌃[", "\u{1b}", UInt16(33), NSEvent.ModifierFlags.control)] {
+                ask(tab.flatMap { self.confirmAnchor(tab: $0) })
+                if let p = shownProblem(from: nil) { problems.append("\(name): \(p)"); continue }
+                _ = press(chars, keyCode: code, mods)
+                let gone = SelfTest.waitUntil(timeout: 2) { self.confirmPopover == nil }
+                if !(cancelled && !ran && gone) { problems.append("\(name) should cancel (ran \(ran), cancelled \(cancelled), closed \(gone))") }
+            }
+            return problems.isEmpty ? nil : problems.joined(separator: "; ")
+        }) {
+            guard let deck = self.focusedDeck else { return }
+            self.newTab(in: deck)
+            tab = deck.activeTab
+            self.layoutNow()
         }
 
         t.step("close popover: it cancels itself when what it asks about goes away", nil, {
